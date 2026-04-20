@@ -65,3 +65,6 @@ poetry.lock
 
 # Wagtail
 *.wagtail.log
+
+# MkDocs
+site/
