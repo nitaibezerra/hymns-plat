@@ -246,7 +246,7 @@ ModuleNotFoundError: No module named 'apps'
 **Solução:**
 ```bash
 # Certificar que está no diretório correto
-cd hyms-plat
+cd hymns-plat
 
 # Reinstalar dependências
 poetry install
@@ -286,7 +286,7 @@ DATABASE_URL="postgres://..."
 
 ## Ainda com problemas?
 
-1. Verifique os [Issues no GitHub](https://github.com/nitai-bezerra/hyms-plat/issues)
+1. Verifique os [Issues no GitHub](https://github.com/nitai-bezerra/hymns-plat/issues)
 2. Abra um novo issue com:
    - Descrição do problema
    - Mensagem de erro completa

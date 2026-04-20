@@ -1,4 +1,6 @@
-version: '3.8'
+# Fixed project name (was derived from directory) so volumes survive
+# future directory renames. Matches the containers' hymnplat-* names.
+name: hyms-plat
 
 services:
   postgres:

@@ -49,8 +49,8 @@ Este projeto é código aberto e aceita contribuições da comunidade. Veja noss
 
 ## Contato
 
-- **GitHub:** [hyms-plat](https://github.com/nitai-bezerra/hyms-plat)
-- **Issues:** [Reportar problema](https://github.com/nitai-bezerra/hyms-plat/issues)
+- **GitHub:** [hymns-plat](https://github.com/nitai-bezerra/hymns-plat)
+- **Issues:** [Reportar problema](https://github.com/nitai-bezerra/hymns-plat/issues)
 
 ## Licença
 

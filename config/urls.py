@@ -1,5 +1,5 @@
 """
-URL configuration for hyms-plat project.
+URL configuration for hymns-plat project.
 """
 
 from django.conf import settings

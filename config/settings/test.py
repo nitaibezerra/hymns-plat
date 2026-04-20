@@ -40,7 +40,7 @@ CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 
 # Media files in temp directory
-MEDIA_ROOT = "/tmp/hyms-plat-test-media"
+MEDIA_ROOT = "/tmp/hymns-plat-test-media"
 
 # TypeSense settings for tests (use mock or skip)
 TYPESENSE_ENABLED = False

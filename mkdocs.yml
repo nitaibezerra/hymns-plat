@@ -1,8 +1,8 @@
 site_name: Portal de Hinários - Documentação
 site_description: Documentação completa do Portal de Hinários do Santo Daime
 site_url: https://portal-hinarios.com.br/docs/
-repo_url: https://github.com/nitai-bezerra/hyms-plat
-repo_name: hyms-plat
+repo_url: https://github.com/nitai-bezerra/hymns-plat
+repo_name: hymns-plat
 
 theme:
   name: material
@@ -128,4 +128,4 @@ markdown_extensions:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/nitai-bezerra/hyms-plat
+      link: https://github.com/nitai-bezerra/hymns-plat

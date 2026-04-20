@@ -89,4 +89,4 @@ Este guia vai ajudar você a navegar pelo portal, buscar hinos, visualizar letra
 
 Precisa de ajuda adicional?
 
-- :material-github: [Reportar problema](https://github.com/nitai-bezerra/hyms-plat/issues)
+- :material-github: [Reportar problema](https://github.com/nitai-bezerra/hymns-plat/issues)

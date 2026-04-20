@@ -60,7 +60,7 @@ DATE=$(date +%Y%m%d_%H%M%S)
 pg_dump -Fc -U hymsplat hymsplat > $BACKUP_DIR/db_$DATE.dump
 
 # Media
-tar -czf $BACKUP_DIR/media_$DATE.tar.gz /home/hymsplat/hyms-plat/media/
+tar -czf $BACKUP_DIR/media_$DATE.tar.gz /home/hymsplat/hymns-plat/media/
 
 # Limpar backups antigos (manter últimos 7 dias)
 find $BACKUP_DIR -type f -mtime +7 -delete
@@ -76,20 +76,20 @@ aws s3 cp $BACKUP_DIR/media_$DATE.tar.gz s3://hymsplat-backups/
 
 ```bash
 # Tar completo
-tar -czf media_backup.tar.gz /home/hymsplat/hyms-plat/media/
+tar -czf media_backup.tar.gz /home/hymsplat/hymns-plat/media/
 
 # Rsync para outro servidor
-rsync -avz /home/hymsplat/hyms-plat/media/ backup-server:/backups/media/
+rsync -avz /home/hymsplat/hymns-plat/media/ backup-server:/backups/media/
 ```
 
 ### Restore
 
 ```bash
 # Extrair
-tar -xzf media_backup.tar.gz -C /home/hymsplat/hyms-plat/
+tar -xzf media_backup.tar.gz -C /home/hymsplat/hymns-plat/
 
 # Permissões
-chown -R hymsplat:hymsplat /home/hymsplat/hyms-plat/media/
+chown -R hymsplat:hymsplat /home/hymsplat/hymns-plat/media/
 ```
 
 ## TypeSense
@@ -134,8 +134,8 @@ cp .env .env.backup_$(date +%Y%m%d)
 2. **Restaurar configurações**
    ```bash
    # Clone do repo
-   git clone https://github.com/nitai-bezerra/hyms-plat.git
-   cd hyms-plat
+   git clone https://github.com/nitai-bezerra/hymns-plat.git
+   cd hymns-plat
 
    # Restaurar .env
    cp /backup/.env.backup .env
@@ -152,7 +152,7 @@ cp .env .env.backup_$(date +%Y%m%d)
 
 4. **Restaurar media**
    ```bash
-   tar -xzf /backup/media_latest.tar.gz -C /home/hymsplat/hyms-plat/
+   tar -xzf /backup/media_latest.tar.gz -C /home/hymsplat/hymns-plat/
    ```
 
 5. **Setup aplicação**

@@ -1,5 +1,5 @@
 """
-WSGI config for hyms-plat project.
+WSGI config for hymns-plat project.
 
 It exposes the WSGI callable as a module-level variable named ``application``.
 
