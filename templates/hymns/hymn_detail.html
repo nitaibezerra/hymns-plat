@@ -3,10 +3,16 @@
 {% block title %}{{ hymn.number }}. {{ hymn.title }} - {{ hymn.hymn_book.name }}{% endblock %}
 
 {% block content %}
-<nav style="margin-bottom: 1.5rem;">
+<nav style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
     <a href="{% url 'hymns:hymnbook_detail' hymn.hymn_book.slug %}" class="btn btn-secondary">
         &larr; Voltar para {{ hymn.hymn_book.name }}
     </a>
+    {% if can_edit %}
+    <div style="display: flex; gap: 10px;">
+        <a href="{% url 'hymns:hymn_edit' hymn.pk %}" class="btn">Editar</a>
+        <a href="{% url 'hymns:hymn_delete' hymn.pk %}" class="btn btn-secondary" style="background: #c33; color: white;">Deletar</a>
+    </div>
+    {% endif %}
 </nav>
 
 <article class="card">

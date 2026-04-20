@@ -3,8 +3,15 @@
 {% block title %}{{ hymnbook.name }} - Portal de Hinários do Santo Daime{% endblock %}
 
 {% block content %}
-<nav style="margin-bottom: 1.5rem;">
+<nav style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
     <a href="{% url 'hymns:hymnbook_list' %}" class="btn btn-secondary">&larr; Voltar para Hinários</a>
+    {% if can_edit %}
+    <div style="display: flex; gap: 10px;">
+        <a href="{% url 'hymns:hymn_create' hymnbook.slug %}" class="btn">+ Adicionar Hino</a>
+        <a href="{% url 'hymns:hymnbook_edit' hymnbook.slug %}" class="btn btn-secondary">Editar</a>
+        <a href="{% url 'hymns:hymnbook_delete' hymnbook.slug %}" class="btn btn-secondary" style="background: #c33; color: white;">Deletar</a>
+    </div>
+    {% endif %}
 </nav>
 
 <div class="card">
@@ -71,6 +78,11 @@
                                 <a href="{% url 'hymns:hymn_detail' hymn.pk %}" class="btn" style="font-size: 0.875rem; padding: 0.35rem 0.75rem;">
                                     Ver
                                 </a>
+                                {% if can_edit %}
+                                <a href="{% url 'hymns:hymn_edit' hymn.pk %}" class="btn btn-secondary" style="font-size: 0.875rem; padding: 0.35rem 0.75rem; margin-left: 5px;">
+                                    Editar
+                                </a>
+                                {% endif %}
                             </td>
                         </tr>
                     {% endfor %}

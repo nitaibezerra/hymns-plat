@@ -3,7 +3,12 @@
 {% block title %}Hinários - Portal de Hinários do Santo Daime{% endblock %}
 
 {% block content %}
-<h1 style="font-size: 2rem; color: #2c5282; margin-bottom: 2rem;">Hinários</h1>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <h1 style="font-size: 2rem; color: #2c5282;">Hinários</h1>
+    {% if user.is_authenticated %}
+        <a href="{% url 'hymns:hymnbook_create' %}" class="btn">+ Novo Hinário</a>
+    {% endif %}
+</div>
 
 {% if hymnbooks %}
     <div class="grid">

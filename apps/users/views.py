@@ -259,7 +259,6 @@ def upload_preview_view(request):
     from django.db import transaction
 
     from apps.hymns.models import Hymn, HymnBook
-    from apps.search.typesense_client import index_hymn
 
     upload_data = request.session.get("upload_data")
 
@@ -283,10 +282,10 @@ def upload_preview_view(request):
                     description=hymn_book_data.get("description", ""),
                 )
 
-                # Cria hinos
+                # Cria hinos (signals em apps.hymns.signals cuidam da indexação)
                 hymns_data = hymn_book_data.get("hymns", [])
                 for hymn_data in hymns_data:
-                    hymn = Hymn.objects.create(
+                    Hymn.objects.create(
                         hymn_book=hymnbook,
                         number=hymn_data.get("number"),
                         title=hymn_data.get("title", ""),
@@ -297,13 +296,6 @@ def upload_preview_view(request):
                         extra_instructions=hymn_data.get("extra_instructions", ""),
                         repetitions=hymn_data.get("repetitions", ""),
                     )
-
-                    # Indexa no TypeSense
-                    try:
-                        index_hymn(hymn)
-                    except Exception:
-                        # Se falhar indexação, continua (não crítico)
-                        pass
 
             # Limpa sessão
             request.session.pop("upload_data", None)

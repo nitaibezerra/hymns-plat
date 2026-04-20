@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Deletar Hino - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto;">
+    <div class="card">
+        <h1 style="margin: 0 0 20px 0; color: #c33; font-size: 26px;">Deletar Hino</h1>
+
+        <p style="margin-bottom: 20px;">
+            Tem certeza que deseja deletar <strong>{{ hymn.number }}. {{ hymn.title }}</strong>
+            do hinário <strong>{{ hymn.hymn_book.name }}</strong>?
+        </p>
+
+        <div style="background: #fff3cd; border-left: 4px solid #f0ad4e; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+            <p style="margin: 0;">Esta ação é <strong>irreversível</strong>.</p>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn" style="flex: 1; background: #c33;">
+                    Sim, deletar
+                </button>
+                <a href="{% url 'hymns:hymn_detail' hymn.pk %}"
+                   class="btn btn-secondary"
+                   style="flex: 1; text-align: center; line-height: 2.5;">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
