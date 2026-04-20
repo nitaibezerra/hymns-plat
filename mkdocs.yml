@@ -1,0 +1,131 @@
+site_name: Portal de Hinários - Documentação
+site_description: Documentação completa do Portal de Hinários do Santo Daime
+site_url: https://portal-hinarios.com.br/docs/
+repo_url: https://github.com/nitai-bezerra/hyms-plat
+repo_name: hyms-plat
+
+theme:
+  name: material
+  language: pt-BR
+  palette:
+    - scheme: default
+      primary: blue
+      accent: light-blue
+      toggle:
+        icon: material/brightness-7
+        name: Modo escuro
+    - scheme: slate
+      primary: blue
+      accent: light-blue
+      toggle:
+        icon: material/brightness-4
+        name: Modo claro
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Início: index.md
+  - Sobre: about.md
+  - Roadmap: roadmap.md
+
+  - Guia do Usuário:
+    - user-guide/index.md
+    - Primeiros Passos: user-guide/getting-started.md
+    - Buscar Hinos: user-guide/searching-hymns.md
+    - Navegar Hinários: user-guide/browsing-hymnbooks.md
+    - Visualizar Hinos: user-guide/viewing-hymns.md
+    - Contas de Usuário: user-guide/user-accounts.md
+    - Upload de Hinários: user-guide/uploading-hymnbooks.md
+    - Recursos de Áudio: user-guide/audio-features.md
+    - Recursos Sociais: user-guide/social-features.md
+    - FAQ: user-guide/faq.md
+    - Problemas: user-guide/troubleshooting.md
+
+  - Guia do Desenvolvedor:
+    - developer-guide/index.md
+    - Arquitetura:
+      - Visão Geral: developer-guide/architecture/overview.md
+      - Stack Tecnológico: developer-guide/architecture/technology-stack.md
+      - Models e Schema: developer-guide/architecture/data-models.md
+      - Busca TypeSense: developer-guide/architecture/search-architecture.md
+      - Decisões (ADRs): developer-guide/architecture/decisions.md
+    - Setup:
+      - Dev Local: developer-guide/setup/local-development.md
+      - Docker Services: developer-guide/setup/docker-services.md
+      - Variáveis de Ambiente: developer-guide/setup/environment-variables.md
+      - Problemas Comuns: developer-guide/setup/common-issues.md
+    - Contribuindo:
+      - Como Contribuir: developer-guide/contributing/getting-started.md
+      - Code Style: developer-guide/contributing/code-style.md
+      - Escrevendo Testes: developer-guide/contributing/testing.md
+      - Pull Requests: developer-guide/contributing/pull-requests.md
+      - Commit Guidelines: developer-guide/contributing/commit-guidelines.md
+    - API Reference:
+      - Models: developer-guide/api-reference/models.md
+      - Views: developer-guide/api-reference/views.md
+      - Commands: developer-guide/api-reference/management-commands.md
+      - TypeSense Client: developer-guide/api-reference/typesense-client.md
+      - Utilities: developer-guide/api-reference/utils.md
+    - Guias:
+      - Importar YAML: developer-guide/guides/importing-yaml.md
+      - Reindexar Busca: developer-guide/guides/indexing-search.md
+      - Adicionar Features: developer-guide/guides/adding-features.md
+      - Wagtail CMS: developer-guide/guides/working-with-wagtail.md
+      - Celery Tasks: developer-guide/guides/celery-tasks.md
+    - Deploy:
+      - Visão Geral: developer-guide/deployment/overview.md
+      - Setup Produção: developer-guide/deployment/production-setup.md
+      - CI/CD: developer-guide/deployment/ci-cd.md
+      - Monitoramento: developer-guide/deployment/monitoring.md
+      - Backup e Restore: developer-guide/deployment/backup-restore.md
+    - Testes:
+      - Visão Geral: developer-guide/testing/overview.md
+      - Testes Unitários: developer-guide/testing/unit-tests.md
+      - Testes de Integração: developer-guide/testing/integration-tests.md
+      - Testes E2E: developer-guide/testing/e2e-tests.md
+      - Coverage: developer-guide/testing/coverage.md
+
+  - Changelog: changelog.md
+
+plugins:
+  - search:
+      lang: pt
+  - mermaid2
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+  - tables
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/nitai-bezerra/hyms-plat
