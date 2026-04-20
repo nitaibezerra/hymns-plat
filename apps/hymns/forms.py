@@ -14,15 +14,9 @@ class HymnBookForm(forms.ModelForm):
         model = HymnBook
         fields = ["name", "intro_name", "owner_name", "description", "cover_image"]
         widgets = {
-            "name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Ex: O Cruzeiro"}
-            ),
-            "intro_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Nome curto (opcional)"}
-            ),
-            "owner_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Ex: Mestre Irineu"}
-            ),
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: O Cruzeiro"}),
+            "intro_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Nome curto (opcional)"}),
+            "owner_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: Mestre Irineu"}),
             "description": forms.Textarea(
                 attrs={
                     "class": "form-control",
@@ -30,9 +24,7 @@ class HymnBookForm(forms.ModelForm):
                     "rows": 4,
                 }
             ),
-            "cover_image": forms.FileInput(
-                attrs={"class": "form-control", "accept": "image/*"}
-            ),
+            "cover_image": forms.FileInput(attrs={"class": "form-control", "accept": "image/*"}),
         }
         labels = {
             "name": "Nome do Hinário",
@@ -61,18 +53,12 @@ class HymnForm(forms.ModelForm):
         widgets = {
             "number": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
             "title": forms.TextInput(attrs={"class": "form-control"}),
-            "text": forms.Textarea(
-                attrs={"class": "form-control", "rows": 12, "placeholder": "Letra do hino"}
-            ),
+            "text": forms.Textarea(attrs={"class": "form-control", "rows": 12, "placeholder": "Letra do hino"}),
             "received_at": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "offered_to": forms.TextInput(attrs={"class": "form-control"}),
-            "style": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Ex: Valsa, Marcha"}
-            ),
+            "style": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: Valsa, Marcha"}),
             "extra_instructions": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
-            "repetitions": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Ex: 1-4, 5-8"}
-            ),
+            "repetitions": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: 1-4, 5-8"}),
         }
         labels = {
             "number": "Número",
@@ -99,9 +85,7 @@ class HymnForm(forms.ModelForm):
         if self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
-            raise forms.ValidationError(
-                f"Já existe um hino com o número {number} neste hinário."
-            )
+            raise forms.ValidationError(f"Já existe um hino com o número {number} neste hinário.")
         return number
 
 
