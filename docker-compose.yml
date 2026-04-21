@@ -20,23 +20,6 @@ services:
       timeout: 5s
       retries: 5
 
-  typesense:
-    image: typesense/typesense:27.1
-    container_name: hymnplat-typesense
-    environment:
-      TYPESENSE_API_KEY: xyz
-      TYPESENSE_DATA_DIR: /data
-    ports:
-      - "8108:8108"
-    volumes:
-      - typesense_data:/data
-    command: '--data-dir /data --api-key=xyz --enable-cors'
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8108/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7-alpine
     container_name: hymnplat-redis
@@ -52,5 +35,4 @@ services:
 
 volumes:
   postgres_data:
-  typesense_data:
   redis_data:

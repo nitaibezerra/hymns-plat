@@ -1,12 +1,18 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.postgres.search import SearchQuery, SearchRank, TrigramSimilarity
+from django.db.models import F, Func, Q, Value
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import DetailView, ListView
 
-from apps.search.typesense_client import search_hymns
-
 from .forms import HymnBookForm, HymnForm
 from .models import Hymn, HymnBook
+
+
+class UnaccentFunc(Func):
+    """Invoca a função SQL `unaccent(text)` da extension unaccent."""
+
+    function = "unaccent"
 
 
 def _can_edit_hymnbook(user, hymnbook):
@@ -78,34 +84,30 @@ class HymnDetailView(DetailView):
 
 
 def search_view(request):
-    """Search hymns using TypeSense."""
+    """
+    Busca hinos usando PostgreSQL full-text search + trigram (typo tolerance).
+
+    - `search_vector` (tsvector, GIN-indexed) dá stemming PT e ranking por campo.
+    - `TrigramSimilarity` em `title` cobre typos que o FTS não pega.
+    - `websearch` aceita sintaxe tipo Google: "virgem maria", daime OR santo, -maria.
+    """
     query = request.GET.get("q", "").strip()
     results = []
     total = 0
 
     if query:
-        try:
-            # Search in TypeSense
-            ts_results = search_hymns(query, per_page=50)
-            total = ts_results.get("found", 0)
-
-            # Get hymn IDs from results
-            hymn_ids = [hit["document"]["id"] for hit in ts_results.get("hits", [])]
-
-            # Fetch actual hymns from database
-            if hymn_ids:
-                hymns = Hymn.objects.filter(id__in=hymn_ids).select_related("hymn_book")
-                # Preserve TypeSense order
-                hymns_dict = {str(h.id): h for h in hymns}
-                results = [hymns_dict[hid] for hid in hymn_ids if hid in hymns_dict]
-        except Exception:
-            # Fallback to database search if TypeSense fails
-            results = (
-                Hymn.objects.filter(title__icontains=query)
-                | Hymn.objects.filter(text__icontains=query)
-                | Hymn.objects.filter(hymn_book__name__icontains=query)
-            ).select_related("hymn_book")[:50]
-            total = results.count()
+        tsquery = SearchQuery(query, config="portuguese", search_type="websearch")
+        qs = (
+            Hymn.objects.annotate(
+                rank=SearchRank(F("search_vector"), tsquery),
+                title_sim=TrigramSimilarity(UnaccentFunc("title"), UnaccentFunc(Value(query))),
+            )
+            .filter(Q(search_vector=tsquery) | Q(title_sim__gt=0.3))
+            .select_related("hymn_book")
+            .order_by("-rank", "-title_sim")
+        )
+        results = list(qs[:50])
+        total = len(results)
 
     context = {
         "query": query,

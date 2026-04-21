@@ -36,15 +36,6 @@ Ou separadamente:
 | `DATABASE_HOST` | Host | `localhost` |
 | `DATABASE_PORT` | Porta | `5432` |
 
-### TypeSense
-
-| Variável | Descrição | Exemplo |
-|----------|-----------|---------|
-| `TYPESENSE_API_KEY` | Chave da API | `xyz` |
-| `TYPESENSE_HOST` | Host | `localhost` |
-| `TYPESENSE_PORT` | Porta | `8108` |
-| `TYPESENSE_PROTOCOL` | Protocolo | `http` / `https` |
-
 ### Redis
 
 | Variável | Descrição | Exemplo |
@@ -96,12 +87,6 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 
 # Database
 DATABASE_URL=postgres://hymnplat:hymnplat@localhost:5432/hymnplat
-
-# TypeSense
-TYPESENSE_API_KEY=xyz
-TYPESENSE_HOST=localhost
-TYPESENSE_PORT=8108
-TYPESENSE_PROTOCOL=http
 
 # Redis
 REDIS_URL=redis://localhost:6379/0

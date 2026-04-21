@@ -2,7 +2,6 @@
 Unit tests for Hymn views.
 """
 
-from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -267,248 +266,128 @@ class TestHymnDetailView:
 
 @pytest.mark.django_db
 class TestSearchView:
-    """Tests for search view."""
+    """Tests for search view (PostgreSQL FTS + Trigram)."""
 
-    def test_search_view_url_resolves(self, client):
-        """Test that search view URL resolves correctly."""
-        url = reverse("hymns:search")
-        response = client.get(url)
+    def test_url_resolves(self, client):
+        response = client.get(reverse("hymns:search"))
         assert response.status_code == 200
 
-    def test_search_view_uses_correct_template(self, client):
-        """Test that search view uses the correct template."""
-        url = reverse("hymns:search")
-        response = client.get(url)
+    def test_uses_correct_template(self, client):
+        response = client.get(reverse("hymns:search"))
         assert "hymns/search.html" in [t.name for t in response.templates]
 
-    def test_search_view_empty_query(self, client):
-        """Test that search view handles empty query."""
-        url = reverse("hymns:search")
-        response = client.get(url)
-
-        assert response.status_code == 200
+    def test_empty_query_returns_no_results(self, client):
+        response = client.get(reverse("hymns:search"))
         assert response.context["query"] == ""
         assert response.context["results"] == []
         assert response.context["total"] == 0
 
-    def test_search_view_whitespace_query(self, client):
-        """Test that search view handles whitespace-only query."""
-        url = reverse("hymns:search")
-        response = client.get(url, {"q": "   "})
-
-        assert response.status_code == 200
+    def test_whitespace_query_returns_no_results(self, client):
+        response = client.get(reverse("hymns:search"), {"q": "   "})
         assert response.context["query"] == ""
         assert response.context["results"] == []
 
-    @patch("apps.hymns.views.search_hymns")
-    def test_search_view_valid_query_typesense(self, mock_search, client):
-        """Test that search view uses TypeSense for valid query."""
-        hymn_book = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
-        hymn = Hymn.objects.create(hymn_book=hymn_book, number=1, title="Lua Branca", text="...")
+    def test_matches_title(self, client):
+        hb = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
+        lua = Hymn.objects.create(hymn_book=hb, number=1, title="Lua Branca", text="serena")
+        Hymn.objects.create(hymn_book=hb, number=2, title="Tuperci", text="outro")
 
-        mock_search.return_value = {
-            "found": 1,
-            "hits": [{"document": {"id": str(hymn.id)}}],
-        }
-
-        url = reverse("hymns:search")
-        response = client.get(url, {"q": "lua"})
-
-        assert response.status_code == 200
-        mock_search.assert_called_once_with("lua", per_page=50)
+        response = client.get(reverse("hymns:search"), {"q": "lua"})
+        assert lua in response.context["results"]
         assert len(response.context["results"]) == 1
-        assert response.context["results"][0] == hymn
 
-    @patch("apps.hymns.views.search_hymns")
-    def test_search_view_preserves_typesense_order(self, mock_search, client):
-        """Test that search view preserves TypeSense result order."""
-        hymn_book = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
-        hymn1 = Hymn.objects.create(hymn_book=hymn_book, number=1, title="Primeiro", text="...")
-        hymn2 = Hymn.objects.create(hymn_book=hymn_book, number=2, title="Segundo", text="...")
-        hymn3 = Hymn.objects.create(hymn_book=hymn_book, number=3, title="Terceiro", text="...")
+    def test_matches_text_body(self, client):
+        hb = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
+        target = Hymn.objects.create(hymn_book=hb, number=1, title="Primeiro", text="Lua branca da luz serena")
+        Hymn.objects.create(hymn_book=hb, number=2, title="Segundo", text="Outro texto qualquer")
 
-        # TypeSense returns in specific order: 3, 1, 2
-        mock_search.return_value = {
-            "found": 3,
-            "hits": [
-                {"document": {"id": str(hymn3.id)}},
-                {"document": {"id": str(hymn1.id)}},
-                {"document": {"id": str(hymn2.id)}},
-            ],
-        }
+        response = client.get(reverse("hymns:search"), {"q": "serena"})
+        assert target in response.context["results"]
+        assert len(response.context["results"]) == 1
 
-        url = reverse("hymns:search")
-        response = client.get(url, {"q": "hino"})
+    def test_matches_hymnbook_name(self, client):
+        hb1 = HymnBook.objects.create(name="O Cruzeiro", owner_name="Irineu")
+        hb2 = HymnBook.objects.create(name="Nova Jerusalém", owner_name="Outro")
+        h1 = Hymn.objects.create(hymn_book=hb1, number=1, title="h1", text="t1")
+        h2 = Hymn.objects.create(hymn_book=hb2, number=1, title="h2", text="t2")
 
+        response = client.get(reverse("hymns:search"), {"q": "cruzeiro"})
         results = response.context["results"]
-        assert len(results) == 3
-        assert results[0] == hymn3
-        assert results[1] == hymn1
-        assert results[2] == hymn2
+        assert h1 in results
+        assert h2 not in results
 
-    @patch("apps.hymns.views.search_hymns")
-    def test_search_view_total_count(self, mock_search, client):
-        """Test that search view returns total count from TypeSense."""
-        hymn_book = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
-        hymn = Hymn.objects.create(hymn_book=hymn_book, number=1, title="Lua Branca", text="...")
+    def test_matches_owner_name(self, client):
+        hb = HymnBook.objects.create(name="Hin", owner_name="Mestre Irineu")
+        h = Hymn.objects.create(hymn_book=hb, number=1, title="x", text="y")
 
-        mock_search.return_value = {
-            "found": 42,
-            "hits": [{"document": {"id": str(hymn.id)}}],
-        }
+        response = client.get(reverse("hymns:search"), {"q": "irineu"})
+        assert h in response.context["results"]
 
-        url = reverse("hymns:search")
-        response = client.get(url, {"q": "lua"})
+    def test_ranks_title_higher_than_text(self, client):
+        hb = HymnBook.objects.create(name="Hb", owner_name="x")
+        in_text = Hymn.objects.create(hymn_book=hb, number=1, title="Outro", text="palavrachave aparece aqui")
+        in_title = Hymn.objects.create(hymn_book=hb, number=2, title="Palavrachave", text="conteúdo")
 
-        assert response.context["total"] == 42
+        response = client.get(reverse("hymns:search"), {"q": "palavrachave"})
+        results = list(response.context["results"])
+        # Match no título (weight A) deve aparecer antes do match no texto (weight B)
+        assert results.index(in_title) < results.index(in_text)
 
-    @patch("apps.hymns.views.search_hymns")
-    def test_search_view_context_query(self, mock_search, client):
-        """Test that search view includes query in context."""
-        mock_search.return_value = {"found": 0, "hits": []}
+    def test_portuguese_stemming(self, client):
+        """Busca 'cantar' encontra hino com 'cantando'."""
+        hb = HymnBook.objects.create(name="Hb", owner_name="x")
+        target = Hymn.objects.create(hymn_book=hb, number=1, title="Hino", text="Estão cantando com alegria")
 
-        url = reverse("hymns:search")
-        response = client.get(url, {"q": "lua branca"})
+        response = client.get(reverse("hymns:search"), {"q": "cantar"})
+        assert target in response.context["results"]
 
+    def test_typo_tolerance_via_trigram(self, client):
+        """Busca 'cruzero' (typo) encontra 'Cruzeiro'."""
+        hb = HymnBook.objects.create(name="O Cruzeiro", owner_name="x")
+        target = Hymn.objects.create(hymn_book=hb, number=1, title="Cruzeiro", text="texto")
+
+        response = client.get(reverse("hymns:search"), {"q": "cruzero"})
+        assert target in response.context["results"]
+
+    def test_case_insensitive(self, client):
+        hb = HymnBook.objects.create(name="Hb", owner_name="x")
+        target = Hymn.objects.create(hymn_book=hb, number=1, title="Lua Branca", text="serena")
+
+        response = client.get(reverse("hymns:search"), {"q": "LUA"})
+        assert target in response.context["results"]
+
+    def test_multiple_terms_ranking(self, client):
+        """Match exato de múltiplos termos ranqueia acima de match parcial."""
+        hb = HymnBook.objects.create(name="Hb", owner_name="x")
+        both = Hymn.objects.create(hymn_book=hb, number=1, title="Virgem Maria", text="t1")
+        only_one = Hymn.objects.create(hymn_book=hb, number=2, title="Só Virgem", text="t2")
+
+        response = client.get(reverse("hymns:search"), {"q": "virgem maria"})
+        results = list(response.context["results"])
+        assert both in results
+        # O match completo deve vir antes do parcial
+        assert results.index(both) < results.index(only_one)
+
+    def test_pagination_limit_50(self, client):
+        hb = HymnBook.objects.create(name="Hb", owner_name="x")
+        for i in range(60):
+            Hymn.objects.create(hymn_book=hb, number=i + 1, title=f"Hino {i}", text="palavracomum")
+
+        response = client.get(reverse("hymns:search"), {"q": "palavracomum"})
+        assert len(response.context["results"]) == 50
+
+    def test_query_preserved_in_context(self, client):
+        response = client.get(reverse("hymns:search"), {"q": "lua branca"})
         assert response.context["query"] == "lua branca"
 
-    @patch("apps.hymns.views.search_hymns")
-    def test_search_view_typesense_fails_fallback(self, mock_search, client):
-        """Test that search view falls back to database when TypeSense fails."""
-        hymn_book = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
-        hymn = Hymn.objects.create(hymn_book=hymn_book, number=1, title="Lua Branca", text="...")
+    def test_unaccented_match(self, client):
+        """Busca 'acao' encontra 'Ação'."""
+        hb = HymnBook.objects.create(name="Hb", owner_name="x")
+        target = Hymn.objects.create(hymn_book=hb, number=1, title="Ação Divina", text="texto")
 
-        mock_search.side_effect = Exception("TypeSense is down")
-
-        url = reverse("hymns:search")
-        response = client.get(url, {"q": "lua"})
-
-        assert response.status_code == 200
-        # Should fallback to database search
-        assert len(response.context["results"]) == 1
-        assert response.context["results"][0] == hymn
-
-    def test_search_view_fallback_title_search(self, client):
-        """Test that database fallback searches in title."""
-        hymn_book = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
-        hymn1 = Hymn.objects.create(hymn_book=hymn_book, number=1, title="Lua Branca", text="...")
-        hymn2 = Hymn.objects.create(hymn_book=hymn_book, number=2, title="Tuperci", text="...")
-
-        with patch("apps.hymns.views.search_hymns") as mock_search:
-            mock_search.side_effect = Exception("Error")
-
-            url = reverse("hymns:search")
-            response = client.get(url, {"q": "Lua"})
-
-            results = response.context["results"]
-            assert hymn1 in results
-            assert hymn2 not in results
-
-    def test_search_view_fallback_text_search(self, client):
-        """Test that database fallback searches in text."""
-        hymn_book = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
-        hymn1 = Hymn.objects.create(hymn_book=hymn_book, number=1, title="Primeiro", text="Lua branca da luz serena")
-        hymn2 = Hymn.objects.create(hymn_book=hymn_book, number=2, title="Segundo", text="Outro texto")
-
-        with patch("apps.hymns.views.search_hymns") as mock_search:
-            mock_search.side_effect = Exception("Error")
-
-            url = reverse("hymns:search")
-            response = client.get(url, {"q": "serena"})
-
-            results = response.context["results"]
-            assert hymn1 in results
-            assert hymn2 not in results
-
-    def test_search_view_fallback_hymnbook_search(self, client):
-        """Test that database fallback searches in hymn book name."""
-        book1 = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
-        book2 = HymnBook.objects.create(name="Hinário do Padrinho", owner_name="Padrinho")
-        hymn1 = Hymn.objects.create(hymn_book=book1, number=1, title="Hino 1", text="Texto 1")
-        hymn2 = Hymn.objects.create(hymn_book=book2, number=1, title="Hino 2", text="Texto 2")
-
-        with patch("apps.hymns.views.search_hymns") as mock_search:
-            mock_search.side_effect = Exception("Error")
-
-            url = reverse("hymns:search")
-            response = client.get(url, {"q": "Cruzeiro"})
-
-            results = response.context["results"]
-            assert hymn1 in results
-            assert hymn2 not in results
-
-    def test_search_view_fallback_50_limit(self, client):
-        """Test that database fallback limits to 50 results."""
-        hymn_book = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
-        for i in range(60):
-            Hymn.objects.create(hymn_book=hymn_book, number=i + 1, title=f"Hino {i}", text="Texto comum")
-
-        with patch("apps.hymns.views.search_hymns") as mock_search:
-            mock_search.side_effect = Exception("Error")
-
-            url = reverse("hymns:search")
-            response = client.get(url, {"q": "comum"})
-
-            results = list(response.context["results"])
-            assert len(results) == 50
-
-    @patch("apps.hymns.views.search_hymns")
-    def test_search_view_special_characters(self, mock_search, client):
-        """Test that search view handles special characters."""
-        hymn_book = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
-        hymn = Hymn.objects.create(hymn_book=hymn_book, number=1, title="São José", text="...")
-
-        mock_search.return_value = {
-            "found": 1,
-            "hits": [{"document": {"id": str(hymn.id)}}],
-        }
-
-        url = reverse("hymns:search")
-        response = client.get(url, {"q": "São José"})
-
-        assert response.status_code == 200
-        mock_search.assert_called_once_with("São José", per_page=50)
-
-    @patch("apps.hymns.views.search_hymns")
-    def test_search_view_unicode_characters(self, mock_search, client):
-        """Test that search view handles unicode characters."""
-        hymn_book = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
-        hymn = Hymn.objects.create(hymn_book=hymn_book, number=1, title="Ação", text="...")
-
-        mock_search.return_value = {
-            "found": 1,
-            "hits": [{"document": {"id": str(hymn.id)}}],
-        }
-
-        url = reverse("hymns:search")
-        response = client.get(url, {"q": "Ação"})
-
-        assert response.status_code == 200
-        assert len(response.context["results"]) == 1
-
-    @patch("apps.hymns.views.search_hymns")
-    def test_search_view_hymn_deleted_after_index(self, mock_search, client):
-        """Test that search handles hymn deleted after being indexed."""
-        hymn_book = HymnBook.objects.create(name="O Cruzeiro", owner_name="Mestre Irineu")
-        hymn = Hymn.objects.create(hymn_book=hymn_book, number=1, title="Lua Branca", text="...")
-
-        # TypeSense returns a hymn that no longer exists
-        deleted_uuid = str(uuid4())
-        mock_search.return_value = {
-            "found": 2,
-            "hits": [
-                {"document": {"id": str(hymn.id)}},
-                {"document": {"id": deleted_uuid}},  # This hymn was deleted
-            ],
-        }
-
-        url = reverse("hymns:search")
-        response = client.get(url, {"q": "lua"})
-
-        # Should only return existing hymn
-        results = response.context["results"]
-        assert len(results) == 1
-        assert results[0] == hymn
+        response = client.get(reverse("hymns:search"), {"q": "acao"})
+        # Portuguese FTS dictionary drops accents, so 'acao' and 'ação' stem alike
+        assert target in response.context["results"]
 
 
 @pytest.mark.django_db

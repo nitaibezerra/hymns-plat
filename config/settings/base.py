@@ -36,7 +36,6 @@ INSTALLED_APPS = [
     # Core apps
     "apps.core",
     "apps.hymns",
-    "apps.search",
     "apps.users",
     "apps.cms",
     # Wagtail apps
@@ -177,12 +176,6 @@ WAGTAILADMIN_BASE_URL = "http://localhost:8000"
 # Base URL to use when referring to full URLs within the Wagtail admin backend
 # e.g. in notification emails. Don't include '/admin' or a trailing slash
 BASE_URL = "http://localhost:8000"
-
-# TypeSense settings
-TYPESENSE_HOST = env("TYPESENSE_HOST", default="localhost")
-TYPESENSE_PORT = env("TYPESENSE_PORT", default="8108")
-TYPESENSE_PROTOCOL = env("TYPESENSE_PROTOCOL", default="http")
-TYPESENSE_API_KEY = env("TYPESENSE_API_KEY", default="xyz")
 
 # Redis & Celery settings
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")

@@ -4,13 +4,12 @@ Serviços externos gerenciados via Docker.
 
 ## Visão Geral
 
-O projeto usa três serviços principais:
+O projeto usa dois serviços externos. A busca usa PostgreSQL FTS nativo — não há mais um serviço dedicado de busca.
 
 | Serviço | Imagem | Porta |
 |---------|--------|-------|
 | PostgreSQL | postgres:16-alpine | 5432 |
 | Redis | redis:7-alpine | 6379 |
-| TypeSense | typesense/typesense:27.1 | 8108 |
 
 ## Docker Compose
 
@@ -47,20 +46,9 @@ services:
       timeout: 5s
       retries: 5
 
-  typesense:
-    image: typesense/typesense:27.1
-    ports:
-      - "8108:8108"
-    environment:
-      TYPESENSE_API_KEY: xyz
-      TYPESENSE_DATA_DIR: /data
-    volumes:
-      - typesense_data:/data
-
 volumes:
   postgres_data:
   redis_data:
-  typesense_data:
 ```
 
 ## Comandos
@@ -143,28 +131,6 @@ redis-cli keys '*'
 
 # Limpar cache
 redis-cli flushall
-```
-
-## TypeSense
-
-### Health Check
-
-```bash
-curl http://localhost:8108/health
-```
-
-### Ver Collections
-
-```bash
-curl -H "X-TYPESENSE-API-KEY: xyz" \
-  http://localhost:8108/collections
-```
-
-### Ver Estatísticas
-
-```bash
-curl -H "X-TYPESENSE-API-KEY: xyz" \
-  http://localhost:8108/collections/hymns
 ```
 
 ## Troubleshooting

@@ -3,25 +3,10 @@ Pytest configuration and fixtures.
 """
 
 import io
-from unittest.mock import patch
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
-
-
-@pytest.fixture(autouse=True)
-def mock_typesense_calls():
-    """
-    Mocka chamadas reais ao TypeSense em todos os testes.
-    Signals em apps.hymns.signals chamam index_hymn/delete_hymn;
-    este patch evita conexões reais durante a suite de testes.
-
-    Testes que precisam verificar os signals devem sobrescrever com
-    seus próprios patches em apps.hymns.signals.index_hymn/delete_hymn.
-    """
-    with patch("apps.hymns.signals.index_hymn"), patch("apps.hymns.signals.delete_hymn"):
-        yield
 
 
 @pytest.fixture
