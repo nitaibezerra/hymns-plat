@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "hyms-plat"
+name = "hymns-plat"
 version = "0.1.0"
 description = "Portal de Hinários do Santo Daime"
 authors = ["Nitai Bezerra"]

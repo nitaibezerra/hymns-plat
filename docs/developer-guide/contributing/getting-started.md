@@ -11,14 +11,14 @@ No GitHub, clique em **Fork** para criar sua cópia.
 ### 2. Clone seu Fork
 
 ```bash
-git clone https://github.com/seu-usuario/hyms-plat.git
-cd hyms-plat
+git clone https://github.com/seu-usuario/hymns-plat.git
+cd hymns-plat
 ```
 
 ### 3. Configure Upstream
 
 ```bash
-git remote add upstream https://github.com/nitai-bezerra/hyms-plat.git
+git remote add upstream https://github.com/nitai-bezerra/hymns-plat.git
 ```
 
 ### 4. Setup Local
@@ -148,4 +148,4 @@ No GitHub, abra um PR do seu fork para o repositório original.
 
 ## Dúvidas?
 
-Abra uma [issue de discussão](https://github.com/nitai-bezerra/hyms-plat/issues).
+Abra uma [issue de discussão](https://github.com/nitai-bezerra/hymns-plat/issues).

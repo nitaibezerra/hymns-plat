@@ -22,8 +22,8 @@ Portal para pesquisa e acesso a hinários do Santo Daime.
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/nitaibezerra/hyms-plat.git
-cd hyms-plat
+git clone https://github.com/nitaibezerra/hymns-plat.git
+cd hymns-plat
 ```
 
 2. Instale as dependências:
@@ -76,7 +76,7 @@ poetry run pytest --cov=apps --cov-report=html
 ## Estrutura do Projeto
 
 ```
-hyms-plat/
+hymns-plat/
 ├── apps/
 │   ├── core/       # Configurações base, mixins
 │   ├── hymns/      # Models de hinários e hinos

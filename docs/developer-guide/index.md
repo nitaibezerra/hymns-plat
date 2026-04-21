@@ -1,10 +1,10 @@
 # Guia do Desenvolvedor
 
-Bem-vindo à documentação técnica do **hyms-plat**!
+Bem-vindo à documentação técnica do **hymns-plat**!
 
 ## Visão Geral
 
-O hyms-plat é um portal Django/Wagtail para hinários do Santo Daime com:
+O hymns-plat é um portal Django/Wagtail para hinários do Santo Daime com:
 
 - :material-magnify: Busca avançada via TypeSense
 - :material-book: CMS Wagtail para páginas
@@ -90,7 +90,7 @@ Veja o [Roadmap](../roadmap.md) completo.
 ## Estrutura do Projeto
 
 ```
-hyms-plat/
+hymns-plat/
 ├── apps/                    # Django apps
 │   ├── core/               # Base e utilidades
 │   ├── hymns/              # Hinários e hinos

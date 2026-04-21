@@ -1,5 +1,5 @@
 """
-Django settings for hyms-plat project.
+Django settings for hymns-plat project.
 Base settings shared across all environments.
 """
 

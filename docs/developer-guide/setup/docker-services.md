@@ -202,5 +202,5 @@ Os dados são persistidos em Docker volumes:
 docker volume ls
 
 # Inspecionar volume
-docker volume inspect hyms-plat_postgres_data
+docker volume inspect hymns-plat_postgres_data
 ```

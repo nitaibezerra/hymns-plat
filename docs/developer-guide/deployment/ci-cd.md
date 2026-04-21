@@ -170,7 +170,7 @@ jobs:
           username: hymsplat
           key: ${{ secrets.DEPLOY_KEY }}
           script: |
-            cd /home/hymsplat/hyms-plat
+            cd /home/hymsplat/hymns-plat
             git pull origin develop
             source venv/bin/activate
             poetry install --only main
@@ -201,7 +201,7 @@ jobs:
           username: hymsplat
           key: ${{ secrets.DEPLOY_KEY }}
           script: |
-            cd /home/hymsplat/hyms-plat
+            cd /home/hymsplat/hymns-plat
             git fetch --tags
             git checkout ${{ github.event.release.tag_name }}
             source venv/bin/activate
@@ -215,8 +215,8 @@ jobs:
 ## Badges
 
 ```markdown
-![CI](https://github.com/nitai-bezerra/hyms-plat/workflows/CI/badge.svg)
-[![codecov](https://codecov.io/gh/nitai-bezerra/hyms-plat/branch/main/graph/badge.svg)](https://codecov.io/gh/nitai-bezerra/hyms-plat)
+![CI](https://github.com/nitai-bezerra/hymns-plat/workflows/CI/badge.svg)
+[![codecov](https://codecov.io/gh/nitai-bezerra/hymns-plat/branch/main/graph/badge.svg)](https://codecov.io/gh/nitai-bezerra/hymns-plat)
 ```
 
 ## Rodando Localmente

@@ -107,7 +107,7 @@ Se você quer contribuir com código ou entender a arquitetura:
 
 ## Links Rápidos
 
-- [GitHub Repository](https://github.com/nitai-bezerra/hyms-plat)
-- [Reportar Bug](https://github.com/nitai-bezerra/hyms-plat/issues)
+- [GitHub Repository](https://github.com/nitai-bezerra/hymns-plat)
+- [Reportar Bug](https://github.com/nitai-bezerra/hymns-plat/issues)
 - [Changelog](changelog.md)
 - [Roadmap](roadmap.md)

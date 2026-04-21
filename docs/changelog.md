@@ -70,5 +70,5 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## Links
 
-- [Repositório GitHub](https://github.com/nitai-bezerra/hyms-plat)
-- [Issues](https://github.com/nitai-bezerra/hyms-plat/issues)
+- [Repositório GitHub](https://github.com/nitai-bezerra/hymns-plat)
+- [Issues](https://github.com/nitai-bezerra/hymns-plat/issues)

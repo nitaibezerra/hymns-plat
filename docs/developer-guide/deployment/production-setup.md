@@ -50,8 +50,8 @@ sudo su - hymsplat
 
 ```bash
 cd /home/hymsplat
-git clone https://github.com/nitai-bezerra/hyms-plat.git
-cd hyms-plat
+git clone https://github.com/nitai-bezerra/hymns-plat.git
+cd hymns-plat
 
 # Ambiente virtual
 python3.11 -m venv venv
@@ -131,15 +131,15 @@ loglevel = "info"
 ```ini
 # /etc/systemd/system/hymsplat.service
 [Unit]
-Description=hyms-plat gunicorn daemon
+Description=hymns-plat gunicorn daemon
 After=network.target
 
 [Service]
 User=hymsplat
 Group=hymsplat
-WorkingDirectory=/home/hymsplat/hyms-plat
-Environment="PATH=/home/hymsplat/hyms-plat/venv/bin"
-ExecStart=/home/hymsplat/hyms-plat/venv/bin/gunicorn \
+WorkingDirectory=/home/hymsplat/hymns-plat
+Environment="PATH=/home/hymsplat/hymns-plat/venv/bin"
+ExecStart=/home/hymsplat/hymns-plat/venv/bin/gunicorn \
   --config gunicorn.conf.py \
   config.wsgi:application
 Restart=on-failure
@@ -175,12 +175,12 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/portal-hinarios.com.br/privkey.pem;
 
     location /static/ {
-        alias /home/hymsplat/hyms-plat/staticfiles/;
+        alias /home/hymsplat/hymns-plat/staticfiles/;
         expires 30d;
     }
 
     location /media/ {
-        alias /home/hymsplat/hyms-plat/media/;
+        alias /home/hymsplat/hymns-plat/media/;
         expires 7d;
     }
 
@@ -232,9 +232,9 @@ After=network.target
 [Service]
 User=hymsplat
 Group=hymsplat
-WorkingDirectory=/home/hymsplat/hyms-plat
-Environment="PATH=/home/hymsplat/hyms-plat/venv/bin"
-ExecStart=/home/hymsplat/hyms-plat/venv/bin/celery \
+WorkingDirectory=/home/hymsplat/hymns-plat
+Environment="PATH=/home/hymsplat/hymns-plat/venv/bin"
+ExecStart=/home/hymsplat/hymns-plat/venv/bin/celery \
   -A config worker \
   -l INFO
 Restart=on-failure

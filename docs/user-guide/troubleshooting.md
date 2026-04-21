@@ -131,7 +131,7 @@ Se nenhuma solução funcionou:
 
 ### 1. Verifique Issues Existentes
 
-Acesse [GitHub Issues](https://github.com/nitai-bezerra/hyms-plat/issues) e busque pelo problema.
+Acesse [GitHub Issues](https://github.com/nitai-bezerra/hymns-plat/issues) e busque pelo problema.
 
 ### 2. Crie Novo Issue
 
@@ -177,7 +177,7 @@ Se não encontrou, crie um novo issue com:
 
 Para problemas urgentes:
 
-- :material-github: [GitHub Issues](https://github.com/nitai-bezerra/hyms-plat/issues) (preferencial)
+- :material-github: [GitHub Issues](https://github.com/nitai-bezerra/hymns-plat/issues) (preferencial)
 
 ---
 

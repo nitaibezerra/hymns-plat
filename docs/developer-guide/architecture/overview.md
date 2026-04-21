@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-O hyms-plat usa arquitetura monolítica Django com separação de apps por domínio.
+O hymns-plat usa arquitetura monolítica Django com separação de apps por domínio.
 
 ## Diagrama de Arquitetura
 

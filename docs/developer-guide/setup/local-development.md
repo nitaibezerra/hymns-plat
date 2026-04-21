@@ -14,8 +14,8 @@ Guia completo para configurar o ambiente de desenvolvimento.
 ### 1. Clone o Repositório
 
 ```bash
-git clone https://github.com/nitai-bezerra/hyms-plat.git
-cd hyms-plat
+git clone https://github.com/nitai-bezerra/hymns-plat.git
+cd hymns-plat
 ```
 
 ### 2. Instale Dependências

@@ -143,4 +143,4 @@ Sim, ao deletar sua conta todos os dados pessoais são removidos.
 Não encontrou sua resposta?
 
 - Veja [Solução de Problemas](troubleshooting.md)
-- Abra um [issue no GitHub](https://github.com/nitai-bezerra/hyms-plat/issues)
+- Abra um [issue no GitHub](https://github.com/nitai-bezerra/hymns-plat/issues)
