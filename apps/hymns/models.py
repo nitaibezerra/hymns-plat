@@ -1,5 +1,7 @@
 import uuid
 
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from django.utils.text import slugify
 
@@ -75,6 +77,9 @@ class Hymn(models.Model):
         "Repetições", max_length=100, blank=True, help_text="Ex: 1-4, 5-8 (indicação de estrofes a repetir)"
     )
 
+    # Full-text search vector (maintained by signal in apps.hymns.signals)
+    search_vector = SearchVectorField(null=True, blank=True)
+
     created_at = models.DateTimeField("Criado em", auto_now_add=True)
     updated_at = models.DateTimeField("Atualizado em", auto_now=True)
 
@@ -87,6 +92,7 @@ class Hymn(models.Model):
             models.Index(fields=["hymn_book", "number"]),
             models.Index(fields=["title"]),
             models.Index(fields=["received_at"]),
+            GinIndex(fields=["search_vector"], name="hymn_search_vector_gin"),
         ]
 
     def __str__(self):

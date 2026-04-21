@@ -51,6 +51,25 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: hymnplat
+          POSTGRES_USER: hymnplat
+          POSTGRES_PASSWORD: hymnplat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://hymnplat:hymnplat@localhost:5432/hymnplat
+
     steps:
       - uses: actions/checkout@v4
 
@@ -122,20 +141,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-      typesense:
-        image: typesense/typesense:27.1
-        ports:
-          - 8108:8108
-        env:
-          TYPESENSE_API_KEY: xyz
-          TYPESENSE_DATA_DIR: /data
-
     env:
       DATABASE_URL: postgres://hymnplat:hymnplat@localhost:5432/hymnplat
-      TYPESENSE_API_KEY: xyz
-      TYPESENSE_HOST: localhost
-      TYPESENSE_PORT: 8108
-      TYPESENSE_PROTOCOL: http
       REDIS_URL: redis://localhost:6379/0
       SECRET_KEY: test-secret-key-for-ci-e2e
 
@@ -176,14 +183,6 @@ jobs:
 
       - name: Install Playwright browsers
         run: poetry run playwright install chromium --with-deps
-
-      - name: Wait for TypeSense
-        run: |
-          for i in {1..30}; do
-            curl -s http://localhost:8108/health && break
-            echo "Waiting for TypeSense..."
-            sleep 2
-          done
 
       - name: Run migrations
         env:

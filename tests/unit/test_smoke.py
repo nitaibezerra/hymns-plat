@@ -51,5 +51,4 @@ class TestSmoke:
         assert apps.is_installed("apps.core")
         assert apps.is_installed("apps.users")
         assert apps.is_installed("apps.hymns")
-        assert apps.is_installed("apps.search")
         assert apps.is_installed("apps.cms")

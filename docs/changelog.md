@@ -10,6 +10,17 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 - Documentação completa com MkDocs
 - Guia do usuário em português
 - Guia do desenvolvedor
+- **Edição web de hinos/hinários** (PR #2): CRUD completo via navegador para donos/superusers, com Django signals que mantêm o índice de busca sincronizado automaticamente
+
+### Modificado
+- **Projeto renomeado** de `hyms-plat` para `hymns-plat` (PR #4)
+- **Busca migrada de TypeSense para PostgreSQL FTS**: removida dependência do serviço externo TypeSense; busca agora usa `to_tsvector` + `pg_trgm` + `unaccent`, tudo no Postgres. Single source of truth, fim dos dual-writes, CI/setup mais simples. Ver `developer-guide/architecture/search-architecture.md`.
+
+### Removido
+- Serviço `typesense` do `docker-compose.yml` e do CI
+- Módulo `apps.search` (TypeSense client e management command)
+- Dependência Python `typesense`
+- Variáveis de ambiente `TYPESENSE_*`
 
 ## [0.3.0] - 2026-01-11
 

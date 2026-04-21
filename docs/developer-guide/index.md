@@ -6,7 +6,7 @@ Bem-vindo à documentação técnica do **hymns-plat**!
 
 O hymns-plat é um portal Django/Wagtail para hinários do Santo Daime com:
 
-- :material-magnify: Busca avançada via TypeSense
+- :material-magnify: Busca avançada via PostgreSQL FTS (`tsvector` + `pg_trgm`)
 - :material-book: CMS Wagtail para páginas
 - :material-music: Upload de áudio (em desenvolvimento)
 - :material-account-group: Features sociais
@@ -19,7 +19,7 @@ O hymns-plat é um portal Django/Wagtail para hinários do Santo Daime com:
 | **Backend** | Django 5.1 + Python 3.11+ |
 | **CMS** | Wagtail 6.4 |
 | **Banco de Dados** | PostgreSQL 16 |
-| **Busca** | TypeSense 27.1 |
+| **Busca** | PostgreSQL FTS (`tsvector`, `pg_trgm`, `unaccent`) |
 | **Task Queue** | Celery + Redis |
 | **Testes** | pytest (290+ testes, 83%+ coverage) |
 
@@ -62,12 +62,10 @@ Veja detalhes em [Technology Stack](architecture/technology-stack.md).
 - [Models Reference](api-reference/models.md)
 - [Views Reference](api-reference/views.md)
 - [Management Commands](api-reference/management-commands.md)
-- [TypeSense Client](api-reference/typesense-client.md)
 
 ### Guias
 
 - [Importar YAML](guides/importing-yaml.md)
-- [Reindexar Busca](guides/indexing-search.md)
 - [Adicionar Features](guides/adding-features.md)
 
 ### Deploy
@@ -93,8 +91,7 @@ Veja o [Roadmap](../roadmap.md) completo.
 hymns-plat/
 ├── apps/                    # Django apps
 │   ├── core/               # Base e utilidades
-│   ├── hymns/              # Hinários e hinos
-│   ├── search/             # TypeSense integration
+│   ├── hymns/              # Hinários, hinos, signals e busca (FTS)
 │   ├── users/              # Autenticação e perfis
 │   └── cms/                # Wagtail CMS
 ├── config/                  # Configurações Django

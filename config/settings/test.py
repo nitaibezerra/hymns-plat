@@ -7,25 +7,15 @@ from .base import *  # noqa
 # Test mode
 DEBUG = True
 
-# Use in-memory SQLite for faster tests
+# PostgreSQL is required for full-text search (to_tsvector, pg_trgm, unaccent
+# extensions). pytest-django creates/destroys a transient test database on
+# each run, so production data in `hymnplat` is untouched.
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",
-    }
+    "default": env.db(  # noqa: F405
+        "DATABASE_URL",
+        default="postgresql://hymnplat:hymnplat@localhost:5432/hymnplat",
+    ),
 }
-
-# Disable migrations for tests (faster)
-# Comment out if you need to test migrations
-# class DisableMigrations:
-#     def __contains__(self, item):
-#         return True
-
-#     def __getitem__(self, item):
-#         return None
-
-
-# MIGRATION_MODULES = DisableMigrations()
 
 # Fast password hasher for tests
 PASSWORD_HASHERS = [
@@ -41,6 +31,3 @@ CELERY_TASK_EAGER_PROPAGATES = True
 
 # Media files in temp directory
 MEDIA_ROOT = "/tmp/hymns-plat-test-media"
-
-# TypeSense settings for tests (use mock or skip)
-TYPESENSE_ENABLED = False

@@ -6,9 +6,16 @@ Detecta possíveis duplicatas usando fuzzy matching e comparação de hinos.
 from difflib import SequenceMatcher
 from typing import Dict, List, Tuple
 
-from apps.search.typesense_client import search_hymns
+from django.contrib.postgres.search import TrigramSimilarity
+from django.db.models import Func, Value
 
 from .models import HymnBook
+
+
+class _Unaccent(Func):
+    """Chama função SQL `unaccent(text)` (extension unaccent)."""
+
+    function = "unaccent"
 
 
 def calculate_string_similarity(str1: str, str2: str) -> float:
@@ -209,40 +216,29 @@ def find_duplicates_with_content(
     return result
 
 
-def suggest_similar_via_typesense(query: str, limit: int = 5) -> List[Dict]:
+def suggest_similar_via_trigram(query: str, limit: int = 5, threshold: float = 0.3) -> List[HymnBook]:
     """
-    Busca hinários similares usando TypeSense (typo-tolerance).
+    Busca hinários com nome similar ao query usando `pg_trgm` + `unaccent`.
+
+    Substitui a antiga `suggest_similar_via_typesense`. Tolerante a typos e
+    variações de acentuação (ex.: "oracao" encontra "Oração").
 
     Args:
         query: Termo de busca
         limit: Máximo de resultados
+        threshold: Similarity mínima (0.0-1.0). Default 0.3 equilibra typos
+            legítimos vs falsos positivos.
 
     Returns:
-        List[Dict]: Lista de hinários encontrados via TypeSense
+        Lista de HymnBook ordenada por similaridade decrescente.
     """
-    try:
-        # Busca no TypeSense por título ou nome de hinário
-        response = search_hymns(query, per_page=limit)
-
-        # Extrai IDs de hinários únicos
-        hymnbook_ids = set()
-        for hit in response.get("hits", []):
-            doc = hit.get("document", {})
-            hymnbook_id = doc.get("hymn_book_id")
-            if hymnbook_id:
-                hymnbook_ids.add(hymnbook_id)
-
-        # Busca hinários no banco
-        hymnbooks = HymnBook.objects.filter(id__in=hymnbook_ids)
-
-        return [
-            {
-                "hymnbook": hb,
-                "hymn_count": hb.hymn_count,
-            }
-            for hb in hymnbooks
-        ]
-
-    except Exception:
-        # Se TypeSense falhar, retorna lista vazia
+    if not query or not query.strip():
         return []
+
+    return list(
+        HymnBook.objects.annotate(
+            sim=TrigramSimilarity(_Unaccent("name"), _Unaccent(Value(query))),
+        )
+        .filter(sim__gt=threshold)
+        .order_by("-sim")[:limit]
+    )
