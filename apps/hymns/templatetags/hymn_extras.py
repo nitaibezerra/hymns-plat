@@ -39,9 +39,7 @@ def render_hymn_body(hymn):
         tracks = f"{TEXT_GUTTER_PX}px"
     else:
         tracks = f"repeat({n - 1},{BAR_COLUMN_WIDTH_PX}px) {TEXT_GUTTER_PX}px"
-    grid_style = (
-        f"display:grid;grid-template-columns:{tracks} minmax(0,1fr);gap:0;"
-    )
+    grid_style = f"display:grid;grid-template-columns:{tracks} minmax(0,1fr);gap:0;"
 
     line_style = (
         f"white-space:pre-wrap;"
@@ -53,10 +51,7 @@ def render_hymn_body(hymn):
     lines_html = format_html_join(
         "",
         '<div class="hymn-line" style="grid-column:{};grid-row:{};{}">{}</div>',
-        (
-            (text_col, i + 1, mark_safe(line_style), row["text"])
-            for i, row in enumerate(data["rows"])
-        ),
+        ((text_col, i + 1, mark_safe(line_style), row["text"]) for i, row in enumerate(data["rows"])),
     )
 
     # col 0 é adjacente ao texto → última coluna de barras no grid.
@@ -80,6 +75,4 @@ def render_hymn_body(hymn):
         ),
     )
 
-    return mark_safe(
-        f'<div class="hymn-grid" style="{grid_style}">{lines_html}{bars_html}</div>'
-    )
+    return mark_safe(f'<div class="hymn-grid" style="{grid_style}">{lines_html}{bars_html}</div>')
