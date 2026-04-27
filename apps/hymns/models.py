@@ -269,3 +269,56 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"{self.user.username} em {self.hymn.title}: {self.text[:50]}..."
+
+
+class OCRTask(models.Model):
+    """
+    Tracks OCR processing for a PDF upload. Worker thread updates progress
+    fields; the wizard polls a status endpoint to render the progress bar.
+    """
+
+    STATUS_PENDING = "pending"
+    STATUS_PROCESSING = "processing"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pendente"),
+        (STATUS_PROCESSING, "Processando"),
+        (STATUS_COMPLETED, "Concluído"),
+        (STATUS_FAILED, "Falhou"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="ocr_tasks", verbose_name="Usuário")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    current_page = models.PositiveIntegerField("Página atual", default=0)
+    total_pages = models.PositiveIntegerField("Total de páginas", default=0)
+    result_data = models.JSONField("Dados do resultado", null=True, blank=True)
+    error_message = models.TextField("Erro", blank=True)
+    pdf_filename = models.CharField("Nome do PDF", max_length=255, blank=True)
+
+    created_at = models.DateTimeField("Criado em", auto_now_add=True)
+    started_at = models.DateTimeField("Iniciado em", null=True, blank=True)
+    finished_at = models.DateTimeField("Finalizado em", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Tarefa OCR"
+        verbose_name_plural = "Tarefas OCR"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self):
+        return f"OCRTask {self.id} ({self.status})"
+
+    @property
+    def progress_pct(self) -> int:
+        if self.total_pages <= 0:
+            return 0
+        return min(100, int(self.current_page * 100 / self.total_pages))
+
+    @property
+    def is_done(self) -> bool:
+        return self.status in (self.STATUS_COMPLETED, self.STATUS_FAILED)

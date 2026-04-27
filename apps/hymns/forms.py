@@ -91,46 +91,80 @@ class HymnForm(forms.ModelForm):
 
 class HymnBookUploadForm(forms.Form):
     """
-    Form for uploading a hymnbook via YAML file.
+    Form for uploading a hymnbook via YAML file or PDF (OCR).
+    Exactly one of yaml_file / pdf_file must be provided.
     """
 
     yaml_file = forms.FileField(
         label="Arquivo YAML",
+        required=False,
         help_text="Envie um arquivo YAML com a estrutura do hinário",
-        widget=forms.FileInput(
-            attrs={
-                "accept": ".yaml,.yml",
-                "class": "form-control",
-            }
-        ),
+        widget=forms.FileInput(attrs={"accept": ".yaml,.yml", "class": "form-control"}),
+    )
+
+    pdf_file = forms.FileField(
+        label="Arquivo PDF",
+        required=False,
+        help_text="Envie um PDF gerado pelo hymn_pdf_generator. O sistema extrai os hinos via OCR (pode demorar).",
+        widget=forms.FileInput(attrs={"accept": ".pdf", "class": "form-control"}),
+    )
+
+    pdf_name = forms.CharField(
+        label="Nome do Hinário",
+        required=False,
+        max_length=255,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: O Justiceiro"}),
+    )
+
+    pdf_owner_name = forms.CharField(
+        label="Dono do Hinário",
+        required=False,
+        max_length=255,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: Padrinho Sebastião"}),
     )
 
     cover_image = forms.ImageField(
         label="Imagem de Capa (opcional)",
         required=False,
         help_text="JPG, PNG ou GIF. Tamanho recomendado: 600x800px",
-        widget=forms.FileInput(
-            attrs={
-                "accept": "image/*",
-                "class": "form-control",
-            }
-        ),
+        widget=forms.FileInput(attrs={"accept": "image/*", "class": "form-control"}),
     )
 
     def clean_yaml_file(self):
-        """Validate YAML file."""
         yaml_file = self.cleaned_data.get("yaml_file")
-
         if yaml_file:
-            # Verifica extensão
             if not yaml_file.name.endswith((".yaml", ".yml")):
                 raise forms.ValidationError("O arquivo deve ter extensão .yaml ou .yml")
-
-            # Verifica tamanho (max 10MB)
             if yaml_file.size > 10 * 1024 * 1024:
                 raise forms.ValidationError("O arquivo não pode ser maior que 10MB")
-
         return yaml_file
+
+    def clean_pdf_file(self):
+        pdf_file = self.cleaned_data.get("pdf_file")
+        if pdf_file:
+            if not pdf_file.name.lower().endswith(".pdf"):
+                raise forms.ValidationError("O arquivo deve ter extensão .pdf")
+            if pdf_file.size > 50 * 1024 * 1024:
+                raise forms.ValidationError("O arquivo não pode ser maior que 50MB")
+        return pdf_file
+
+    def clean(self):
+        cleaned = super().clean()
+        yaml_file = cleaned.get("yaml_file")
+        pdf_file = cleaned.get("pdf_file")
+
+        if not yaml_file and not pdf_file:
+            raise forms.ValidationError("Envie um arquivo YAML ou PDF.")
+        if yaml_file and pdf_file:
+            raise forms.ValidationError("Envie apenas um arquivo: YAML ou PDF, não ambos.")
+
+        if pdf_file:
+            if not cleaned.get("pdf_name"):
+                self.add_error("pdf_name", "Informe o nome do hinário ao enviar um PDF.")
+            if not cleaned.get("pdf_owner_name"):
+                self.add_error("pdf_owner_name", "Informe o dono do hinário ao enviar um PDF.")
+
+        return cleaned
 
 
 class HymnBookVersionForm(forms.ModelForm):

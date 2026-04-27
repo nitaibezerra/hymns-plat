@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Processando PDF - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto;">
+    <div class="card">
+        <h1 style="margin: 0 0 10px 0; color: #2c5282; font-size: 24px;">Processando PDF</h1>
+        <p style="color: #666; margin-bottom: 20px;">
+            Estamos extraindo os hinos do PDF <strong>{{ task.pdf_filename|default:"enviado" }}</strong> via OCR.
+        </p>
+
+        {% if task.status == "failed" %}
+        <div style="background: #fee; border-left: 4px solid #c33; padding: 15px; border-radius: 4px;">
+            <p style="margin: 0 0 8px; color: #c33; font-weight: bold;">A extração falhou.</p>
+            <p style="margin: 0; color: #555;">{{ task.error_message|default:"Erro desconhecido." }}</p>
+            <p style="margin: 12px 0 0;"><a href="{% url 'users:upload' %}" class="btn btn-secondary">Tentar novamente</a></p>
+        </div>
+        {% else %}
+        <div style="margin-bottom: 16px;">
+            <div id="progress-text" style="color: #2c5282; font-weight: 500; margin-bottom: 8px;">
+                Iniciando…
+            </div>
+            <div style="width: 100%; background: #e2e8f0; border-radius: 999px; overflow: hidden; height: 14px;">
+                <div id="progress-bar"
+                     style="height: 100%; width: {{ task.progress_pct }}%; background: #2c5282; transition: width 0.4s ease;"></div>
+            </div>
+        </div>
+        <p style="color: #666; font-size: 14px;">
+            Esta página atualiza automaticamente. Pode levar alguns minutos para PDFs grandes.
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+{% if task.status != "failed" %}
+<script>
+    (function() {
+        const taskId = "{{ task.id }}";
+        const statusUrl = "{% url 'users:upload_ocr_status' task_id=task.id %}";
+        const bar = document.getElementById("progress-bar");
+        const text = document.getElementById("progress-text");
+
+        async function poll() {
+            try {
+                const r = await fetch(statusUrl, {credentials: "same-origin"});
+                if (!r.ok) {
+                    text.textContent = "Erro ao consultar status (" + r.status + ")";
+                    return;
+                }
+                const d = await r.json();
+                bar.style.width = d.percent + "%";
+                if (d.status === "pending") {
+                    text.textContent = "Aguardando início do processamento…";
+                } else if (d.status === "processing") {
+                    text.textContent = "Página " + d.current + " de " + d.total + " (" + d.percent + "%)";
+                } else if (d.status === "completed") {
+                    text.textContent = "Concluído! Redirecionando…";
+                    window.location.href = window.location.pathname + window.location.search;
+                    return;
+                } else if (d.status === "failed") {
+                    text.textContent = "Falhou. Recarregando…";
+                    window.location.reload();
+                    return;
+                }
+            } catch (e) {
+                text.textContent = "Erro de rede ao consultar progresso.";
+            }
+            setTimeout(poll, 2000);
+        }
+        poll();
+    })();
+</script>
+{% endif %}
+{% endblock %}

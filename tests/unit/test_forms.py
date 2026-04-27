@@ -53,11 +53,12 @@ class TestHymnBookUploadForm:
         assert "yaml_file" in form.errors
 
     def test_missing_file(self):
-        """Test form requires file."""
+        """Form requires either yaml_file or pdf_file (caught by clean(), not field-level)."""
         form = HymnBookUploadForm(files={})
 
         assert not form.is_valid()
-        assert "yaml_file" in form.errors
+        # The mutual-exclusion validation lives in clean(), so the error is on __all__
+        assert "__all__" in form.errors
 
     def test_yaml_file_max_size_boundary(self):
         """Test file exactly at 10MB limit."""
