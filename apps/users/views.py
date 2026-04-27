@@ -86,99 +86,24 @@ def profile_edit_view(request, username):
 @login_required
 def upload_view(request):
     """
-    Upload hymnbook with YAML file.
-    Step 1: Upload and detect duplicates.
+    Step 1: user uploads a PDF; we kick off an OCR task and redirect to
+    the processing page. From there the wizard joins the existing
+    disambiguate/preview/confirm flow.
     """
-    import tempfile
-
-    import yaml
-
-    from apps.hymns.disambiguation import find_duplicates_with_content
-    from apps.hymns.forms import HymnBookUploadForm
+    from apps.hymns.forms import HymnBookPdfUploadForm
 
     if request.method == "POST":
-        form = HymnBookUploadForm(request.POST, request.FILES)
+        form = HymnBookPdfUploadForm(request.POST, request.FILES)
         if form.is_valid():
-            pdf_file = form.cleaned_data.get("pdf_file")
-            yaml_file = form.cleaned_data.get("yaml_file")
-
-            # PDF branch: kick off OCR task and redirect to processing page
-            if pdf_file:
-                return _start_pdf_ocr(request, form, pdf_file)
-
-            # YAML branch (original): save tempfile, parse, detect duplicates
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".yaml") as tmp_file:
-                for chunk in yaml_file.chunks():
-                    tmp_file.write(chunk)
-                tmp_path = tmp_file.name
-
-            try:
-                # Parse YAML para extrair dados
-                with open(tmp_path, "r", encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-
-                # Aceita ambos formatos: com "hymn_book" como raiz ou campos diretos na raiz
-                hymn_book_data = data.get("hymn_book") if "hymn_book" in data else data
-                name = hymn_book_data.get("name") if hymn_book_data else None
-                hymns_data = hymn_book_data.get("hymns", []) if hymn_book_data else []
-
-                # Validação: nome é obrigatório
-                if not name:
-                    form.add_error("yaml_file", "O arquivo YAML deve conter o campo 'name' com o nome do hinário.")
-                    return render(request, "users/upload.html", {"form": form})
-
-                # Converte dados de hinos para formato esperado
-                hymns_list = [
-                    {
-                        "number": h.get("number"),
-                        "title": h.get("title", ""),
-                        "text": h.get("text", ""),
-                    }
-                    for h in hymns_data
-                ]
-
-                # Detecta duplicatas
-                duplicates = find_duplicates_with_content(
-                    name=name,
-                    hymns=hymns_list,
-                    name_threshold=0.7,
-                    content_threshold=0.8,
-                )
-
-                # Armazena dados na sessão para próxima etapa
-                request.session["upload_data"] = {
-                    "yaml_content": str(data),  # Serializa para JSON
-                    "yaml_filename": yaml_file.name,
-                    "name": name,
-                    "hymns_count": len(hymns_data),
-                }
-
-                # Se encontrou match exato ou alta confiança, mostra página de desambiguação
-                if duplicates["exact_match"] or duplicates["high_confidence"]:
-                    request.session["duplicates"] = {
-                        "exact_match": str(duplicates["exact_match"].id) if duplicates["exact_match"] else None,
-                        "high_confidence": [
-                            (str(hb.id), name_score, content_score)
-                            for hb, name_score, content_score in duplicates["high_confidence"]
-                        ],
-                    }
-
-                    return redirect("users:upload_disambiguate")
-
-                # Se não há duplicatas, prossegue com preview
-                return redirect("users:upload_preview")
-
-            except Exception as e:
-                form.add_error("yaml_file", f"Erro ao processar YAML: {str(e)}")
+            return _start_pdf_ocr(request, form, form.cleaned_data["pdf_file"])
     else:
-        form = HymnBookUploadForm()
+        form = HymnBookPdfUploadForm()
 
-    context = {
-        "form": form,
-        "title": "Contribuir com Hinário",
-    }
-
-    return render(request, "users/upload.html", context)
+    return render(
+        request,
+        "users/upload.html",
+        {"form": form, "title": "Contribuir com Hinário"},
+    )
 
 
 @login_required
@@ -359,8 +284,14 @@ def upload_confirm_view(request):
                 yaml.dump(data, tmp_file, allow_unicode=True)
                 tmp_path = tmp_file.name
 
-            # Cria versão
+            # Cria versão. O filename original pode ser .pdf (vindo de OCR);
+            # garantimos .yaml já que o conteúdo gravado é sempre YAML serializado.
+            from os.path import splitext
+
             from django.core.files import File
+
+            base_name = splitext(upload_data["yaml_filename"])[0] or "version"
+            yaml_filename = f"{base_name}.yaml"
 
             with open(tmp_path, "rb") as f:
                 version = HymnBookVersion.objects.create(
@@ -370,7 +301,7 @@ def upload_confirm_view(request):
                     uploaded_by=request.user,
                     is_primary=False,  # Não marca como primária automaticamente
                 )
-                version.yaml_file.save(upload_data["yaml_filename"], File(f))
+                version.yaml_file.save(yaml_filename, File(f))
 
             # Limpa sessão
             request.session.pop("upload_data", None)
@@ -408,8 +339,8 @@ def _start_pdf_ocr(request, form, pdf_file):
     from apps.hymns.models import OCRTask
     from apps.hymns.services.ocr import launch_ocr_task
 
-    pdf_name = form.cleaned_data["pdf_name"]
-    pdf_owner_name = form.cleaned_data["pdf_owner_name"]
+    name = form.cleaned_data["name"]
+    owner_name = form.cleaned_data["owner_name"]
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
         for chunk in pdf_file.chunks():
@@ -417,7 +348,7 @@ def _start_pdf_ocr(request, form, pdf_file):
         pdf_path = tmp_pdf.name
 
     task = OCRTask.objects.create(user=request.user, pdf_filename=pdf_file.name)
-    launch_ocr_task(task.id, pdf_path, pdf_name, pdf_owner_name)
+    launch_ocr_task(task.id, pdf_path, name, owner_name)
     return redirect(f"{reverse('users:upload_processing')}?task={task.id}")
 
 

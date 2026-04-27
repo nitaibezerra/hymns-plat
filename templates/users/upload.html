@@ -7,8 +7,7 @@
     <div class="card">
         <h1 style="margin: 0 0 10px 0; color: #2c5282; font-size: 28px;">Contribuir com Hinário</h1>
         <p style="color: #666; margin-bottom: 24px;">
-            Envie um arquivo YAML com a estrutura do hinário, ou um PDF gerado pelo
-            <code>hymn_pdf_generator</code> para extração via OCR.
+            Envie o PDF do hinário e nós extraímos os hinos automaticamente via OCR.
         </p>
 
         {% if form.errors %}
@@ -20,74 +19,59 @@
         </div>
         {% endif %}
 
-        <div style="display: flex; gap: 8px; margin-bottom: 20px;">
-            <button type="button" id="tab-yaml" class="btn btn-secondary" style="flex: 1;">YAML</button>
-            <button type="button" id="tab-pdf" class="btn btn-secondary" style="flex: 1;">PDF (OCR)</button>
-        </div>
-
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
 
-            <section id="section-yaml">
-                <div style="margin-bottom: 20px;">
-                    <label for="id_yaml_file" style="display: block; margin-bottom: 8px; color: #2c5282; font-weight: 500;">
-                        Arquivo YAML
-                    </label>
-                    {{ form.yaml_file }}
-                    {% if form.yaml_file.errors %}<p style="color:#c33; font-size:14px; margin:5px 0 0;">{{ form.yaml_file.errors.0 }}</p>{% endif %}
-                </div>
-            </section>
+            <div style="margin-bottom: 20px;">
+                <label for="id_pdf_file" style="display: block; margin-bottom: 8px; color: #2c5282; font-weight: 500;">
+                    Arquivo PDF *
+                </label>
+                {{ form.pdf_file }}
+                <p style="color:#666; font-size:13px; margin:5px 0 0;">{{ form.pdf_file.help_text }}</p>
+                {% if form.pdf_file.errors %}<p style="color:#c33; font-size:14px; margin:5px 0 0;">{{ form.pdf_file.errors.0 }}</p>{% endif %}
+            </div>
 
-            <section id="section-pdf" style="display: none;">
-                <div style="margin-bottom: 20px;">
-                    <label for="id_pdf_file" style="display: block; margin-bottom: 8px; color: #2c5282; font-weight: 500;">
-                        Arquivo PDF
-                    </label>
-                    {{ form.pdf_file }}
-                    <p style="color:#666; font-size:13px; margin:5px 0 0;">
-                        {{ form.pdf_file.help_text }}
-                    </p>
-                    {% if form.pdf_file.errors %}<p style="color:#c33; font-size:14px; margin:5px 0 0;">{{ form.pdf_file.errors.0 }}</p>{% endif %}
-                </div>
-                <div style="margin-bottom: 20px;">
-                    <label for="id_pdf_name" style="display: block; margin-bottom: 8px; color: #2c5282; font-weight: 500;">
-                        Nome do Hinário
-                    </label>
-                    {{ form.pdf_name }}
-                    {% if form.pdf_name.errors %}<p style="color:#c33; font-size:14px; margin:5px 0 0;">{{ form.pdf_name.errors.0 }}</p>{% endif %}
-                </div>
-                <div style="margin-bottom: 20px;">
-                    <label for="id_pdf_owner_name" style="display: block; margin-bottom: 8px; color: #2c5282; font-weight: 500;">
-                        Dono do Hinário
-                    </label>
-                    {{ form.pdf_owner_name }}
-                    {% if form.pdf_owner_name.errors %}<p style="color:#c33; font-size:14px; margin:5px 0 0;">{{ form.pdf_owner_name.errors.0 }}</p>{% endif %}
-                </div>
-                <div style="background: #fffbe6; border-left: 4px solid #f0ad4e; padding: 12px 15px; margin-bottom: 20px; border-radius: 4px; font-size: 14px;">
-                    <strong>Atenção:</strong> a extração via OCR pode levar de 1 a 3 minutos, dependendo do tamanho do PDF.
-                </div>
-            </section>
+            <div style="margin-bottom: 20px;">
+                <label for="id_name" style="display: block; margin-bottom: 8px; color: #2c5282; font-weight: 500;">
+                    Nome do Hinário *
+                </label>
+                {{ form.name }}
+                {% if form.name.errors %}<p style="color:#c33; font-size:14px; margin:5px 0 0;">{{ form.name.errors.0 }}</p>{% endif %}
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label for="id_owner_name" style="display: block; margin-bottom: 8px; color: #2c5282; font-weight: 500;">
+                    Dono do Hinário *
+                </label>
+                {{ form.owner_name }}
+                {% if form.owner_name.errors %}<p style="color:#c33; font-size:14px; margin:5px 0 0;">{{ form.owner_name.errors.0 }}</p>{% endif %}
+            </div>
 
             <div style="margin-bottom: 25px;">
                 <label for="id_cover_image" style="display: block; margin-bottom: 8px; color: #2c5282; font-weight: 500;">
                     Imagem de Capa (opcional)
                 </label>
                 {{ form.cover_image }}
+                <p style="color:#666; font-size:13px; margin:5px 0 0;">{{ form.cover_image.help_text }}</p>
+            </div>
+
+            <div style="background: #fffbe6; border-left: 4px solid #f0ad4e; padding: 12px 15px; margin-bottom: 20px; border-radius: 4px; font-size: 14px;">
+                <strong>Atenção:</strong> a extração via OCR pode levar de 1 a 3 minutos, dependendo do tamanho do PDF.
             </div>
 
             <button type="submit" class="btn" style="width: 100%; padding: 14px; font-size: 16px;">
-                Enviar Hinário
+                Enviar PDF
             </button>
         </form>
 
         <div style="margin-top: 30px; padding: 20px; background: #f7fafc; border-radius: 8px;">
             <h3 style="color: #2c5282; margin-bottom: 10px; font-size: 18px;">Como funciona?</h3>
             <ol style="color: #555; line-height: 1.8; padding-left: 20px; margin: 0;">
-                <li>Envie YAML pronto, ou PDF para extração automática</li>
-                <li>Para PDFs, acompanhe o progresso da extração</li>
+                <li>Envie o PDF do hinário</li>
+                <li>Acompanhe a extração via OCR em tempo real</li>
                 <li>O sistema detecta possíveis duplicatas</li>
-                <li>Você escolhe entre criar novo ou adicionar versão</li>
-                <li>Revisa os dados e confirma</li>
+                <li>Você escolhe entre criar novo hinário ou adicionar como versão</li>
+                <li>Revisa os dados extraídos e confirma</li>
             </ol>
         </div>
     </div>
@@ -105,34 +89,4 @@
     }
     .form-control:focus { outline: none; border-color: #2c5282; }
 </style>
-
-<script>
-    (function() {
-        const tabYaml = document.getElementById("tab-yaml");
-        const tabPdf = document.getElementById("tab-pdf");
-        const secYaml = document.getElementById("section-yaml");
-        const secPdf = document.getElementById("section-pdf");
-        const yamlInput = document.getElementById("id_yaml_file");
-        const pdfInput = document.getElementById("id_pdf_file");
-
-        function show(which) {
-            const isPdf = which === "pdf";
-            secPdf.style.display = isPdf ? "" : "none";
-            secYaml.style.display = isPdf ? "none" : "";
-            tabPdf.style.background = isPdf ? "#2c5282" : "";
-            tabPdf.style.color = isPdf ? "#fff" : "";
-            tabYaml.style.background = isPdf ? "" : "#2c5282";
-            tabYaml.style.color = isPdf ? "" : "#fff";
-            // Clear hidden side so server doesn't see both
-            if (isPdf && yamlInput) yamlInput.value = "";
-            if (!isPdf && pdfInput) pdfInput.value = "";
-        }
-        tabYaml.addEventListener("click", () => show("yaml"));
-        tabPdf.addEventListener("click", () => show("pdf"));
-        // Default: show whatever the user last filled, else YAML
-        const startWithPdf = "{{ form.pdf_file.value|default:'' }}{{ form.pdf_name.value|default:'' }}".length > 0
-            || "{{ form.pdf_file.errors|join:'' }}{{ form.pdf_name.errors|join:'' }}{{ form.pdf_owner_name.errors|join:'' }}".length > 0;
-        show(startWithPdf ? "pdf" : "yaml");
-    })();
-</script>
 {% endblock %}

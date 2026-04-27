@@ -3,73 +3,67 @@ Tests for forms (upload and disambiguation forms).
 """
 
 import pytest
-import yaml
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from apps.hymns.forms import DisambiguationChoiceForm, HymnBookUploadForm, HymnBookVersionForm
+from apps.hymns.forms import DisambiguationChoiceForm, HymnBookPdfUploadForm, HymnBookVersionForm
 from apps.hymns.models import HymnBook
 
 
 @pytest.mark.django_db
-class TestHymnBookUploadForm:
-    """Tests for HymnBook upload form."""
+class TestHymnBookPdfUploadForm:
+    """Tests for HymnBookPdfUploadForm (PDF-only upload form)."""
 
-    def test_valid_yaml_file(self):
-        """Test form with valid YAML file."""
-        yaml_content = yaml.dump(
-            {
-                "hymn_book": {
-                    "name": "Test Hinário",
-                    "owner": "Test Owner",
-                    "hymns": [{"number": 1, "title": "Hino 1", "text": "Letra"}],
-                }
-            },
-            allow_unicode=True,
+    @staticmethod
+    def _pdf(name="test.pdf", content=b"%PDF-1.4 dummy"):
+        return SimpleUploadedFile(name, content, content_type="application/pdf")
+
+    def test_valid_pdf_with_metadata(self):
+        form = HymnBookPdfUploadForm(
+            data={"name": "Hinário Teste", "owner_name": "Dono Teste"},
+            files={"pdf_file": self._pdf()},
         )
-        yaml_file = SimpleUploadedFile("test.yaml", yaml_content.encode("utf-8"))
-
-        form = HymnBookUploadForm(files={"yaml_file": yaml_file})
-
-        assert form.is_valid()
+        assert form.is_valid(), form.errors
 
     def test_invalid_file_extension(self):
-        """Test form rejects non-YAML files."""
-        txt_file = SimpleUploadedFile("test.txt", b"not yaml content")
-
-        form = HymnBookUploadForm(files={"yaml_file": txt_file})
-
+        txt = SimpleUploadedFile("not-a-pdf.txt", b"abc", content_type="text/plain")
+        form = HymnBookPdfUploadForm(
+            data={"name": "X", "owner_name": "Y"},
+            files={"pdf_file": txt},
+        )
         assert not form.is_valid()
-        assert "yaml_file" in form.errors
+        assert "pdf_file" in form.errors
 
     def test_file_too_large(self):
-        """Test form rejects files larger than 10MB."""
-        # Create a file larger than 10MB
-        large_content = b"x" * (11 * 1024 * 1024)  # 11MB
-        large_file = SimpleUploadedFile("large.yaml", large_content)
-
-        form = HymnBookUploadForm(files={"yaml_file": large_file})
-
+        big = SimpleUploadedFile("big.pdf", b"x" * (51 * 1024 * 1024), content_type="application/pdf")
+        form = HymnBookPdfUploadForm(
+            data={"name": "X", "owner_name": "Y"},
+            files={"pdf_file": big},
+        )
         assert not form.is_valid()
-        assert "yaml_file" in form.errors
+        assert "pdf_file" in form.errors
 
-    def test_missing_file(self):
-        """Form requires either yaml_file or pdf_file (caught by clean(), not field-level)."""
-        form = HymnBookUploadForm(files={})
-
+    def test_missing_pdf(self):
+        form = HymnBookPdfUploadForm(data={"name": "X", "owner_name": "Y"}, files={})
         assert not form.is_valid()
-        # The mutual-exclusion validation lives in clean(), so the error is on __all__
-        assert "__all__" in form.errors
+        assert "pdf_file" in form.errors
 
-    def test_yaml_file_max_size_boundary(self):
-        """Test file exactly at 10MB limit."""
-        # 10MB exactly
-        content = b"x" * (10 * 1024 * 1024)
-        yaml_file = SimpleUploadedFile("boundary.yaml", content)
+    def test_missing_name(self):
+        form = HymnBookPdfUploadForm(data={"owner_name": "Y"}, files={"pdf_file": self._pdf()})
+        assert not form.is_valid()
+        assert "name" in form.errors
 
-        form = HymnBookUploadForm(files={"yaml_file": yaml_file})
+    def test_missing_owner(self):
+        form = HymnBookPdfUploadForm(data={"name": "X"}, files={"pdf_file": self._pdf()})
+        assert not form.is_valid()
+        assert "owner_name" in form.errors
 
-        # Should be valid (at boundary)
-        assert form.is_valid()
+    def test_pdf_at_size_boundary(self):
+        boundary = SimpleUploadedFile("boundary.pdf", b"x" * (50 * 1024 * 1024), content_type="application/pdf")
+        form = HymnBookPdfUploadForm(
+            data={"name": "X", "owner_name": "Y"},
+            files={"pdf_file": boundary},
+        )
+        assert form.is_valid(), form.errors
 
 
 @pytest.mark.django_db
@@ -167,40 +161,17 @@ class TestDisambiguationChoiceForm:
 class TestFormIntegration:
     """Integration tests for forms."""
 
-    def test_upload_form_with_real_yaml_structure(self):
-        """Test upload form with realistic YAML structure."""
-        yaml_content = yaml.dump(
-            {
-                "hymn_book": {
-                    "name": "O Cruzeiro",
-                    "owner": "Mestre Irineu",
-                    "intro_name": "Cruzeiro",
-                    "description": "Hinário do Mestre Irineu",
-                    "hymns": [
-                        {
-                            "number": 1,
-                            "title": "Lua Branca",
-                            "text": "Da luz serena\nDo mar sagrado",
-                            "style": "Valsa",
-                            "received_at": "1930-07-15",
-                        },
-                        {
-                            "number": 2,
-                            "title": "Tuperci",
-                            "text": "Eu canto é na altura\nPara todos ouvir",
-                            "style": "Marcha",
-                        },
-                    ],
-                }
-            },
-            allow_unicode=True,
+    def test_upload_form_with_pdf_metadata(self):
+        """Realistic upload: PDF + Brazilian-Portuguese metadata."""
+        pdf_file = SimpleUploadedFile("o-cruzeiro.pdf", b"%PDF-1.4 dummy", content_type="application/pdf")
+        form = HymnBookPdfUploadForm(
+            data={"name": "O Cruzeiro", "owner_name": "Mestre Irineu"},
+            files={"pdf_file": pdf_file},
         )
-        yaml_file = SimpleUploadedFile("cruzeiro.yaml", yaml_content.encode("utf-8"))
-
-        form = HymnBookUploadForm(files={"yaml_file": yaml_file})
-
-        assert form.is_valid()
-        assert form.cleaned_data["yaml_file"] is not None
+        assert form.is_valid(), form.errors
+        assert form.cleaned_data["pdf_file"] is not None
+        assert form.cleaned_data["name"] == "O Cruzeiro"
+        assert form.cleaned_data["owner_name"] == "Mestre Irineu"
 
     def test_version_form_saves_correctly(self):
         """Test that version form data can be saved."""
