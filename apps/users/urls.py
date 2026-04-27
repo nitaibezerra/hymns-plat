@@ -13,6 +13,12 @@ urlpatterns = [
     path("perfil/<str:username>/editar/", views.profile_edit_view, name="profile_edit"),
     # Upload flow
     path("contribuir/", views.upload_view, name="upload"),
+    path("contribuir/processando/", views.upload_processing_view, name="upload_processing"),
+    path(
+        "contribuir/ocr-status/<uuid:task_id>/",
+        views.upload_ocr_status_view,
+        name="upload_ocr_status",
+    ),
     path("contribuir/desambiguar/", views.upload_disambiguate_view, name="upload_disambiguate"),
     path("contribuir/preview/", views.upload_preview_view, name="upload_preview"),
     path("contribuir/confirmar/", views.upload_confirm_view, name="upload_confirm"),

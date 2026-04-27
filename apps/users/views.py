@@ -4,6 +4,7 @@ Views for the users app.
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from apps.hymns.models import HymnBook
 
@@ -98,10 +99,14 @@ def upload_view(request):
     if request.method == "POST":
         form = HymnBookUploadForm(request.POST, request.FILES)
         if form.is_valid():
-            yaml_file = request.FILES["yaml_file"]
-            # cover_image handled in preview step
+            pdf_file = form.cleaned_data.get("pdf_file")
+            yaml_file = form.cleaned_data.get("yaml_file")
 
-            # Salva arquivo temporário para parsing
+            # PDF branch: kick off OCR task and redirect to processing page
+            if pdf_file:
+                return _start_pdf_ocr(request, form, pdf_file)
+
+            # YAML branch (original): save tempfile, parse, detect duplicates
             with tempfile.NamedTemporaryFile(delete=False, suffix=".yaml") as tmp_file:
                 for chunk in yaml_file.chunks():
                     tmp_file.write(chunk)
@@ -391,3 +396,112 @@ def upload_confirm_view(request):
     }
 
     return render(request, "users/upload_confirm.html", context)
+
+
+def _start_pdf_ocr(request, form, pdf_file):
+    """
+    PDF branch of upload: save PDF to a temp file, create OCRTask,
+    spawn worker thread, redirect to processing page.
+    """
+    import tempfile
+
+    from apps.hymns.models import OCRTask
+    from apps.hymns.services.ocr import launch_ocr_task
+
+    pdf_name = form.cleaned_data["pdf_name"]
+    pdf_owner_name = form.cleaned_data["pdf_owner_name"]
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+        for chunk in pdf_file.chunks():
+            tmp_pdf.write(chunk)
+        pdf_path = tmp_pdf.name
+
+    task = OCRTask.objects.create(user=request.user, pdf_filename=pdf_file.name)
+    launch_ocr_task(task.id, pdf_path, pdf_name, pdf_owner_name)
+    return redirect(f"{reverse('users:upload_processing')}?task={task.id}")
+
+
+def _ocr_task_for_user(request, task_id):
+    """Look up OCRTask, returning 404/403 as appropriate."""
+    from django.http import Http404, HttpResponseForbidden
+
+    from apps.hymns.models import OCRTask
+
+    try:
+        task = OCRTask.objects.get(pk=task_id)
+    except (OCRTask.DoesNotExist, ValueError) as e:
+        raise Http404("Tarefa OCR não encontrada.") from e
+    if task.user_id != request.user.id:
+        return None, HttpResponseForbidden("Você não tem acesso a essa tarefa.")
+    return task, None
+
+
+@login_required
+def upload_processing_view(request):
+    """
+    Page that polls OCR progress. When task is COMPLETED, populates session
+    like the YAML flow and redirects to disambiguate or preview. When FAILED,
+    renders the error.
+    """
+    from apps.hymns.disambiguation import find_duplicates_with_content
+
+    task_id = request.GET.get("task")
+    if not task_id:
+        return redirect("users:upload")
+
+    task, forbidden = _ocr_task_for_user(request, task_id)
+    if forbidden:
+        return forbidden
+
+    if task.status == task.STATUS_COMPLETED and task.result_data:
+        data = task.result_data
+        hymn_book_data = data.get("hymn_book", {})
+        name = hymn_book_data.get("name") or ""
+        hymns_data = hymn_book_data.get("hymns", [])
+        hymns_list = [
+            {"number": h.get("number"), "title": h.get("title", ""), "text": h.get("text", "")} for h in hymns_data
+        ]
+        duplicates = find_duplicates_with_content(
+            name=name, hymns=hymns_list, name_threshold=0.7, content_threshold=0.8
+        )
+        request.session["upload_data"] = {
+            "yaml_content": str(data),
+            "yaml_filename": task.pdf_filename or "uploaded.pdf",
+            "name": name,
+            "hymns_count": len(hymns_data),
+            "source": "pdf",
+        }
+        if duplicates["exact_match"] or duplicates["high_confidence"]:
+            request.session["duplicates"] = {
+                "exact_match": str(duplicates["exact_match"].id) if duplicates["exact_match"] else None,
+                "high_confidence": [
+                    (str(hb.id), name_score, content_score)
+                    for hb, name_score, content_score in duplicates["high_confidence"]
+                ],
+            }
+            return redirect("users:upload_disambiguate")
+        return redirect("users:upload_preview")
+
+    context = {"task": task}
+    return render(request, "users/upload_processing.html", context)
+
+
+@login_required
+def upload_ocr_status_view(request, task_id):
+    """JSON endpoint polled by the processing page."""
+    from django.http import JsonResponse
+
+    task, forbidden = _ocr_task_for_user(request, task_id)
+    if forbidden:
+        return forbidden
+
+    return JsonResponse(
+        {
+            "status": task.status,
+            "current": task.current_page,
+            "total": task.total_pages,
+            "percent": task.progress_pct,
+            "ready": task.is_done,
+            "error": task.error_message if task.status == task.STATUS_FAILED else "",
+        }
+    )
