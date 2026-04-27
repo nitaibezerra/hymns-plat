@@ -174,5 +174,5 @@ class TestUploadView:
         response = client.get(url)
 
         assert response.status_code == 200
-        assert b'name="yaml_file"' in response.content
+        assert b'name="pdf_file"' in response.content
         assert b'name="cover_image"' in response.content

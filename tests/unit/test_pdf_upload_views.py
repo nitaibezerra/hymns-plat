@@ -1,5 +1,5 @@
 """
-Testes do fluxo PDF: form, view de upload com branching, processing view, status endpoint.
+Testes do fluxo PDF: form, view de upload, processing view, status endpoint.
 """
 
 from unittest.mock import patch
@@ -15,61 +15,41 @@ def _pdf_upload_file(name="test.pdf", content=b"%PDF-1.4 dummy"):
     return SimpleUploadedFile(name, content, content_type="application/pdf")
 
 
-def _yaml_upload_file(name="test.yaml", content=b"hymn_book:\n  name: x\n  owner: y\n  hymns: []\n"):
-    return SimpleUploadedFile(name, content, content_type="text/yaml")
-
-
 @pytest.mark.django_db
-class TestUploadFormPdfBranch:
-    def test_form_rejects_when_neither_yaml_nor_pdf(self):
-        from apps.hymns.forms import HymnBookUploadForm
+class TestUploadFormPdf:
+    def test_form_rejects_missing_pdf(self):
+        from apps.hymns.forms import HymnBookPdfUploadForm
 
-        form = HymnBookUploadForm(data={}, files={})
+        form = HymnBookPdfUploadForm(data={"name": "X", "owner_name": "Y"}, files={})
         assert not form.is_valid()
-        assert "__all__" in form.errors or any("YAML" in str(e) or "PDF" in str(e) for e in form.errors.values())
+        assert "pdf_file" in form.errors
 
-    def test_form_rejects_when_both_yaml_and_pdf(self):
-        from apps.hymns.forms import HymnBookUploadForm
+    def test_form_requires_name_and_owner(self):
+        from apps.hymns.forms import HymnBookPdfUploadForm
 
-        form = HymnBookUploadForm(
-            data={},
-            files={"yaml_file": _yaml_upload_file(), "pdf_file": _pdf_upload_file()},
-        )
+        form = HymnBookPdfUploadForm(data={}, files={"pdf_file": _pdf_upload_file()})
         assert not form.is_valid()
-
-    def test_form_requires_name_and_owner_when_pdf(self):
-        from apps.hymns.forms import HymnBookUploadForm
-
-        form = HymnBookUploadForm(data={}, files={"pdf_file": _pdf_upload_file()})
-        assert not form.is_valid()
-        # name and owner_name are required for PDF
-        msgs = " ".join(str(e) for e in form.errors.values())
-        assert "name" in msgs.lower() or "nome" in msgs.lower()
+        assert "name" in form.errors
+        assert "owner_name" in form.errors
 
     def test_form_valid_with_pdf_and_metadata(self):
-        from apps.hymns.forms import HymnBookUploadForm
+        from apps.hymns.forms import HymnBookPdfUploadForm
 
-        form = HymnBookUploadForm(
-            data={"pdf_name": "Hinário Teste", "pdf_owner_name": "Padrinho Teste"},
+        form = HymnBookPdfUploadForm(
+            data={"name": "Hinário Teste", "owner_name": "Padrinho Teste"},
             files={"pdf_file": _pdf_upload_file()},
         )
         assert form.is_valid(), form.errors
 
-    def test_form_still_accepts_yaml_alone(self):
-        from apps.hymns.forms import HymnBookUploadForm
-
-        form = HymnBookUploadForm(data={}, files={"yaml_file": _yaml_upload_file()})
-        assert form.is_valid(), form.errors
-
 
 @pytest.mark.django_db
-class TestUploadViewPdfBranch:
+class TestUploadViewPdf:
     @patch("apps.hymns.services.ocr.launch_ocr_task")
     def test_post_pdf_creates_task_and_redirects_to_processing(self, mock_launch, authenticated_client):
         url = reverse("users:upload")
         resp = authenticated_client.post(
             url,
-            {"pdf_name": "Novo Hinário", "pdf_owner_name": "Padrinho X", "pdf_file": _pdf_upload_file()},
+            {"name": "Novo Hinário", "owner_name": "Padrinho X", "pdf_file": _pdf_upload_file()},
         )
         # Redirect to processing page
         assert resp.status_code == 302
