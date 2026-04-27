@@ -12,8 +12,11 @@
         </p>
 
         {% if form.errors %}
-        <div style="background: #fee; border-left: 4px solid #c33; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+        <div class="errorlist alert-danger" style="background: #fee; border-left: 4px solid #c33; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
             <p style="margin: 0; color: #c33; font-weight: bold;">Corrija os erros abaixo:</p>
+            {% for error in form.non_field_errors %}
+                <p style="margin: 8px 0 0; color: #c33;">{{ error }}</p>
+            {% endfor %}
         </div>
         {% endif %}
 
