@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load hymn_extras %}
 
 {% block title %}{{ hymn.number }}. {{ hymn.title }} - {{ hymn.hymn_book.name }}{% endblock %}
 
@@ -57,10 +58,10 @@
     {% endif %}
 
     <section>
-        <div class="hymn-text">{{ hymn.text }}</div>
+        {% render_hymn_body hymn %}
     </section>
 
-    {% if hymn.received_at or hymn.offered_to or hymn.style or hymn.extra_instructions or hymn.repetitions %}
+    {% if hymn.received_at or hymn.offered_to or hymn.style or hymn.extra_instructions %}
         <section style="margin-top: 2rem; padding-top: 2rem; border-top: 2px solid #e2e8f0;">
             <h2 style="font-size: 1.25rem; color: #2d3748; margin-bottom: 1rem;">Informações</h2>
             <div class="metadata">
@@ -82,13 +83,6 @@
                     <div class="metadata-item">
                         <div class="metadata-label">Oferecido para</div>
                         <div class="metadata-value">{{ hymn.offered_to }}</div>
-                    </div>
-                {% endif %}
-
-                {% if hymn.repetitions %}
-                    <div class="metadata-item">
-                        <div class="metadata-label">Repetições</div>
-                        <div class="metadata-value">{{ hymn.repetitions }}</div>
                     </div>
                 {% endif %}
             </div>

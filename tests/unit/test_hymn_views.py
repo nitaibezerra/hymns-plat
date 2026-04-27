@@ -263,6 +263,35 @@ class TestHymnDetailView:
         assert "hymn" in response.context
         assert response.context["hymn"] == hymn
 
+    def test_hymn_detail_renders_repetition_bars(self, client):
+        """Hymn com repetitions deve ter barras de repetição no HTML."""
+        hymn_book = HymnBook.objects.create(name="Rep", owner_name="x")
+        hymn = Hymn.objects.create(
+            hymn_book=hymn_book,
+            number=1,
+            title="T",
+            text="V1\nV2\nV3\nV4",
+            repetitions="1-2,3-4",
+        )
+        response = client.get(reverse("hymns:hymn_detail", kwargs={"pk": hymn.pk}))
+        content = response.content.decode()
+        assert "repetition-bar" in content
+        assert "hymn-grid" in content
+
+    def test_hymn_detail_hides_repetitions_text_field(self, client):
+        """Seção 'Informações' não deve mostrar o label 'Repetições'."""
+        hymn_book = HymnBook.objects.create(name="Rep2", owner_name="x")
+        hymn = Hymn.objects.create(
+            hymn_book=hymn_book,
+            number=1,
+            title="T",
+            text="V1\nV2",
+            repetitions="1-2",
+        )
+        response = client.get(reverse("hymns:hymn_detail", kwargs={"pk": hymn.pk}))
+        content = response.content.decode()
+        assert "Repetições" not in content
+
 
 @pytest.mark.django_db
 class TestSearchView:
