@@ -30,14 +30,15 @@ class TestHymnbookUpload:
         file_input = authenticated_page.locator('input[name="pdf_file"]')
         expect(file_input).to_be_visible()
 
-    def test_upload_missing_metadata_shows_error(self, authenticated_page: Page, base_url: str, tmp_path):
-        """Submitting the PDF form with missing required fields shows errors."""
-        pdf_path = tmp_path / "small.pdf"
-        pdf_path.write_bytes(b"%PDF-1.4 dummy")
+    def test_upload_wrong_extension_shows_error(self, authenticated_page: Page, base_url: str, tmp_path):
+        """Submitting a non-PDF file gets rejected server-side with a visible error."""
+        wrong_path = tmp_path / "not-a-pdf.txt"
+        wrong_path.write_bytes(b"not a real pdf")
 
         authenticated_page.goto(f"{base_url}/contribuir/")
-        authenticated_page.set_input_files('input[name="pdf_file"]', str(pdf_path))
-        # Don't fill name/owner — the form must complain
+        authenticated_page.set_input_files('input[name="pdf_file"]', str(wrong_path))
+        authenticated_page.fill('input[name="name"]', "Hinário Teste E2E")
+        authenticated_page.fill('input[name="owner_name"]', "Padrinho Teste")
         authenticated_page.click('button[type="submit"]')
 
         authenticated_page.wait_for_load_state("networkidle")
