@@ -293,38 +293,3 @@ class HymnAudioUploadForm(forms.ModelForm):
                 raise forms.ValidationError("Formato inválido. Use MP3, OGG ou FLAC.")
 
         return audio_file
-
-
-class CommentForm(forms.ModelForm):
-    """Form para comentários em hinos."""
-
-    class Meta:
-        from .models import Comment
-
-        model = Comment
-        fields = ["text"]
-        widgets = {
-            "text": forms.Textarea(
-                attrs={
-                    "class": "form-control",
-                    "placeholder": "Escreva seu comentário...",
-                    "rows": 4,
-                    "maxlength": 1000,
-                }
-            ),
-        }
-
-    def clean_text(self):
-        """Valida o texto do comentário."""
-        text = self.cleaned_data.get("text")
-
-        if text:
-            # Validar comprimento mínimo
-            if len(text.strip()) < 5:
-                raise forms.ValidationError("O comentário deve ter pelo menos 5 caracteres.")
-
-            # Validar se não é só espaços
-            if not text.strip():
-                raise forms.ValidationError("O comentário não pode estar vazio.")
-
-        return text.strip()

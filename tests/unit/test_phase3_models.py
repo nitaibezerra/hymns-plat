@@ -1,5 +1,5 @@
 """
-Tests for Phase 3 models (HymnAudio, Favorite, Comment, UserFollow, Notification).
+Tests for Phase 3 models (HymnAudio, Favorite, UserFollow, Notification).
 """
 
 import pytest
@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
 
-from apps.hymns.models import Comment, Favorite, Hymn, HymnAudio, HymnBook
+from apps.hymns.models import Favorite, Hymn, HymnAudio, HymnBook
 from apps.users.models import Notification, UserFollow
 
 User = get_user_model()
@@ -95,36 +95,6 @@ class TestFavoriteModel:
 
 
 @pytest.mark.django_db
-class TestCommentModel:
-    """Tests for Comment model."""
-
-    def test_create_comment(self):
-        """Test creating comment."""
-        user = User.objects.create_user(username="user1", email="user1@example.com", password="pass123")
-        hb = HymnBook.objects.create(name="Test Book", owner_name="Owner")
-        hymn = Hymn.objects.create(hymn_book=hb, number=1, title="Test Hymn", text="Text")
-
-        comment = Comment.objects.create(hymn=hymn, user=user, text="Great hymn!")
-
-        assert comment.hymn == hymn
-        assert comment.user == user
-        assert comment.text == "Great hymn!"
-        assert comment.is_approved is True  # Default
-        assert comment.is_flagged is False  # Default
-
-    def test_comment_str(self):
-        """Test string representation."""
-        user = User.objects.create_user(username="user1", email="user1@example.com", password="pass123")
-        hb = HymnBook.objects.create(name="Test Book", owner_name="Owner")
-        hymn = Hymn.objects.create(hymn_book=hb, number=1, title="Test Hymn", text="Text")
-
-        comment = Comment.objects.create(hymn=hymn, user=user, text="Great hymn!")
-
-        assert "user1" in str(comment)
-        assert "Test Hymn" in str(comment)
-
-
-@pytest.mark.django_db
 class TestUserFollowModel:
     """Tests for UserFollow model."""
 
@@ -187,20 +157,19 @@ class TestNotificationModel:
 
         notification = Notification.objects.create(
             recipient=user1,
-            notification_type=Notification.TYPE_COMMENT,
-            title="New comment",
-            message="Someone commented",
+            notification_type=Notification.TYPE_FAVORITE,
+            title="New favorite",
+            message="Someone favorited",
         )
 
         assert "user1" in str(notification)
-        assert "New comment" in str(notification)
+        assert "New favorite" in str(notification)
 
     def test_notification_types(self):
         """Test all notification types are valid."""
         user1 = User.objects.create_user(username="user1", email="user1@example.com", password="pass123")
 
         types = [
-            Notification.TYPE_COMMENT,
             Notification.TYPE_FOLLOW,
             Notification.TYPE_FAVORITE,
             Notification.TYPE_UPLOAD_APPROVED,

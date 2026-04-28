@@ -10,8 +10,8 @@ from django.views.decorators.http import require_POST
 
 from apps.users.models import Notification
 
-from .forms import CommentForm, HymnAudioUploadForm
-from .models import Comment, Favorite, Hymn, HymnAudio
+from .forms import HymnAudioUploadForm
+from .models import Favorite, Hymn, HymnAudio
 
 
 @login_required
@@ -48,71 +48,6 @@ def toggle_favorite(request, hymn_id):
 
     messages.success(request, message)
     return redirect("hymns:hymn_detail", pk=hymn.id)
-
-
-@login_required
-def add_comment(request, hymn_id):
-    """Adicionar comentário a um hino."""
-    hymn = get_object_or_404(Hymn, id=hymn_id)
-
-    if request.method == "POST":
-        form = CommentForm(request.POST)
-        if form.is_valid():
-            comment = form.save(commit=False)
-            comment.hymn = hymn
-            comment.user = request.user
-            comment.save()
-
-            messages.success(request, "Comentário adicionado!")
-
-            # Notificar outros comentadores e uploader
-            # (Implementação simplificada - em produção, evitar spam)
-            if hymn.hymn_book.owner_user and hymn.hymn_book.owner_user != request.user:
-                Notification.objects.create(
-                    recipient=hymn.hymn_book.owner_user,
-                    sender=request.user,
-                    notification_type=Notification.TYPE_COMMENT,
-                    title="Novo comentário",
-                    message=f"{request.user.username} comentou em {hymn.title}",
-                    link=f"/hinos/{hymn.id}/",
-                )
-
-            return redirect("hymns:hymn_detail", pk=hymn.id)
-    else:
-        form = CommentForm()
-
-    return render(request, "hymns/add_comment.html", {"form": form, "hymn": hymn})
-
-
-@login_required
-@require_POST
-def delete_comment(request, comment_id):
-    """Deletar comentário (somente o autor)."""
-    comment = get_object_or_404(Comment, id=comment_id)
-
-    if comment.user != request.user:
-        messages.error(request, "Você não pode deletar este comentário.")
-        return redirect("hymns:hymn_detail", pk=comment.hymn.id)
-
-    hymn = comment.hymn
-    comment.delete()
-    messages.success(request, "Comentário deletado.")
-
-    return redirect("hymns:hymn_detail", pk=hymn.id)
-
-
-@login_required
-@require_POST
-def flag_comment(request, comment_id):
-    """Reportar comentário como abuso."""
-    comment = get_object_or_404(Comment, id=comment_id)
-
-    comment.is_flagged = True
-    comment.save(update_fields=["is_flagged"])
-
-    messages.success(request, "Comentário reportado. Obrigado!")
-
-    return redirect("hymns:hymn_detail", pk=comment.hymn.id)
 
 
 @login_required

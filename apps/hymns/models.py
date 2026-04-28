@@ -239,38 +239,6 @@ class Favorite(models.Model):
         return f"{self.user.username} → {self.hymn.title}"
 
 
-class Comment(models.Model):
-    """Comentário em um hino."""
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
-    hymn = models.ForeignKey(Hymn, on_delete=models.CASCADE, related_name="comments", verbose_name="Hino")
-    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="comments", verbose_name="Usuário")
-
-    text = models.TextField("Comentário", max_length=1000)
-
-    # Moderação
-    is_approved = models.BooleanField("Aprovado", default=True, help_text="Pode ser moderado")
-    is_flagged = models.BooleanField("Reportado", default=False, help_text="Reportado por abuso")
-
-    # Timestamps
-    created_at = models.DateTimeField("Criado em", auto_now_add=True)
-    updated_at = models.DateTimeField("Atualizado em", auto_now=True)
-
-    class Meta:
-        verbose_name = "Comentário"
-        verbose_name_plural = "Comentários"
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["hymn", "-created_at"]),
-            models.Index(fields=["user", "-created_at"]),
-            models.Index(fields=["is_approved"]),
-        ]
-
-    def __str__(self):
-        return f"{self.user.username} em {self.hymn.title}: {self.text[:50]}..."
-
-
 class OCRTask(models.Model):
     """
     Tracks OCR processing for a PDF upload. Worker thread updates progress

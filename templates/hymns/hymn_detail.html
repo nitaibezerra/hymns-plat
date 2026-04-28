@@ -41,9 +41,6 @@
             style="{% if is_favorited %}background: #e53e3e;{% endif %}">
             {% if is_favorited %}❤️ Favoritado{% else %}🤍 Favoritar{% endif %}
         </button>
-        <a href="{% url 'hymns:add_comment' hymn_id=hymn.id %}" class="btn btn-secondary">
-            💬 Comentar
-        </a>
         <a href="{% url 'hymns:upload_audio' hymn_id=hymn.id %}" class="btn btn-secondary">
             🎵 Adicionar Áudio
         </a>
@@ -98,66 +95,6 @@
         </section>
     {% endif %}
 
-    {% comment %} Comments Section {% endcomment %}
-    {% if comments or user.is_authenticated %}
-    <section style="margin-top: 2rem; padding-top: 2rem; border-top: 2px solid #e2e8f0;">
-        <h2 style="font-size: 1.25rem; color: #2d3748; margin-bottom: 1rem;">
-            Comentários
-            {% if comments %}
-                <span style="color: #718096; font-size: 1rem; font-weight: 400;">({{ comments|length }})</span>
-            {% endif %}
-        </h2>
-
-        {% if comments %}
-            <div style="display: flex; flex-direction: column; gap: 15px;">
-                {% for comment in comments %}
-                <div class="card" style="border-left: 4px solid #2c5282; background: #f7fafc;">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
-                        <div>
-                            <strong style="color: #2c5282;">
-                                <a href="{% url 'users:profile' username=comment.user.username %}" style="text-decoration: none; color: #2c5282;">
-                                    {{ comment.user.username }}
-                                </a>
-                            </strong>
-                            <span style="color: #718096; font-size: 14px; margin-left: 10px;">
-                                {{ comment.created_at|timesince }} atrás
-                            </span>
-                        </div>
-                        <div style="display: flex; gap: 5px;">
-                            {% if user == comment.user %}
-                            <form method="post" action="{% url 'hymns:delete_comment' comment_id=comment.id %}" style="margin: 0;">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-secondary" style="padding: 5px 10px; font-size: 13px;" onclick="return confirm('Tem certeza que deseja deletar este comentário?')">
-                                    🗑️ Deletar
-                                </button>
-                            </form>
-                            {% else %}
-                            <form method="post" action="{% url 'hymns:flag_comment' comment_id=comment.id %}" style="margin: 0;">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-secondary" style="padding: 5px 10px; font-size: 13px;" onclick="return confirm('Deseja reportar este comentário?')">
-                                    🚩 Reportar
-                                </button>
-                            </form>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <p style="margin: 0; color: #2d3748; line-height: 1.6;">{{ comment.text }}</p>
-                </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <p style="color: #718096; font-style: italic;">Nenhum comentário ainda. Seja o primeiro!</p>
-        {% endif %}
-
-        {% if user.is_authenticated %}
-        <div style="margin-top: 20px;">
-            <a href="{% url 'hymns:add_comment' hymn_id=hymn.id %}" class="btn">
-                Adicionar Comentário
-            </a>
-        </div>
-        {% endif %}
-    </section>
-    {% endif %}
 </article>
 
 {% comment %}

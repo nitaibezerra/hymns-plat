@@ -19,9 +19,6 @@ urlpatterns = [
     path("busca/", views.search_view, name="search"),
     # Social features
     path("hinos/<uuid:hymn_id>/favoritar/", views_social.toggle_favorite, name="toggle_favorite"),
-    path("hinos/<uuid:hymn_id>/comentar/", views_social.add_comment, name="add_comment"),
-    path("comentarios/<uuid:comment_id>/deletar/", views_social.delete_comment, name="delete_comment"),
-    path("comentarios/<uuid:comment_id>/reportar/", views_social.flag_comment, name="flag_comment"),
     path("hinos/<uuid:hymn_id>/upload-audio/", views_social.upload_audio, name="upload_audio"),
     path("audios/<uuid:audio_id>/download/", views_social.download_audio, name="download_audio"),
 ]

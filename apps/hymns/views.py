@@ -74,9 +74,6 @@ class HymnDetailView(DetailView):
         # Get approved audios
         context["audios"] = hymn.audios.filter(is_approved=True).order_by("-created_at")
 
-        # Get approved comments
-        context["comments"] = hymn.comments.filter(is_approved=True, is_flagged=False).order_by("created_at")
-
         # Permissão de edição
         context["can_edit"] = _can_edit_hymnbook(self.request.user, hymn.hymn_book)
 
