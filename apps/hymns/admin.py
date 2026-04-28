@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Comment, Favorite, Hymn, HymnAudio, HymnBook, HymnBookVersion
+from .models import Favorite, Hymn, HymnAudio, HymnBook, HymnBookVersion
 
 
 class HymnInline(admin.TabularInline):
@@ -176,42 +176,3 @@ class FavoriteAdmin(admin.ModelAdmin):
     search_fields = ["user__username", "hymn__title", "hymn__hymn_book__name"]
     readonly_fields = ["id", "created_at"]
     list_select_related = ["user", "hymn", "hymn__hymn_book"]
-
-
-@admin.register(Comment)
-class CommentAdmin(admin.ModelAdmin):
-    """Admin para Comentários."""
-
-    list_display = ["user", "hymn", "text_preview", "is_approved", "is_flagged", "created_at"]
-    list_filter = ["is_approved", "is_flagged", "created_at"]
-    search_fields = ["user__username", "hymn__title", "text"]
-    readonly_fields = ["id", "created_at", "updated_at"]
-    list_select_related = ["user", "hymn", "hymn__hymn_book"]
-
-    fieldsets = [
-        (
-            "Comentário",
-            {
-                "fields": ["hymn", "user", "text"],
-            },
-        ),
-        (
-            "Moderação",
-            {
-                "fields": ["is_approved", "is_flagged"],
-            },
-        ),
-        (
-            "Timestamps",
-            {
-                "fields": ["id", "created_at", "updated_at"],
-                "classes": ["collapse"],
-            },
-        ),
-    ]
-
-    def text_preview(self, obj):
-        """Preview do texto do comentário."""
-        return obj.text[:100] + "..." if len(obj.text) > 100 else obj.text
-
-    text_preview.short_description = "Comentário"

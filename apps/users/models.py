@@ -49,14 +49,12 @@ class Notification(models.Model):
     """Notificação para usuário."""
 
     # Tipos de notificação
-    TYPE_COMMENT = "comment"
     TYPE_FOLLOW = "follow"
     TYPE_FAVORITE = "favorite"
     TYPE_UPLOAD_APPROVED = "upload_approved"
     TYPE_AUDIO_APPROVED = "audio_approved"
 
     NOTIFICATION_TYPES = [
-        (TYPE_COMMENT, "Comentário"),
         (TYPE_FOLLOW, "Novo seguidor"),
         (TYPE_FAVORITE, "Favorito"),
         (TYPE_UPLOAD_APPROVED, "Upload aprovado"),
@@ -77,7 +75,7 @@ class Notification(models.Model):
         verbose_name="Remetente",
     )
 
-    notification_type = models.CharField("Tipo", max_length=20, choices=NOTIFICATION_TYPES, default=TYPE_COMMENT)
+    notification_type = models.CharField("Tipo", max_length=20, choices=NOTIFICATION_TYPES, default=TYPE_FAVORITE)
 
     # Conteúdo
     title = models.CharField("Título", max_length=255)

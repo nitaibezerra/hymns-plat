@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
-from apps.hymns.models import Comment, Favorite, Hymn, HymnAudio, HymnBook
+from apps.hymns.models import Favorite, Hymn, HymnAudio, HymnBook
 from apps.users.models import Notification, UserFollow
 
 User = get_user_model()
@@ -57,85 +57,6 @@ class TestToggleFavorite:
 
         assert response.status_code == 302
         assert not Favorite.objects.filter(user=user, hymn=hymn).exists()
-
-
-@pytest.mark.django_db
-class TestAddComment:
-    """Tests for add comment view."""
-
-    def test_comment_requires_login(self, client):
-        """Test that commenting requires login."""
-        hb = HymnBook.objects.create(name="Test", owner_name="Owner")
-        hymn = Hymn.objects.create(hymn_book=hb, number=1, title="Test", text="Text")
-
-        url = reverse("hymns:add_comment", kwargs={"hymn_id": hymn.id})
-        response = client.get(url)
-
-        assert response.status_code == 302
-        assert "/accounts/login/" in response.url
-
-    def test_add_comment_get(self, client):
-        """Test GET shows comment form."""
-        user = User.objects.create_user(username="user1", email="user1@example.com", password="pass123")
-        hb = HymnBook.objects.create(name="Test", owner_name="Owner")
-        hymn = Hymn.objects.create(hymn_book=hb, number=1, title="Test", text="Text")
-
-        client.force_login(user)
-
-        url = reverse("hymns:add_comment", kwargs={"hymn_id": hymn.id})
-        response = client.get(url)
-
-        assert response.status_code == 200
-
-    def test_add_comment_post_valid(self, client):
-        """Test posting valid comment."""
-        user = User.objects.create_user(username="user1", email="user1@example.com", password="pass123")
-        hb = HymnBook.objects.create(name="Test", owner_name="Owner")
-        hymn = Hymn.objects.create(hymn_book=hb, number=1, title="Test", text="Text")
-
-        client.force_login(user)
-
-        url = reverse("hymns:add_comment", kwargs={"hymn_id": hymn.id})
-        response = client.post(url, {"text": "Great hymn!"})
-
-        assert response.status_code == 302
-        assert Comment.objects.filter(hymn=hymn, user=user).exists()
-
-
-@pytest.mark.django_db
-class TestDeleteComment:
-    """Tests for delete comment view."""
-
-    def test_delete_own_comment(self, client):
-        """Test user can delete own comment."""
-        user = User.objects.create_user(username="user1", email="user1@example.com", password="pass123")
-        hb = HymnBook.objects.create(name="Test", owner_name="Owner")
-        hymn = Hymn.objects.create(hymn_book=hb, number=1, title="Test", text="Text")
-        comment = Comment.objects.create(hymn=hymn, user=user, text="Test comment")
-
-        client.force_login(user)
-
-        url = reverse("hymns:delete_comment", kwargs={"comment_id": comment.id})
-        response = client.post(url)
-
-        assert response.status_code == 302
-        assert not Comment.objects.filter(id=comment.id).exists()
-
-    def test_cannot_delete_other_comment(self, client):
-        """Test user cannot delete other user's comment."""
-        user1 = User.objects.create_user(username="user1", email="user1@example.com", password="pass123")
-        user2 = User.objects.create_user(username="user2", email="user2@example.com", password="pass123")
-        hb = HymnBook.objects.create(name="Test", owner_name="Owner")
-        hymn = Hymn.objects.create(hymn_book=hb, number=1, title="Test", text="Text")
-        comment = Comment.objects.create(hymn=hymn, user=user1, text="Test comment")
-
-        client.force_login(user2)
-
-        url = reverse("hymns:delete_comment", kwargs={"comment_id": comment.id})
-        response = client.post(url)
-
-        assert response.status_code == 302
-        assert Comment.objects.filter(id=comment.id).exists()  # Still exists
 
 
 @pytest.mark.django_db
@@ -210,7 +131,7 @@ class TestNotifications:
         user = User.objects.create_user(username="user1", email="user1@example.com", password="pass123")
 
         Notification.objects.create(
-            recipient=user, notification_type=Notification.TYPE_COMMENT, title="Test", message="Test message"
+            recipient=user, notification_type=Notification.TYPE_FAVORITE, title="Test", message="Test message"
         )
 
         client.force_login(user)
@@ -226,7 +147,7 @@ class TestNotifications:
 
         Notification.objects.create(
             recipient=user,
-            notification_type=Notification.TYPE_COMMENT,
+            notification_type=Notification.TYPE_FAVORITE,
             title="Test",
             message="Test message",
             is_read=False,

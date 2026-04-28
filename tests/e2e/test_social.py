@@ -29,10 +29,6 @@ class TestSocialFeatures:
             fav_button = authenticated_page.locator('[data-action="toggle-favorite"], button:has-text("Favorit")')
             expect(fav_button).to_be_visible()
 
-            # Comment link should be visible
-            comment_link = authenticated_page.locator('a:has-text("Comentar")')
-            expect(comment_link).to_be_visible()
-
     def test_notifications_page_loads(self, authenticated_page: Page, base_url: str):
         """Notifications page loads for authenticated user."""
         authenticated_page.goto(f"{base_url}/notificacoes/")
