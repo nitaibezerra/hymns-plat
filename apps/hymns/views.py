@@ -3,23 +3,19 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchRank, TrigramSimilarity
 from django.db.models import F, Func, Q, Value
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView
 
 from .forms import HymnBookForm, HymnForm
 from .models import Hymn, HymnBook
+from .permissions import can_edit_hymnbook, can_publish_hymnbook
 
 
 class UnaccentFunc(Func):
     """Invoca a função SQL `unaccent(text)` da extension unaccent."""
 
     function = "unaccent"
-
-
-def _can_edit_hymnbook(user, hymnbook):
-    """True se user pode editar/deletar o hymnbook (dono ou superuser)."""
-    if not user.is_authenticated:
-        return False
-    return user.is_superuser or user == hymnbook.owner_user
 
 
 class HymnBookListView(ListView):
@@ -31,7 +27,7 @@ class HymnBookListView(ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        return HymnBook.objects.all().order_by("name")
+        return HymnBook.objects.visible_to(self.request.user).order_by("name")
 
 
 class HymnBookDetailView(DetailView):
@@ -46,7 +42,7 @@ class HymnBookDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["hymns"] = self.object.hymns.all().order_by("number")
-        context["can_edit"] = _can_edit_hymnbook(self.request.user, self.object)
+        context["can_edit"] = can_edit_hymnbook(self.request.user, self.object)
         return context
 
 
@@ -75,7 +71,7 @@ class HymnDetailView(DetailView):
         context["audios"] = hymn.audios.filter(is_approved=True).order_by("-created_at")
 
         # Permissão de edição
-        context["can_edit"] = _can_edit_hymnbook(self.request.user, hymn.hymn_book)
+        context["can_edit"] = can_edit_hymnbook(self.request.user, hymn.hymn_book)
 
         return context
 
@@ -94,11 +90,13 @@ def search_view(request):
 
     if query:
         tsquery = SearchQuery(query, config="portuguese", search_type="websearch")
+        visible_books = HymnBook.objects.visible_to(request.user)
         qs = (
             Hymn.objects.annotate(
                 rank=SearchRank(F("search_vector"), tsquery),
                 title_sim=TrigramSimilarity(UnaccentFunc("title"), UnaccentFunc(Value(query))),
             )
+            .filter(hymn_book__in=visible_books)
             .filter(Q(search_vector=tsquery) | Q(title_sim__gt=0.3))
             .select_related("hymn_book")
             .order_by("-rank", "-title_sim")
@@ -116,9 +114,9 @@ def search_view(request):
 
 def home_view(request):
     """Home page with featured hymn books and search."""
-    recent_hymnbooks = HymnBook.objects.all().order_by("-created_at")[:6]
-    total_hymnbooks = HymnBook.objects.count()
-    total_hymns = Hymn.objects.count()
+    recent_hymnbooks = HymnBook.objects.visible_to(request.user).order_by("-created_at")[:6]
+    total_hymnbooks = HymnBook.objects.published().count()
+    total_hymns = Hymn.objects.filter(hymn_book__is_published=True).count()
 
     context = {
         "recent_hymnbooks": recent_hymnbooks,
@@ -152,7 +150,7 @@ def hymnbook_create_view(request):
 def hymnbook_edit_view(request, slug):
     """Edita um HymnBook. Permissão: dono ou superuser."""
     hymnbook = get_object_or_404(HymnBook, slug=slug)
-    if not _can_edit_hymnbook(request.user, hymnbook):
+    if not can_edit_hymnbook(request.user, hymnbook):
         messages.error(request, "Você não tem permissão para editar este hinário.")
         return redirect("hymns:hymnbook_detail", slug=slug)
 
@@ -180,7 +178,7 @@ def hymnbook_edit_view(request, slug):
 def hymnbook_delete_view(request, slug):
     """Deleta um HymnBook. GET mostra confirmação, POST executa."""
     hymnbook = get_object_or_404(HymnBook, slug=slug)
-    if not _can_edit_hymnbook(request.user, hymnbook):
+    if not can_edit_hymnbook(request.user, hymnbook):
         messages.error(request, "Você não tem permissão para deletar este hinário.")
         return redirect("hymns:hymnbook_detail", slug=slug)
 
@@ -194,10 +192,50 @@ def hymnbook_delete_view(request, slug):
 
 
 @login_required
+@require_POST
+def hymnbook_publish_view(request, slug):
+    """Publica um HymnBook. Permissão: dono, editor ou superuser. Pré-requisito:
+    todos os hinos devem estar REVIEWED."""
+    hymnbook = get_object_or_404(HymnBook, slug=slug)
+    if not can_publish_hymnbook(request.user, hymnbook):
+        messages.error(request, "Você não tem permissão para publicar este hinário.")
+        return redirect("hymns:hymnbook_detail", slug=slug)
+
+    if not hymnbook.is_fully_reviewed:
+        messages.error(
+            request,
+            "Hinário não pode ser publicado: todos os hinos precisam estar revisados.",
+        )
+        return redirect("hymns:hymnbook_detail", slug=slug)
+
+    hymnbook.is_published = True
+    hymnbook.published_at = timezone.now()
+    hymnbook.published_by = request.user
+    hymnbook.save(update_fields=["is_published", "published_at", "published_by", "updated_at"])
+    messages.success(request, f"Hinário '{hymnbook.name}' publicado.")
+    return redirect("hymns:hymnbook_detail", slug=slug)
+
+
+@login_required
+@require_POST
+def hymnbook_unpublish_view(request, slug):
+    """Despublica um HymnBook. Permissão: dono, editor ou superuser."""
+    hymnbook = get_object_or_404(HymnBook, slug=slug)
+    if not can_publish_hymnbook(request.user, hymnbook):
+        messages.error(request, "Você não tem permissão para despublicar este hinário.")
+        return redirect("hymns:hymnbook_detail", slug=slug)
+
+    hymnbook.is_published = False
+    hymnbook.save(update_fields=["is_published", "updated_at"])
+    messages.success(request, f"Hinário '{hymnbook.name}' despublicado.")
+    return redirect("hymns:hymnbook_detail", slug=slug)
+
+
+@login_required
 def hymn_create_view(request, slug):
     """Cria um Hymn dentro de um HymnBook."""
     hymnbook = get_object_or_404(HymnBook, slug=slug)
-    if not _can_edit_hymnbook(request.user, hymnbook):
+    if not can_edit_hymnbook(request.user, hymnbook):
         messages.error(request, "Você não tem permissão para adicionar hinos neste hinário.")
         return redirect("hymns:hymnbook_detail", slug=slug)
 
@@ -230,7 +268,7 @@ def hymn_create_view(request, slug):
 def hymn_edit_view(request, pk):
     """Edita um Hymn. Permissão: dono do hinário ou superuser."""
     hymn = get_object_or_404(Hymn.objects.select_related("hymn_book"), pk=pk)
-    if not _can_edit_hymnbook(request.user, hymn.hymn_book):
+    if not can_edit_hymnbook(request.user, hymn.hymn_book):
         messages.error(request, "Você não tem permissão para editar este hino.")
         return redirect("hymns:hymn_detail", pk=pk)
 
@@ -256,10 +294,55 @@ def hymn_edit_view(request, pk):
 
 
 @login_required
+@require_POST
+def revise_hymn_view(request, pk):
+    """
+    Marco 1.3 — endpoint de revisão. Aceita POST com campos editáveis +
+    `review_status` final + `change_summary` opcional. Atualiza
+    `last_reviewed_at`/`last_reviewed_by`. Permissão: dono, editor, superuser.
+    """
+    hymn = get_object_or_404(Hymn.objects.select_related("hymn_book"), pk=pk)
+    if not can_edit_hymnbook(request.user, hymn.hymn_book):
+        messages.error(request, "Você não tem permissão para revisar este hino.")
+        return redirect("hymns:hymn_detail", pk=pk)
+
+    editable_fields = ("number", "title", "text", "repetitions", "extra_instructions", "style", "offered_to")
+    for field in editable_fields:
+        if field in request.POST:
+            value = request.POST.get(field, "").strip()
+            if field == "number":
+                try:
+                    setattr(hymn, field, int(value))
+                except (TypeError, ValueError):
+                    messages.error(request, "Número inválido.")
+                    return redirect("hymns:hymn_detail", pk=pk)
+            else:
+                setattr(hymn, field, value)
+
+    new_status = request.POST.get("review_status")
+    if new_status in Hymn.ReviewStatus.values:
+        hymn.review_status = new_status
+
+    hymn.last_reviewed_by = request.user
+    hymn.last_reviewed_at = timezone.now()
+    hymn.save()
+
+    summary = request.POST.get("change_summary", "").strip()
+    if summary:
+        last_revision = hymn.revisions.order_by("-revised_at").first()
+        if last_revision and last_revision.change_summary == "":
+            last_revision.change_summary = summary
+            last_revision.save(update_fields=["change_summary"])
+
+    messages.success(request, f"Hino #{hymn.number} revisado.")
+    return redirect("hymns:hymn_detail", pk=hymn.pk)
+
+
+@login_required
 def hymn_delete_view(request, pk):
     """Deleta um Hymn. GET mostra confirmação, POST executa."""
     hymn = get_object_or_404(Hymn.objects.select_related("hymn_book"), pk=pk)
-    if not _can_edit_hymnbook(request.user, hymn.hymn_book):
+    if not can_edit_hymnbook(request.user, hymn.hymn_book):
         messages.error(request, "Você não tem permissão para deletar este hino.")
         return redirect("hymns:hymn_detail", pk=pk)
 

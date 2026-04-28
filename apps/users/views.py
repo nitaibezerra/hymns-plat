@@ -213,6 +213,9 @@ def upload_preview_view(request):
                 )
 
                 # Cria hinos (signals em apps.hymns.signals cuidam da indexação)
+                # `source=OCR` marca a origem para o workspace do editor
+                # priorizar revisão. Hinário entra como rascunho (`is_published`
+                # default False) até ser revisado e publicado.
                 hymns_data = hymn_book_data.get("hymns", [])
                 for hymn_data in hymns_data:
                     Hymn.objects.create(
@@ -225,6 +228,7 @@ def upload_preview_view(request):
                         style=hymn_data.get("style", ""),
                         extra_instructions=hymn_data.get("extra_instructions", ""),
                         repetitions=hymn_data.get("repetitions", ""),
+                        source=Hymn.Source.OCR,
                     )
 
             # Limpa sessão

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% comment %}
+Marco 1.5 — workspace do editor (template provisório).
+A Fase 2 (UI) reescreve esta tela com pílulas, atalhos de teclado e diff visual.
+{% endcomment %}
+
+{% block title %}Revisar Hino #{{ hymn.number }} — {{ hymnbook.name }}{% endblock %}
+
+{% block content %}
+<nav style="margin-bottom: 1rem;">
+    <a href="{% url 'hymns:editor_hymnbook_detail' hymnbook.slug %}">&larr; {{ hymnbook.name }}</a>
+</nav>
+
+<h1>Revisar Hino #{{ hymn.number }}</h1>
+<p>Status atual: {{ hymn.get_review_status_display }} — Origem: {{ hymn.get_source_display }}</p>
+
+<form method="post" action="{% url 'hymns:editor_revise_hymn' hymn.pk %}">
+    {% csrf_token %}
+    <p><label>Número: <input type="number" name="number" value="{{ hymn.number }}" required></label></p>
+    <p><label>Título: <input type="text" name="title" value="{{ hymn.title }}" required style="width:100%;"></label></p>
+    <p><label>Letra:<br><textarea name="text" rows="15" required style="width:100%;font-family:monospace;">{{ hymn.text }}</textarea></label></p>
+    <p><label>Repetições: <input type="text" name="repetitions" value="{{ hymn.repetitions }}"></label></p>
+    <p><label>Estilo: <input type="text" name="style" value="{{ hymn.style }}"></label></p>
+    <p><label>Ofertado para: <input type="text" name="offered_to" value="{{ hymn.offered_to }}"></label></p>
+    <p><label>Instruções extras:<br><textarea name="extra_instructions" rows="3" style="width:100%;">{{ hymn.extra_instructions }}</textarea></label></p>
+
+    <p><label>Status de revisão:
+        <select name="review_status">
+            <option value="not_reviewed" {% if hymn.review_status == 'not_reviewed' %}selected{% endif %}>Não revisado</option>
+            <option value="in_review" {% if hymn.review_status == 'in_review' %}selected{% endif %}>Em revisão</option>
+            <option value="reviewed" {% if hymn.review_status == 'reviewed' %}selected{% endif %}>Revisado</option>
+        </select>
+    </label></p>
+
+    <p><label>Resumo da mudança (opcional):<br><textarea name="change_summary" rows="2" style="width:100%;"></textarea></label></p>
+
+    <button type="submit" name="next_action" value="next" class="btn">Salvar e próximo</button>
+    <button type="submit" name="next_action" value="back" class="btn btn-secondary">Salvar e voltar</button>
+</form>
+{% endblock %}

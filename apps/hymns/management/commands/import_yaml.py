@@ -23,11 +23,17 @@ class Command(BaseCommand):
         parser.add_argument("yaml_file", type=str, help="Path to the YAML file to import")
         parser.add_argument("--update", action="store_true", help="Update existing hymn book if it already exists")
         parser.add_argument("--dry-run", action="store_true", help="Preview import without saving to database")
+        parser.add_argument(
+            "--mark-reviewed",
+            action="store_true",
+            help="Marca os hinos importados como já revisados (use só se confiar 100% no YAML)",
+        )
 
     def handle(self, *args, **options):
         yaml_file = options["yaml_file"]
         update = options["update"]
         dry_run = options["dry_run"]
+        self.mark_reviewed = options.get("mark_reviewed", False)
 
         # Check if file exists
         if not os.path.exists(yaml_file):
@@ -140,6 +146,9 @@ class Command(BaseCommand):
             except ValueError:
                 self.stdout.write(self.style.WARNING(f"  Invalid date format for hymn {number}: {received_at_str}"))
 
+        review_status = (
+            Hymn.ReviewStatus.REVIEWED if getattr(self, "mark_reviewed", False) else Hymn.ReviewStatus.NOT_REVIEWED
+        )
         hymn = Hymn.objects.create(
             hymn_book=hymn_book,
             number=number,
@@ -150,6 +159,8 @@ class Command(BaseCommand):
             style=hymn_data.get("style", "").strip(),
             extra_instructions=hymn_data.get("extra_instructions", "").strip(),
             repetitions=hymn_data.get("repetitions", "").strip(),
+            source=Hymn.Source.YAML,
+            review_status=review_status,
         )
         return hymn
 

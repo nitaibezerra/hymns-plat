@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% comment %}
+Marco 1.5 — workspace do editor (template provisório).
+A Fase 2 (UI) reescreve esta tela.
+{% endcomment %}
+
+{% block title %}Editor — {{ hymnbook.name }}{% endblock %}
+
+{% block content %}
+<nav style="margin-bottom: 1rem;">
+    <a href="{% url 'hymns:editor_hymnbook_list' %}">&larr; Voltar para fila</a>
+</nav>
+
+<h1>{{ hymnbook.name }}</h1>
+<p>Progresso: {{ progress.reviewed }}/{{ progress.total }} revisados ({{ progress.pct }}%)</p>
+
+<a href="{% url 'hymns:editor_next_hymn' hymnbook.slug %}" class="btn">Revisar próximo não-revisado &rarr;</a>
+
+<table style="margin-top: 1rem;">
+    <thead>
+        <tr><th>#</th><th>Título</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for h in hymns %}
+        <tr>
+            <td>{{ h.number }}</td>
+            <td>{{ h.title }}</td>
+            <td>{{ h.get_review_status_display }}</td>
+            <td><a href="{% url 'hymns:editor_revise_hymn' h.pk %}">Revisar</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
