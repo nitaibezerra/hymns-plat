@@ -17,7 +17,6 @@ WORKDIR /app
 #  - ffmpeg: audio waveform generation (apps/hymns/services/audio.py)
 #  - tesseract-ocr + por: PDF OCR via hymn-ocr lib
 #  - poppler-utils: pdf2image (hymn-ocr dep)
-#  - libpangocairo + fonts: WeasyPrint PDF render
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
@@ -26,11 +25,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-por \
     poppler-utils \
-    libpango-1.0-0 \
-    libpangoft2-1.0-0 \
-    libcairo2 \
-    libgdk-pixbuf2.0-0 \
-    fonts-dejavu \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
