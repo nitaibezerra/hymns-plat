@@ -124,7 +124,7 @@ class TestSearchFilters:
         hymn_factory(hymn_book=published, number=1, title="Lua Visível", text="lua visivel")
 
         resp = client.get(reverse("hymns:search"), {"q": "lua"})
-        titles = [h.title for h in resp.context["results"]]
+        titles = [r["obj"].title for r in resp.context["results"] if r["type"] == "hymn"]
         assert "Lua Visível" in titles
         assert "Lua Oculta" not in titles
 
@@ -136,7 +136,7 @@ class TestSearchFilters:
         )
         hymn_factory(hymn_book=own, number=1, title="Lua Privada", text="oculta")
         resp = authenticated_client.get(reverse("hymns:search"), {"q": "Privada"})
-        titles = [h.title for h in resp.context["results"]]
+        titles = [r["obj"].title for r in resp.context["results"] if r["type"] == "hymn"]
         assert "Lua Privada" in titles
 
 
@@ -149,11 +149,17 @@ class TestPublishView:
         assert "/accounts/login" in resp.url
 
     def test_owner_can_publish(self, authenticated_client, hymn_book_factory, hymn_factory):
-        from apps.hymns.models import Hymn
+        from apps.hymns.models import Hymn, HymnRevision
 
-        hb = hymn_book_factory(name="Pub", owner_user=authenticated_client.user, is_published=False)
+        hb = hymn_book_factory(
+            name="Pub",
+            owner_user=authenticated_client.user,
+            is_published=False,
+            description="Hinário do teste",
+        )
         h = hymn_factory(hymn_book=hb, number=1)
         Hymn.objects.filter(pk=h.pk).update(review_status=Hymn.ReviewStatus.REVIEWED)
+        HymnRevision.objects.create(hymn=h, revised_by=authenticated_client.user)
         url = reverse("hymns:hymnbook_publish", kwargs={"slug": hb.slug})
         resp = authenticated_client.post(url)
         assert resp.status_code == 302
@@ -162,13 +168,17 @@ class TestPublishView:
         assert hb.published_at is not None
         assert hb.published_by == authenticated_client.user
 
-    def test_editor_can_publish_others_book(self, authenticated_client, hymn_book_factory, hymn_factory):
-        from apps.hymns.models import Hymn
+    def test_editor_can_publish_others_book(self, authenticated_client, hymn_book_factory, hymn_factory, user_factory):
+        from apps.hymns.models import Hymn, HymnRevision
 
         _make_editor(authenticated_client.user)
-        hb = hymn_book_factory(name="Alheio", is_published=False)
+        owner = user_factory(email="own@example.com")
+        hb = hymn_book_factory(
+            name="Alheio", owner_user=owner, is_published=False, description="x"
+        )
         h = hymn_factory(hymn_book=hb, number=1)
         Hymn.objects.filter(pk=h.pk).update(review_status=Hymn.ReviewStatus.REVIEWED)
+        HymnRevision.objects.create(hymn=h, revised_by=owner)
         url = reverse("hymns:hymnbook_publish", kwargs={"slug": hb.slug})
         resp = authenticated_client.post(url)
         assert resp.status_code == 302

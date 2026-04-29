@@ -84,6 +84,35 @@ class TestHymnRevisionSignal:
 
 
 @pytest.mark.django_db
+class TestInitialRevisionOnNonManualCreation:
+    """Marco 2.0.2 — drawer de histórico precisa do evento "criado via OCR"."""
+
+    def test_initial_revision_recorded_for_ocr_source(self, hymn_book):
+        h = Hymn.objects.create(
+            hymn_book=hymn_book, number=10, title="t", text="x", source=Hymn.Source.OCR
+        )
+        revs = HymnRevision.objects.filter(hymn=h)
+        assert revs.count() == 1
+        rev = revs.first()
+        assert rev.previous_status == ""
+        assert rev.new_status == h.review_status
+        assert "OCR" in rev.change_summary
+
+    def test_initial_revision_recorded_for_yaml_source(self, hymn_book):
+        h = Hymn.objects.create(
+            hymn_book=hymn_book, number=11, title="t", text="x", source=Hymn.Source.YAML
+        )
+        rev = HymnRevision.objects.get(hymn=h)
+        assert "YAML" in rev.change_summary
+
+    def test_no_initial_revision_for_manual_source(self, hymn_book):
+        Hymn.objects.create(
+            hymn_book=hymn_book, number=12, title="t", text="x", source=Hymn.Source.MANUAL
+        )
+        assert HymnRevision.objects.count() == 0
+
+
+@pytest.mark.django_db
 class TestReviseHymnView:
     def test_requires_login(self, client, hymn):
         url = reverse("hymns:hymn_revise", kwargs={"pk": hymn.pk})

@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 
 from django.contrib.postgres.indexes import GinIndex
@@ -6,6 +7,20 @@ from django.db import models
 from django.utils.text import slugify
 
 from .managers import HymnBookManager
+
+# Marco 2.0.6 — paleta para cards de hinários quando o dono não escolhe cor.
+# Hex codes inspirados nos cards do design (verde-musgo, vermelho-tijolo, navy,
+# oliva, mostarda, púrpura, ciano, marrom).
+HYMNBOOK_ACCENT_PALETTE = [
+    "#1F5C4D",  # verde musgo
+    "#8C3A2E",  # vermelho tijolo
+    "#1A2A4A",  # navy
+    "#5B6E2A",  # oliva
+    "#B58D3E",  # mostarda
+    "#5E3A6B",  # púrpura
+    "#2E6E76",  # ciano profundo
+    "#6B4A2A",  # marrom
+]
 
 
 class HymnBook(models.Model):
@@ -31,6 +46,12 @@ class HymnBook(models.Model):
     )
     cover_image = models.ImageField("Imagem de capa", upload_to="hymn_covers/", blank=True, null=True)
     description = models.TextField("Descrição", blank=True)
+    accent_color = models.CharField(
+        "Cor de destaque",
+        max_length=7,
+        blank=True,
+        help_text="Hex (ex.: #8C3A2E). Vazio: cor escolhida deterministicamente pela paleta.",
+    )
 
     is_published = models.BooleanField(
         "Publicado",
@@ -78,6 +99,16 @@ class HymnBook(models.Model):
     def hymn_count(self):
         """Retorna o número de hinos neste hinário."""
         return self.hymns.count()
+
+    @property
+    def display_accent(self) -> str:
+        """Cor de destaque para cards. Usa accent_color se setado, senão escolhe
+        deterministicamente da paleta pelo hash do slug."""
+        if self.accent_color:
+            return self.accent_color
+        seed = self.slug or self.name or ""
+        idx = int(hashlib.md5(seed.encode()).hexdigest(), 16) % len(HYMNBOOK_ACCENT_PALETTE)
+        return HYMNBOOK_ACCENT_PALETTE[idx]
 
     @property
     def review_progress(self) -> dict:
@@ -158,6 +189,16 @@ class Hymn(models.Model):
         choices=Source.choices,
         default=Source.MANUAL,
         help_text="Como o hino foi cadastrado (manual, OCR, YAML)",
+    )
+
+    # Marco 2.0.1 — preserva o texto cru do OCR para o diff visual na revisão.
+    ocr_text = models.TextField(
+        "Texto OCR original",
+        blank=True,
+        help_text="Texto cru extraído pelo OCR antes de revisão editorial",
+    )
+    ocr_avg_confidence = models.FloatField(
+        "Confiança média do OCR (0-100)", null=True, blank=True
     )
 
     # Full-text search vector (maintained by signal in apps.hymns.signals)
@@ -279,6 +320,10 @@ class HymnAudio(models.Model):
     )
     is_approved = models.BooleanField("Aprovado", default=False, help_text="Moderação")
     allow_download = models.BooleanField("Permitir download", default=True, help_text="Usuários podem baixar o arquivo")
+
+    # Waveform pré-computada (~120 floats 0..1) — usada pelo player custom.
+    # Vazio enquanto a thread daemon não terminou o backfill.
+    waveform_peaks = models.JSONField("Picos da waveform", default=list, blank=True)
 
     # Timestamps
     created_at = models.DateTimeField("Criado em", auto_now_add=True)

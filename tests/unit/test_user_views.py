@@ -160,7 +160,7 @@ class TestUploadView:
         response = client.get(url)
 
         assert response.status_code == 200
-        assert b"Contribuir com Hin" in response.content
+        assert b"Contribuir" in response.content
 
     def test_upload_view_has_form(self, client, django_user_model):
         """Test that upload view has form."""

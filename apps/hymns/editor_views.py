@@ -17,7 +17,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .models import Hymn, HymnBook
+from .models import Hymn, HymnAudio, HymnBook
 from .permissions import can_edit_hymnbook
 
 
@@ -41,8 +41,69 @@ def _editor_visible_books(user):
     return HymnBook.objects.filter(owner_user=user)
 
 
+def _pending_audios_for(user):
+    """Áudios não aprovados que `user` tem permissão de aprovar."""
+    qs = HymnAudio.objects.filter(is_approved=False).select_related(
+        "hymn", "hymn__hymn_book", "uploaded_by"
+    )
+    if user.is_superuser or user.has_perm("hymns.can_review_any_hymnbook"):
+        return qs
+    return qs.filter(hymn__hymn_book__owner_user=user)
+
+
+@login_required
+def editor_pending_audios(request):
+    """Lista áudios aguardando aprovação."""
+    if not _has_editor_access(request.user):
+        messages.error(request, "Você não tem acesso ao workspace do editor.")
+        return redirect("hymns:home")
+    audios = list(_pending_audios_for(request.user).order_by("-created_at"))
+    return render(
+        request,
+        "hymns/editor/pending_audios.html",
+        {"audios": audios},
+    )
+
+
+@login_required
+def editor_approve_audio(request, pk):
+    audio = get_object_or_404(
+        HymnAudio.objects.select_related("hymn", "hymn__hymn_book"), pk=pk
+    )
+    if not can_edit_hymnbook(request.user, audio.hymn.hymn_book):
+        messages.error(request, "Você não tem permissão para aprovar este áudio.")
+        return redirect("hymns:editor_pending_audios")
+    if request.method != "POST":
+        return redirect("hymns:editor_pending_audios")
+    audio.is_approved = True
+    audio.save(update_fields=["is_approved", "updated_at"])
+    messages.success(request, f"Áudio aprovado: {audio.title or audio.hymn.title}.")
+    return redirect("hymns:editor_pending_audios")
+
+
+@login_required
+def editor_reject_audio(request, pk):
+    audio = get_object_or_404(
+        HymnAudio.objects.select_related("hymn", "hymn__hymn_book"), pk=pk
+    )
+    if not can_edit_hymnbook(request.user, audio.hymn.hymn_book):
+        messages.error(request, "Você não tem permissão para rejeitar este áudio.")
+        return redirect("hymns:editor_pending_audios")
+    if request.method != "POST":
+        return redirect("hymns:editor_pending_audios")
+    audio.delete()
+    messages.success(request, "Áudio rejeitado e removido.")
+    return redirect("hymns:editor_pending_audios")
+
+
 @login_required
 def editor_hymnbook_list(request):
+    from datetime import timedelta
+
+    from django.db.models import Count, Q
+
+    from .models import Hymn, HymnRevision
+
     if not _has_editor_access(request.user):
         messages.error(request, "Você não tem acesso ao workspace do editor.")
         return redirect("hymns:home")
@@ -56,10 +117,45 @@ def editor_hymnbook_list(request):
     else:
         qs = qs.order_by("review_pct", "name")
 
+    # Stats inline (4 hinários · 173 hinos pendentes · 89 revisados · 7 dias)
+    visible_ids = list(
+        _editor_visible_books(request.user).values_list("pk", flat=True)
+    )
+    pending_hymns = Hymn.objects.filter(hymn_book_id__in=visible_ids).exclude(
+        review_status=Hymn.ReviewStatus.REVIEWED
+    ).count()
+    cutoff = timezone.now() - timedelta(days=7)
+    recent_reviewed = HymnRevision.objects.filter(
+        hymn__hymn_book_id__in=visible_ids,
+        revised_at__gte=cutoff,
+        new_status=Hymn.ReviewStatus.REVIEWED,
+    ).count()
+
+    # Continuar revisão: último hino com revisão do user, ainda não REVIEWED
+    resume = (
+        HymnRevision.objects.filter(revised_by=request.user)
+        .exclude(hymn__review_status=Hymn.ReviewStatus.REVIEWED)
+        .select_related("hymn", "hymn__hymn_book")
+        .order_by("-revised_at")
+        .first()
+    )
+
+    pending_audios_count = _pending_audios_for(request.user).count()
+
     return render(
         request,
         "hymns/editor/hymnbook_list.html",
-        {"hymnbooks": list(qs), "sort": sort},
+        {
+            "hymnbooks": list(qs),
+            "sort": sort,
+            "stats": {
+                "books": len(visible_ids),
+                "pending_hymns": pending_hymns,
+                "recent_reviewed": recent_reviewed,
+            },
+            "resume": resume,
+            "pending_audios_count": pending_audios_count,
+        },
     )
 
 
@@ -98,6 +194,8 @@ def editor_next_hymn(request, slug):
 
 @login_required
 def editor_revise_hymn(request, pk):
+    from django.http import JsonResponse
+
     hymn = get_object_or_404(Hymn.objects.select_related("hymn_book"), pk=pk)
     if not can_edit_hymnbook(request.user, hymn.hymn_book):
         messages.error(request, "Você não tem permissão para revisar este hino.")
@@ -125,6 +223,12 @@ def editor_revise_hymn(request, pk):
         hymn.last_reviewed_at = timezone.now()
         hymn.save()
 
+        # Marco 2.1.5 — autosave HTMX devolve JSON com timestamp.
+        if request.POST.get("autosave") == "1" or request.headers.get("HX-Request"):
+            return JsonResponse(
+                {"ok": True, "saved_at": timezone.now().isoformat()}
+            )
+
         next_action = request.POST.get("next_action", "next")
         if next_action == "next":
             pending = (
@@ -137,8 +241,45 @@ def editor_revise_hymn(request, pk):
                 return redirect("hymns:editor_revise_hymn", pk=pending.pk)
         return redirect("hymns:editor_hymnbook_detail", slug=hymn.hymn_book.slug)
 
+    # Posição na fila + restantes
+    book_hymns = list(
+        hymn.hymn_book.hymns.order_by("number").values_list("pk", "review_status")
+    )
+    total = len(book_hymns)
+    position = next((i + 1 for i, t in enumerate(book_hymns) if str(t[0]) == str(hymn.pk)), 0)
+    remaining = sum(
+        1 for _pk, status in book_hymns if status != Hymn.ReviewStatus.REVIEWED
+    )
+    if hymn.review_status != Hymn.ReviewStatus.REVIEWED:
+        remaining = max(remaining - 1, 0)
+
     return render(
         request,
         "hymns/editor/revise_hymn.html",
-        {"hymn": hymn, "hymnbook": hymn.hymn_book},
+        {
+            "hymn": hymn,
+            "hymnbook": hymn.hymn_book,
+            "position": position,
+            "total": total,
+            "remaining": remaining,
+            "diff_lines": _compute_diff_lines(hymn.ocr_text, hymn.text),
+        },
     )
+
+
+def _compute_diff_lines(ocr: str, current: str) -> list[dict]:
+    """Diff palavra-por-palavra simples para a coluna esquerda do revisor."""
+    import difflib
+
+    if not ocr:
+        return []
+    return [
+        {"sign": line[0], "text": line[2:]}
+        for line in difflib.unified_diff(
+            ocr.splitlines(),
+            current.splitlines(),
+            lineterm="",
+            n=99,
+        )
+        if line and line[0] in {"+", "-", " "} and not line.startswith("+++") and not line.startswith("---")
+    ]

@@ -4,7 +4,7 @@ URLs for the users app.
 
 from django.urls import path
 
-from . import views, views_social
+from . import api_views, views, views_social
 
 app_name = "users"
 
@@ -33,4 +33,6 @@ urlpatterns = [
         name="mark_notification_read",
     ),
     path("notificacoes/nao-lidas/", views_social.unread_notifications_count, name="unread_notifications_count"),
+    # API endpoints (Marco 2.0.3)
+    path("api/users/<str:username>/heatmap/", api_views.api_user_heatmap, name="api_user_heatmap"),
 ]

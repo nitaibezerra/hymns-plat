@@ -208,3 +208,38 @@ class TestEditorReviseHymnView:
             reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})
         )
         assert resp.status_code == 302
+
+    def test_autosave_returns_json(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, title="orig", text="orig")
+        resp = authenticated_client.post(
+            reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}),
+            {
+                "number": 1,
+                "title": "novo title",
+                "text": "novo texto",
+                "review_status": Hymn.ReviewStatus.IN_REVIEW,
+                "autosave": "1",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert "saved_at" in data
+        h.refresh_from_db()
+        assert h.title == "novo title"
+
+    def test_revise_page_renders_diff_when_ocr_text_present(
+        self, authenticated_client, hymn_book_factory, hymn_factory
+    ):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(
+            hymn_book=hb, number=1, title="t", text="atual", ocr_text="OCR cru"
+        )
+        resp = authenticated_client.get(
+            reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})
+        )
+        # diff_lines deve ter pelo menos 1 entrada (linhas diferentes)
+        assert resp.context["diff_lines"]

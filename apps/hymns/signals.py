@@ -10,7 +10,8 @@ from django.db import connection
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
-from .models import Hymn, HymnBook, HymnRevision
+from .models import Hymn, HymnAudio, HymnBook, HymnRevision
+from .services import audio as audio_service
 
 # Campos cuja mudança é considerada "edição editorial" e dispara HymnRevision.
 _EDITORIAL_FIELDS = (
@@ -95,11 +96,28 @@ def _capture_hymn_pre_state(sender, instance, raw=False, **kwargs):
 @receiver(post_save, sender=Hymn)
 def _create_hymn_revision_on_edit(sender, instance, created, raw=False, **kwargs):
     """
-    Cria HymnRevision se algum campo editorial mudou. Pula INSERTs (created),
-    loaddata (raw) e saves sem mudanças.
+    Cria HymnRevision em dois cenários:
+    1. Criação de Hymn com `source != MANUAL` (OCR/YAML) — registra origem
+       como primeiro evento na timeline editorial (Marco 2.0.2).
+    2. UPDATE de Hymn já existente em que algum campo editorial mudou.
+
+    Pula loaddata (raw) e INSERTs sem source automático.
     """
-    if created or raw:
+    if raw:
         return
+
+    if created:
+        if instance.source != Hymn.Source.MANUAL:
+            HymnRevision.objects.create(
+                hymn=instance,
+                revised_by=None,
+                previous_status="",
+                new_status=instance.review_status,
+                change_summary=f"Criado via {instance.get_source_display()}",
+                field_diff={},
+            )
+        return
+
     previous = getattr(instance, "_pre_save_state", None)
     if not previous:
         return
@@ -120,4 +138,21 @@ def _create_hymn_revision_on_edit(sender, instance, created, raw=False, **kwargs
         previous_status=previous.get("review_status", ""),
         new_status=instance.review_status,
         field_diff=diff,
+    )
+
+
+@receiver(post_save, sender=HymnAudio)
+def _generate_waveform_for_audio(sender, instance, created, raw=False, **kwargs):
+    """
+    Gera waveform_peaks em background quando um áudio é salvo sem peaks.
+    Pula loaddata e atualizações de áudios que já têm peaks.
+    """
+    if raw:
+        return
+    if instance.waveform_peaks:
+        return
+    if not instance.audio_file:
+        return
+    audio_service._run_in_thread(
+        audio_service.populate_waveform_for_audio, instance.pk
     )

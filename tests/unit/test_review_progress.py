@@ -128,12 +128,18 @@ class TestPublishBlockedUntilFullyReviewed:
     def test_publish_allowed_when_fully_reviewed(
         self, authenticated_client, hymn_book_factory, hymn_factory
     ):
+        from apps.hymns.models import HymnRevision
+
         hb = hymn_book_factory(
-            name="Pronto", owner_user=authenticated_client.user, is_published=False
+            name="Pronto",
+            owner_user=authenticated_client.user,
+            is_published=False,
+            description="d",
         )
         for i in range(1, 3):
             h = hymn_factory(hymn_book=hb, number=i, title=f"t{i}")
             _set_status(h, Hymn.ReviewStatus.REVIEWED)
+            HymnRevision.objects.create(hymn=h, revised_by=authenticated_client.user)
         url = reverse("hymns:hymnbook_publish", kwargs={"slug": hb.slug})
         authenticated_client.post(url)
         hb.refresh_from_db()

@@ -293,6 +293,12 @@ class TestHymnDetailView:
         assert "Repetições" not in content
 
 
+def _hymns_in_results(response):
+    """A view de busca passou a retornar dicts {type, obj, headline}; este helper
+    mantém os asserts legados (`hymn in results`) funcionando."""
+    return [r["obj"] for r in response.context["results"] if r["type"] == "hymn"]
+
+
 @pytest.mark.django_db
 class TestSearchView:
     """Tests for search view (PostgreSQL FTS + Trigram)."""
@@ -322,8 +328,8 @@ class TestSearchView:
         Hymn.objects.create(hymn_book=hb, number=2, title="Tuperci", text="outro")
 
         response = client.get(reverse("hymns:search"), {"q": "lua"})
-        assert lua in response.context["results"]
-        assert len(response.context["results"]) == 1
+        assert lua in _hymns_in_results(response)
+        assert len(_hymns_in_results(response)) == 1
 
     def test_matches_text_body(self, client):
         hb = HymnBook.objects.create(is_published=True, name="O Cruzeiro", owner_name="Mestre Irineu")
@@ -331,8 +337,8 @@ class TestSearchView:
         Hymn.objects.create(hymn_book=hb, number=2, title="Segundo", text="Outro texto qualquer")
 
         response = client.get(reverse("hymns:search"), {"q": "serena"})
-        assert target in response.context["results"]
-        assert len(response.context["results"]) == 1
+        assert target in _hymns_in_results(response)
+        assert len(_hymns_in_results(response)) == 1
 
     def test_matches_hymnbook_name(self, client):
         hb1 = HymnBook.objects.create(is_published=True, name="O Cruzeiro", owner_name="Irineu")
@@ -340,8 +346,8 @@ class TestSearchView:
         h1 = Hymn.objects.create(hymn_book=hb1, number=1, title="h1", text="t1")
         h2 = Hymn.objects.create(hymn_book=hb2, number=1, title="h2", text="t2")
 
-        response = client.get(reverse("hymns:search"), {"q": "cruzeiro"})
-        results = response.context["results"]
+        response = client.get(reverse("hymns:search"), {"q": "cruzeiro", "type": "hymns"})
+        results = _hymns_in_results(response)
         assert h1 in results
         assert h2 not in results
 
@@ -350,7 +356,7 @@ class TestSearchView:
         h = Hymn.objects.create(hymn_book=hb, number=1, title="x", text="y")
 
         response = client.get(reverse("hymns:search"), {"q": "irineu"})
-        assert h in response.context["results"]
+        assert h in _hymns_in_results(response)
 
     def test_ranks_title_higher_than_text(self, client):
         hb = HymnBook.objects.create(is_published=True, name="Hb", owner_name="x")
@@ -358,7 +364,7 @@ class TestSearchView:
         in_title = Hymn.objects.create(hymn_book=hb, number=2, title="Palavrachave", text="conteúdo")
 
         response = client.get(reverse("hymns:search"), {"q": "palavrachave"})
-        results = list(response.context["results"])
+        results = _hymns_in_results(response)
         # Match no título (weight A) deve aparecer antes do match no texto (weight B)
         assert results.index(in_title) < results.index(in_text)
 
@@ -368,7 +374,7 @@ class TestSearchView:
         target = Hymn.objects.create(hymn_book=hb, number=1, title="Hino", text="Estão cantando com alegria")
 
         response = client.get(reverse("hymns:search"), {"q": "cantar"})
-        assert target in response.context["results"]
+        assert target in _hymns_in_results(response)
 
     def test_typo_tolerance_via_trigram(self, client):
         """Busca 'cruzero' (typo) encontra 'Cruzeiro'."""
@@ -376,14 +382,14 @@ class TestSearchView:
         target = Hymn.objects.create(hymn_book=hb, number=1, title="Cruzeiro", text="texto")
 
         response = client.get(reverse("hymns:search"), {"q": "cruzero"})
-        assert target in response.context["results"]
+        assert target in _hymns_in_results(response)
 
     def test_case_insensitive(self, client):
         hb = HymnBook.objects.create(is_published=True, name="Hb", owner_name="x")
         target = Hymn.objects.create(hymn_book=hb, number=1, title="Lua Branca", text="serena")
 
         response = client.get(reverse("hymns:search"), {"q": "LUA"})
-        assert target in response.context["results"]
+        assert target in _hymns_in_results(response)
 
     def test_multiple_terms_ranking(self, client):
         """Match exato de múltiplos termos ranqueia acima de match parcial."""
@@ -392,7 +398,7 @@ class TestSearchView:
         only_one = Hymn.objects.create(hymn_book=hb, number=2, title="Só Virgem", text="t2")
 
         response = client.get(reverse("hymns:search"), {"q": "virgem maria"})
-        results = list(response.context["results"])
+        results = _hymns_in_results(response)
         assert both in results
         # O match completo deve vir antes do parcial
         assert results.index(both) < results.index(only_one)
@@ -403,7 +409,7 @@ class TestSearchView:
             Hymn.objects.create(hymn_book=hb, number=i + 1, title=f"Hino {i}", text="palavracomum")
 
         response = client.get(reverse("hymns:search"), {"q": "palavracomum"})
-        assert len(response.context["results"]) == 50
+        assert len(_hymns_in_results(response)) == 50
 
     def test_query_preserved_in_context(self, client):
         response = client.get(reverse("hymns:search"), {"q": "lua branca"})
@@ -416,7 +422,7 @@ class TestSearchView:
 
         response = client.get(reverse("hymns:search"), {"q": "acao"})
         # Portuguese FTS dictionary drops accents, so 'acao' and 'ação' stem alike
-        assert target in response.context["results"]
+        assert target in _hymns_in_results(response)
 
 
 @pytest.mark.django_db
