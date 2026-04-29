@@ -60,8 +60,7 @@ htmlcov/
 # Docker
 *.pid
 
-# Poetry
-poetry.lock
+# Poetry — poetry.lock IS committed for reproducible Railway builds
 
 # Wagtail
 *.wagtail.log
