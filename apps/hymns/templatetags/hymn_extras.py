@@ -9,6 +9,24 @@ from apps.hymns.repetitions import parse_and_layout
 register = template.Library()
 
 
+@register.filter
+def format_duration(seconds):
+    """Formata segundos como mm:ss (ou h:mm:ss para áudios longos)."""
+    if seconds is None:
+        return ""
+    try:
+        s = int(seconds)
+    except (TypeError, ValueError):
+        return ""
+    if s < 0:
+        s = 0
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    if h:
+        return f"{h}:{m:02d}:{sec:02d}"
+    return f"{m}:{sec:02d}"
+
+
 BAR_COLOR = "#000000"
 BAR_COLUMN_WIDTH_PX = 9
 TEXT_GUTTER_PX = 13.5  # coluna adjacente ao texto: 50% mais larga que as internas
@@ -30,7 +48,13 @@ def render_hymn_body(hymn):
     n = data["n_columns"]
 
     if n == 0:
-        return mark_safe(f'<div class="hymn-text">{conditional_escape(text)}</div>')
+        # `white-space: pre-line` preserva os `\n` do texto sem depender de CSS
+        # externo. Sem isso, o navegador colapsa todas as quebras para espaço
+        # simples e o hino vira uma única linha (regressão do redesign Fase 2).
+        return mark_safe(
+            '<div class="hymn-text" style="white-space:pre-line;'
+            f'line-height:{LINE_HEIGHT_EM};">{conditional_escape(text)}</div>'
+        )
 
     text_col = n + 1
     # col adjacente ao texto (última coluna de barras, grid-column = n) fica

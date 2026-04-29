@@ -1,75 +1,50 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 
-{% block title %}Processando PDF - {{ block.super }}{% endblock %}
+{% block title %}Processando OCR{% endblock %}
 
 {% block content %}
-<div style="max-width: 600px; margin: 0 auto;">
-    <div class="card">
-        <h1 style="margin: 0 0 10px 0; color: #2c5282; font-size: 24px;">Processando PDF</h1>
-        <p style="color: #666; margin-bottom: 20px;">
-            Estamos extraindo os hinos do PDF <strong>{{ task.pdf_filename|default:"enviado" }}</strong> via OCR.
-        </p>
+<section class="max-w-3xl mx-auto px-6 py-10">
+  <p class="label-mono">Contribuir · processando</p>
+  <h1 class="font-serif text-4xl mt-2">Extraindo o texto…</h1>
+  <p class="text-ink-soft mt-2">Estamos extraindo os hinos do PDF <strong>{{ task.pdf_filename|default:"enviado" }}</strong> via OCR.</p>
 
-        {% if task.status == "failed" %}
-        <div style="background: #fee; border-left: 4px solid #c33; padding: 15px; border-radius: 4px;">
-            <p style="margin: 0 0 8px; color: #c33; font-weight: bold;">A extração falhou.</p>
-            <p style="margin: 0; color: #555;">{{ task.error_message|default:"Erro desconhecido." }}</p>
-            <p style="margin: 12px 0 0;"><a href="{% url 'users:upload' %}" class="btn btn-secondary">Tentar novamente</a></p>
-        </div>
-        {% else %}
-        <div style="margin-bottom: 16px;">
-            <div id="progress-text" style="color: #2c5282; font-weight: 500; margin-bottom: 8px;">
-                Iniciando…
-            </div>
-            <div style="width: 100%; background: #e2e8f0; border-radius: 999px; overflow: hidden; height: 14px;">
-                <div id="progress-bar"
-                     style="height: 100%; width: {{ task.progress_pct }}%; background: #2c5282; transition: width 0.4s ease;"></div>
-            </div>
-        </div>
-        <p style="color: #666; font-size: 14px;">
-            Esta página atualiza automaticamente. Pode levar alguns minutos para PDFs grandes.
-        </p>
-        {% endif %}
+  <div class="mt-8">{% include "_partials/_upload_stepper.html" with step=2 %}</div>
+
+  {% if task.status == "failed" %}
+    <div class="mt-10 rounded-md border border-rust/30 bg-rust/10 text-rust px-5 py-4">
+      <p class="font-medium">A extração falhou.</p>
+      <p class="text-sm mt-1">{{ task.error_message|default:"Erro desconhecido." }}</p>
+      <a href="{% url 'users:upload' %}" class="inline-block mt-3 text-sm font-mono uppercase tracking-widest border border-rust/40 hover:bg-rust/20 rounded-full px-4 py-1.5">Tentar novamente</a>
     </div>
-</div>
+  {% else %}
+    <div class="mt-10 card-soft p-8 text-center">
+      <p class="font-serif text-3xl" id="progress-text">Iniciando…</p>
+      <div class="mt-6 h-2 bg-ink/10 rounded-full overflow-hidden">
+        <div id="progress-bar" class="h-full bg-gold transition-all" style="width: {{ task.progress_pct }}%;"></div>
+      </div>
+      <p class="text-xs text-ink-soft mt-4">Esta página atualiza automaticamente.</p>
+    </div>
 
-{% if task.status != "failed" %}
-<script>
-    (function() {
-        const taskId = "{{ task.id }}";
-        const statusUrl = "{% url 'users:upload_ocr_status' task_id=task.id %}";
-        const bar = document.getElementById("progress-bar");
-        const text = document.getElementById("progress-text");
-
-        async function poll() {
-            try {
-                const r = await fetch(statusUrl, {credentials: "same-origin"});
-                if (!r.ok) {
-                    text.textContent = "Erro ao consultar status (" + r.status + ")";
-                    return;
-                }
-                const d = await r.json();
-                bar.style.width = d.percent + "%";
-                if (d.status === "pending") {
-                    text.textContent = "Aguardando início do processamento…";
-                } else if (d.status === "processing") {
-                    text.textContent = "Página " + d.current + " de " + d.total + " (" + d.percent + "%)";
-                } else if (d.status === "completed") {
-                    text.textContent = "Concluído! Redirecionando…";
-                    window.location.href = window.location.pathname + window.location.search;
-                    return;
-                } else if (d.status === "failed") {
-                    text.textContent = "Falhou. Recarregando…";
-                    window.location.reload();
-                    return;
-                }
-            } catch (e) {
-                text.textContent = "Erro de rede ao consultar progresso.";
-            }
-            setTimeout(poll, 2000);
+    <script>
+      (function () {
+        const url = "{% url 'users:upload_ocr_status' task_id=task.id %}";
+        const bar = document.getElementById('progress-bar');
+        const txt = document.getElementById('progress-text');
+        async function tick() {
+          try {
+            const r = await fetch(url, { credentials: 'same-origin' });
+            const d = await r.json();
+            bar.style.width = d.percent + '%';
+            if (d.status === 'pending') txt.textContent = 'Aguardando…';
+            else if (d.status === 'processing') txt.textContent = 'Página ' + d.current + ' de ' + d.total;
+            else if (d.status === 'completed') { window.location.href = window.location.pathname + window.location.search; return; }
+            else if (d.status === 'failed') { window.location.reload(); return; }
+          } catch (e) { txt.textContent = 'Erro de rede.'; }
+          setTimeout(tick, 1800);
         }
-        poll();
-    })();
-</script>
-{% endif %}
+        tick();
+      })();
+    </script>
+  {% endif %}
+</section>
 {% endblock %}

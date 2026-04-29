@@ -1,0 +1,23 @@
+{# Stepper visual do wizard de upload (Marco 2.1.6).
+   Variável esperada: `step` (1..4). #}
+<ol class="grid grid-cols-4 gap-4 max-w-3xl mx-auto" aria-label="Progresso">
+  {% for label in "UPLOAD,PROCESSANDO,CONFERIR,CONFIRMAR"|stringformat:"s"|cut:" " %}{% endfor %}
+  {% for s in '1234' %}
+    {% with idx=forloop.counter %}
+      <li class="flex flex-col items-center text-center">
+        <span class="w-10 h-10 rounded-full inline-flex items-center justify-center font-mono text-sm
+          {% if idx < step %}bg-ink text-cream dark:bg-gold dark:text-night
+          {% elif idx == step %}bg-gold text-night
+          {% else %}bg-ink/10 text-ink-soft{% endif %}">
+          {% if idx < step %}✓{% else %}{{ idx }}{% endif %}
+        </span>
+        <span class="label-mono mt-2">
+          {% if idx == 1 %}UPLOAD
+          {% elif idx == 2 %}PROCESSANDO
+          {% elif idx == 3 %}CONFERIR
+          {% else %}CONFIRMAR{% endif %}
+        </span>
+      </li>
+    {% endwith %}
+  {% endfor %}
+</ol>

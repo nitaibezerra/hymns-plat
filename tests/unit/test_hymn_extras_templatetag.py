@@ -39,6 +39,25 @@ class TestRenderHymnBody:
         assert "V1" in html
         assert "V2" in html
 
+    def test_fallback_preserves_line_breaks(self, hymn_book_factory, hymn_factory):
+        """Sem repetitions, o texto não pode virar uma única linha — quebras
+        do `\\n` precisam ser preservadas pela renderização."""
+        hb = hymn_book_factory(name="Quebras")
+        hymn = hymn_factory(
+            hymn_book=hb,
+            number=1,
+            title="H",
+            text="primeira\nsegunda\nterceira",
+            repetitions="",
+        )
+        html = _render(hymn)
+        # Ou via <br>, ou via white-space: pre-* no inline style do wrapper.
+        assert (
+            "<br" in html
+            or "pre-line" in html
+            or "pre-wrap" in html
+        ), f"Renderização perdeu quebras de linha: {html!r}"
+
     def test_renders_plain_text_for_invalid_repetitions(self, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="Inválido")
         hymn = hymn_factory(hymn_book=hb, number=1, title="H", text="V1\nV2", repetitions="1-99")

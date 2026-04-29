@@ -1,111 +1,75 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 
-{% block title %}Preview do Hinário - {{ block.super }}{% endblock %}
+{% block title %}Conferir hinário extraído{% endblock %}
 
 {% block content %}
-<div style="max-width: 800px; margin: 0 auto;">
-    <div class="card">
-        <h1 style="margin: 0 0 10px 0; color: #2c5282; font-size: 28px;">Preview do Hinário</h1>
-        <p style="color: #666; margin-bottom: 30px;">
-            Revise os dados antes de confirmar a criação
-        </p>
+<section class="max-w-6xl mx-auto px-6 py-10">
+  <p class="label-mono">Contribuir · conferir</p>
+  <h1 class="font-serif text-4xl mt-2">Subir um PDF para OCR</h1>
+  <p class="text-ink-soft mt-2">Vamos extrair os hinos automaticamente. Você confere antes de salvar.</p>
 
-        {% if error %}
-        <div style="background: #fee; border-left: 4px solid #c33; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-            <p style="margin: 0; color: #c33; font-weight: bold;">{{ error }}</p>
-        </div>
-        {% endif %}
+  <div class="mt-8">{% include "_partials/_upload_stepper.html" with step=3 %}</div>
 
-        <div style="background: #f7fafc; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
-            <h2 style="color: #2c5282; margin: 0 0 15px 0; font-size: 22px;">
-                {{ hymn_book_data.name }}
-            </h2>
+  {% if error %}
+    <p class="mt-6 rounded-md border border-rust/30 bg-rust/10 text-rust px-4 py-3 text-sm">{{ error }}</p>
+  {% endif %}
 
-            <div class="metadata" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
-                {% if hymn_book_data.intro_name %}
-                <div class="metadata-item">
-                    <div class="metadata-label">Nome Curto</div>
-                    <div class="metadata-value">{{ hymn_book_data.intro_name }}</div>
-                </div>
-                {% endif %}
+  <div class="mt-8 grid lg:grid-cols-[1fr_1.1fr] gap-6">
+    <article class="card-soft p-6">
+      <p class="label-mono">Pré-visualização do conteúdo extraído</p>
+      <div class="font-serif text-lg leading-relaxed mt-4 max-h-[28rem] overflow-y-auto pr-3 space-y-6">
+        {% for hymn in hymns_preview %}
+          <article>
+            <p class="text-center label-mono">{{ hymn.number }} — {{ hymn.title }}</p>
+            <pre class="whitespace-pre-wrap font-serif text-base leading-7 mt-2">{{ hymn.text|truncatewords:30 }}</pre>
+          </article>
+        {% endfor %}
+      </div>
+    </article>
 
-                <div class="metadata-item">
-                    <div class="metadata-label">Dono</div>
-                    <div class="metadata-value">{{ hymn_book_data.owner }}</div>
-                </div>
+    <aside class="space-y-4">
+      <div class="rounded-xl border border-gold/40 bg-gold/10 px-5 py-4 text-sm">
+        <p class="font-medium">Será criado como rascunho</p>
+        <p class="text-ink-soft mt-1">O hinário entra como <strong>não publicado</strong> e cada hino como <strong>não revisado</strong>. Use o workspace do editor para revisar antes de publicar.</p>
+      </div>
 
-                <div class="metadata-item">
-                    <div class="metadata-label">Total de Hinos</div>
-                    <div class="metadata-value">{{ upload_data.hymns_count }}</div>
-                </div>
+      <section class="card-soft p-5">
+        <header class="flex items-center justify-between">
+          <p class="font-serif text-2xl">{{ hymn_book_data.name }}</p>
+          <span class="label-mono text-moss">● Detectado · {{ upload_data.hymns_count }} hinos</span>
+        </header>
+        <p class="label-mono mt-1">{{ hymn_book_data.owner }}</p>
 
-                <div class="metadata-item">
-                    <div class="metadata-label">Contribuidor</div>
-                    <div class="metadata-value">{{ user.get_full_name|default:user.username }}</div>
-                </div>
-            </div>
-
-            {% if hymn_book_data.description %}
-            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
-                <div class="metadata-label" style="margin-bottom: 5px;">Descrição</div>
-                <p style="color: #333; line-height: 1.6; margin: 0;">{{ hymn_book_data.description }}</p>
-            </div>
-            {% endif %}
-        </div>
-
-        <h3 style="color: #2c5282; margin: 30px 0 15px 0; font-size: 18px;">
-            Primeiros Hinos (preview)
-        </h3>
-
-        <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-                <tr style="background: #f7fafc;">
-                    <th style="padding: 10px; text-align: left; border-bottom: 2px solid #2c5282;">Nº</th>
-                    <th style="padding: 10px; text-align: left; border-bottom: 2px solid #2c5282;">Título</th>
-                    <th style="padding: 10px; text-align: left; border-bottom: 2px solid #2c5282;">Estilo</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for hymn in hymns_preview %}
-                <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 10px;">{{ hymn.number }}</td>
-                    <td style="padding: 10px;">{{ hymn.title }}</td>
-                    <td style="padding: 10px;">{{ hymn.style|default:"—" }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="3" style="padding: 20px; text-align: center; color: #666;">
-                        Nenhum hino encontrado
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
+        <table class="mt-5 w-full text-sm">
+          <thead>
+            <tr class="font-mono text-xs uppercase tracking-widest text-ink-soft">
+              <th class="text-left pb-2">Nº</th>
+              <th class="text-left pb-2">Título</th>
+              <th class="text-right pb-2">OCR</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-ink/10">
+            {% for h in hymns_preview %}
+              <tr>
+                <td class="py-2 font-mono text-xs text-ink-soft">{{ h.number|stringformat:"02d" }}</td>
+                <td class="py-2">{{ h.title }}</td>
+                <td class="py-2 text-right text-moss font-mono text-xs">{% if h.ocr_avg_confidence %}{{ h.ocr_avg_confidence|floatformat:0 }}%{% else %}—{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
         </table>
 
         {% if upload_data.hymns_count > 5 %}
-        <p style="color: #666; font-size: 14px; margin: 10px 0 0 0; text-align: center;">
-            ... e mais {{ upload_data.hymns_count|add:"-5" }} hino{{ upload_data.hymns_count|add:"-5"|pluralize }}
-        </p>
+          <p class="text-center text-ink-soft text-sm mt-3">… e mais {{ upload_data.hymns_count|add:"-5" }} hino{{ upload_data.hymns_count|add:"-5"|pluralize }}</p>
         {% endif %}
 
-        <form method="post" style="margin-top: 30px;">
-            {% csrf_token %}
-
-            <div style="background: #e6f2ff; border-left: 4px solid #2c5282; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-                <p style="margin: 0; color: #2c5282;">
-                    Ao confirmar, este hinário será criado e indexado na busca. Você poderá editá-lo posteriormente no admin.
-                </p>
-            </div>
-
-            <div style="display: flex; gap: 10px;">
-                <button type="submit" class="btn" style="flex: 1;">
-                    Confirmar e Criar Hinário
-                </button>
-                <a href="{% url 'users:upload' %}" class="btn btn-secondary" style="flex: 1; text-align: center; line-height: 2.5;">
-                    Cancelar
-                </a>
-            </div>
+        <form method="post" class="mt-5 flex items-center justify-between gap-2">
+          {% csrf_token %}
+          <a href="{% url 'users:upload' %}" class="btn-pill">← Voltar</a>
+          <button type="submit" class="bg-ink text-cream rounded-full px-5 py-2.5 text-sm dark:bg-gold dark:text-night hover:bg-ink-soft">Confirmar e criar rascunho</button>
         </form>
-    </div>
-</div>
+      </section>
+    </aside>
+  </div>
+</section>
 {% endblock %}

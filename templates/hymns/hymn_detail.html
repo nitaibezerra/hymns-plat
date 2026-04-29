@@ -1,103 +1,138 @@
 {% extends 'base.html' %}
 {% load hymn_extras %}
 
-{% block title %}{{ hymn.number }}. {{ hymn.title }} - {{ hymn.hymn_book.name }}{% endblock %}
+{% block title %}{{ hymn.title }} · {{ hymn.hymn_book.name }}{% endblock %}
 
 {% block content %}
-<nav style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
-    <a href="{% url 'hymns:hymnbook_detail' hymn.hymn_book.slug %}" class="btn btn-secondary">
-        &larr; Voltar para {{ hymn.hymn_book.name }}
+<section class="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between flex-wrap gap-4 text-sm" data-no-print
+         {% if prev_hymn %}data-prev-url="{% url 'hymns:hymn_detail' prev_hymn.pk %}"{% endif %}
+         {% if next_hymn %}data-next-url="{% url 'hymns:hymn_detail' next_hymn.pk %}"{% endif %}>
+  <nav aria-label="Trilha" class="font-mono text-xs uppercase tracking-widest text-ink-soft">
+    <a href="{% url 'hymns:hymnbook_list' %}" class="hover:text-gold">Hinários</a>
+    <span class="mx-1">/</span>
+    <a href="{% url 'hymns:hymnbook_detail' hymn.hymn_book.slug %}" class="hover:text-gold">
+      <em class="not-italic font-serif normal-case text-base">{{ hymn.hymn_book.name }}</em>
     </a>
-    {% if can_edit %}
-    <div style="display: flex; gap: 10px;">
-        <a href="{% url 'hymns:hymn_edit' hymn.pk %}" class="btn">Editar</a>
-        <a href="{% url 'hymns:hymn_delete' hymn.pk %}" class="btn btn-secondary" style="background: #c33; color: white;">Deletar</a>
+    <span class="mx-1">/</span>
+    <span>HINO {{ hymn.number|stringformat:"02d" }}</span>
+  </nav>
+  <div class="flex gap-2">
+    {% if prev_hymn %}<a href="{% url 'hymns:hymn_detail' prev_hymn.pk %}" class="btn-pill">← Anterior · {{ prev_hymn.number|stringformat:"02d" }}</a>{% endif %}
+    {% if next_hymn %}<a href="{% url 'hymns:hymn_detail' next_hymn.pk %}" class="btn-pill">{{ next_hymn.number|stringformat:"02d" }} · Próximo →</a>{% endif %}
+  </div>
+</section>
+
+<section class="max-w-6xl mx-auto px-6 pb-16 grid lg:grid-cols-[1fr_320px] gap-8">
+  <article class="card-soft p-10 md:p-14 hymn-card">
+    <p class="label-mono text-center">HINO {{ hymn.number|stringformat:"02d" }} · {{ hymn.hymn_book.name|upper }}</p>
+    <h1 class="font-serif text-4xl md:text-5xl text-center mt-4 leading-tight">{{ hymn.title }}</h1>
+    <hr class="w-32 mx-auto border-ink/30 mt-3 mb-8">
+
+    <div class="font-serif text-xl md:text-2xl leading-[1.7] max-w-prose mx-auto">
+      {% render_hymn_body hymn %}
     </div>
+
+    <div class="mt-10 text-center text-gold text-3xl" aria-hidden="true">{% if hymn.number|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
+
+    <footer class="mt-10 pt-6 border-t border-ink/10 dark:border-cream/10 flex flex-wrap gap-x-8 gap-y-2 text-xs font-mono uppercase tracking-widest text-ink-soft">
+      {% if hymn.received_at %}<span>Recebido · {{ hymn.received_at|date:"d M Y" }}</span>{% endif %}
+      {% if hymn.style %}<span>{{ hymn.style }}</span>{% endif %}
+      {% if hymn.offered_to %}<span>Oferecido · {{ hymn.offered_to }}</span>{% endif %}
+    </footer>
+
+    {% if hymn.extra_instructions %}
+      <p class="mt-6 text-sm italic text-ink-soft text-center max-w-prose mx-auto whitespace-pre-line">{{ hymn.extra_instructions }}</p>
     {% endif %}
-</nav>
+  </article>
 
-<article class="card">
-    <header style="border-bottom: 2px solid #e2e8f0; padding-bottom: 1.5rem; margin-bottom: 1.5rem;">
-        <div style="display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.5rem;">
-            <span style="font-size: 2rem; font-weight: 700; color: #2c5282;">{{ hymn.number }}</span>
-            <h1 style="font-size: 1.75rem; color: #2d3748;">{{ hymn.title }}</h1>
-        </div>
-        <p style="color: #718096; font-size: 1rem;">
-            <a href="{% url 'hymns:hymnbook_detail' hymn.hymn_book.slug %}" style="color: #2c5282; text-decoration: none;">
-                {{ hymn.hymn_book.name }}
-            </a>
-            {% if hymn.hymn_book.owner_name %}
-                — {{ hymn.hymn_book.owner_name }}
-            {% endif %}
-        </p>
-    </header>
-
-    {% if user.is_authenticated %}
-    <section style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <button
-            data-action="toggle-favorite"
-            data-hymn-id="{{ hymn.id }}"
-            class="btn {% if is_favorited %}favorited{% endif %}"
-            style="{% if is_favorited %}background: #e53e3e;{% endif %}">
-            {% if is_favorited %}❤️ Favoritado{% else %}🤍 Favoritar{% endif %}
-        </button>
-        <a href="{% url 'hymns:upload_audio' hymn_id=hymn.id %}" class="btn btn-secondary">
-            🎵 Adicionar Áudio
-        </a>
-    </section>
-    {% endif %}
-
-    {% comment %} Audio Player {% endcomment %}
+  <aside class="space-y-4" data-no-print>
     {% if audios %}
-        {% for audio in audios %}
-            {% include 'hymns/_audio_player.html' with audio=audio %}
+      <section class="card-soft p-5">
+        <p class="label-mono mb-3">Áudio · {{ audios|length }} gravaç{{ audios|length|pluralize:"ão,ões" }}</p>
+        {% for a in audios %}
+          {% include "hymns/_audio_player.html" with audio=a %}
         {% endfor %}
+      </section>
     {% endif %}
 
-    <section>
-        {% render_hymn_body hymn %}
+    <section class="card-soft p-5 space-y-2">
+      {% if user.is_authenticated %}
+        <button type="button"
+                data-favorite-toggle
+                data-hymn-id="{{ hymn.id }}"
+                class="w-full inline-flex items-center justify-center gap-2 rounded-full {% if is_favorited %}bg-gold text-night{% else %}border border-ink/15 hover:bg-ink/5{% endif %} py-2.5 text-sm font-medium">
+          <span aria-hidden="true">★</span>
+          <span data-favorite-label>{% if is_favorited %}Favoritado{% else %}Favoritar{% endif %}</span>
+        </button>
+        <a href="{% url 'hymns:upload_audio' hymn.id %}" class="block text-center py-2.5 rounded-full border border-ink/15 hover:bg-ink/5 text-sm">♫ Adicionar áudio</a>
+      {% endif %}
+      <button type="button" onclick="window.print()" class="block w-full text-center py-2.5 rounded-full border border-ink/15 hover:bg-ink/5 text-sm">⎙ Imprimir</button>
+      <button type="button"
+              onclick="navigator.clipboard.writeText(window.location.href);this.textContent='Link copiado'"
+              class="block w-full text-center py-2.5 rounded-full border border-ink/15 hover:bg-ink/5 text-sm">↑ Compartilhar</button>
     </section>
 
-    {% if hymn.received_at or hymn.offered_to or hymn.style or hymn.extra_instructions %}
-        <section style="margin-top: 2rem; padding-top: 2rem; border-top: 2px solid #e2e8f0;">
-            <h2 style="font-size: 1.25rem; color: #2d3748; margin-bottom: 1rem;">Informações</h2>
-            <div class="metadata">
-                {% if hymn.style %}
-                    <div class="metadata-item">
-                        <div class="metadata-label">Estilo</div>
-                        <div class="metadata-value">{{ hymn.style }}</div>
-                    </div>
-                {% endif %}
+    <section class="card-soft p-5">
+      <p class="label-mono mb-3">Detalhes</p>
+      <dl class="space-y-2 text-sm">
+        {% if hymn.style %}<div class="flex justify-between"><dt class="text-ink-soft">Estilo</dt><dd>{{ hymn.style }}</dd></div>{% endif %}
+        {% if hymn.received_at %}<div class="flex justify-between"><dt class="text-ink-soft">Recebido em</dt><dd>{{ hymn.received_at|date:"d M Y" }}</dd></div>{% endif %}
+        {% if hymn.offered_to %}<div class="flex justify-between"><dt class="text-ink-soft">Oferecido a</dt><dd>{{ hymn.offered_to }}</dd></div>{% endif %}
+        <div class="flex justify-between"><dt class="text-ink-soft">Origem</dt><dd>{{ hymn.get_source_display }}</dd></div>
+        {% if hymn.last_reviewed_at %}
+          <div class="flex justify-between"><dt class="text-ink-soft">Última revisão</dt>
+            <dd>{% if hymn.last_reviewed_by %}{{ hymn.last_reviewed_by.username }} · {% endif %}{{ hymn.last_reviewed_at|date:"d M Y" }}</dd>
+          </div>
+        {% endif %}
+        {% if can_edit %}
+          <div class="flex justify-between"><dt class="text-ink-soft">Status</dt><dd>{{ hymn.get_review_status_display }}</dd></div>
+        {% endif %}
+      </dl>
+      {% if can_edit %}
+        <div class="mt-4 flex gap-2">
+          <a href="{% url 'hymns:hymn_edit' hymn.pk %}" class="text-xs flex-1 text-center font-mono uppercase tracking-widest border border-ink/15 hover:bg-ink/5 rounded-full py-2">Editar</a>
+          <a href="{% url 'hymns:editor_revise_hymn' hymn.pk %}" class="text-xs flex-1 text-center font-mono uppercase tracking-widest bg-ink text-cream rounded-full py-2 dark:bg-gold dark:text-night">Revisar</a>
+        </div>
+        <button type="button" data-history-open="{{ hymn.pk }}"
+                class="mt-2 w-full text-xs font-mono uppercase tracking-widest border border-ink/15 hover:bg-ink/5 rounded-full py-2">
+          Histórico de revisões
+        </button>
+      {% endif %}
+    </section>
+  </aside>
+</section>
 
-                {% if hymn.received_at %}
-                    <div class="metadata-item">
-                        <div class="metadata-label">Recebido em</div>
-                        <div class="metadata-value">{{ hymn.received_at|date:"d/m/Y" }}</div>
-                    </div>
-                {% endif %}
+{# Drawer de histórico (Marco 2.1.8) #}
+<aside id="history-drawer" class="fixed inset-y-0 right-0 w-full max-w-md bg-cream dark:bg-night-deep shadow-2xl border-l border-ink/10 dark:border-cream/10 translate-x-full transition-transform z-40 overflow-y-auto" aria-hidden="true" data-no-print>
+  <div class="px-6 py-5 flex items-center justify-between border-b border-ink/10 dark:border-cream/10">
+    <p class="font-serif text-2xl">Histórico</p>
+    <button type="button" data-history-close class="text-2xl">×</button>
+  </div>
+  <div class="px-6 py-5" data-history-content>
+    <p class="text-ink-soft">Carregando…</p>
+  </div>
+</aside>
 
-                {% if hymn.offered_to %}
-                    <div class="metadata-item">
-                        <div class="metadata-label">Oferecido para</div>
-                        <div class="metadata-value">{{ hymn.offered_to }}</div>
-                    </div>
-                {% endif %}
-            </div>
-
-            {% if hymn.extra_instructions %}
-                <div style="margin-top: 1rem;">
-                    <div class="metadata-item">
-                        <div class="metadata-label">Instruções Extras</div>
-                        <div class="metadata-value" style="white-space: pre-line;">{{ hymn.extra_instructions }}</div>
-                    </div>
-                </div>
-            {% endif %}
-        </section>
-    {% endif %}
-
-</article>
-
-{% comment %}
-Navigation to previous/next hymn could be added here if desired
-{% endcomment %}
+<script>
+(function () {
+  var drawer = document.getElementById('history-drawer');
+  var content = drawer.querySelector('[data-history-content]');
+  document.addEventListener('click', function (e) {
+    var open = e.target.closest('[data-history-open]');
+    if (open) {
+      var pk = open.dataset.historyOpen;
+      drawer.classList.remove('translate-x-full');
+      drawer.setAttribute('aria-hidden', 'false');
+      content.innerHTML = '<p class="text-ink-soft">Carregando…</p>';
+      fetch('/hinos/' + pk + '/historico/').then(function (r) { return r.text(); }).then(function (h) {
+        content.innerHTML = h;
+      });
+    }
+    if (e.target.closest('[data-history-close]')) {
+      drawer.classList.add('translate-x-full');
+      drawer.setAttribute('aria-hidden', 'true');
+    }
+  });
+})();
+</script>
 {% endblock %}

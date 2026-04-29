@@ -76,6 +76,15 @@ class TestHymnEditView:
         resp = admin_client.get(url)
         assert resp.status_code == 200
 
+    def test_allowed_for_editor_group(self, authenticated_client, hymn):
+        from django.contrib.auth.models import Group
+
+        editor_group = Group.objects.get(name="editor")
+        authenticated_client.user.groups.add(editor_group)
+        url = reverse("hymns:hymn_edit", kwargs={"pk": hymn.pk})
+        resp = authenticated_client.get(url)
+        assert resp.status_code == 200
+
     def test_post_updates_hymn(self, authenticated_client, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="Mine2", owner_user=authenticated_client.user)
         h = hymn_factory(hymn_book=hb, number=3, title="Old", text="old")

@@ -16,7 +16,7 @@ def profile_view(request, username):
     """
     Display user public profile with their uploaded hymnbooks.
     """
-    from apps.hymns.models import Favorite
+    from apps.hymns.models import Favorite, HymnRevision
     from apps.users.models import UserFollow
 
     profile_user = get_object_or_404(User, username=username)
@@ -27,6 +27,14 @@ def profile_view(request, username):
     # Social counts
     followers_count = UserFollow.objects.filter(followed=profile_user).count()
     following_count = UserFollow.objects.filter(follower=profile_user).count()
+
+    # Marco 2.1.7 — stats editoriais usadas no perfil
+    reviews_count = HymnRevision.objects.filter(revised_by=profile_user).count()
+    recent_revisions = (
+        HymnRevision.objects.filter(revised_by=profile_user)
+        .select_related("hymn", "hymn__hymn_book")
+        .order_by("-revised_at")[:6]
+    )
 
     # Check if current user follows this profile
     is_following = False
@@ -42,6 +50,10 @@ def profile_view(request, username):
             .order_by("-created_at")[:10]
         )
 
+    is_editor = profile_user.is_superuser or profile_user.has_perm(
+        "hymns.can_review_any_hymnbook"
+    )
+
     context = {
         "profile_user": profile_user,
         "hymnbooks": hymnbooks,
@@ -50,6 +62,9 @@ def profile_view(request, username):
         "following_count": following_count,
         "is_following": is_following,
         "favorites": favorites,
+        "reviews_count": reviews_count,
+        "recent_revisions": recent_revisions,
+        "profile_is_editor": is_editor,
     }
 
     return render(request, "users/profile.html", context)
@@ -213,18 +228,27 @@ def upload_preview_view(request):
                 )
 
                 # Cria hinos (signals em apps.hymns.signals cuidam da indexação)
+                # `source=OCR` marca a origem para o workspace do editor
+                # priorizar revisão. Hinário entra como rascunho (`is_published`
+                # default False) até ser revisado e publicado.
                 hymns_data = hymn_book_data.get("hymns", [])
                 for hymn_data in hymns_data:
+                    raw_text = hymn_data.get("text", "")
                     Hymn.objects.create(
                         hymn_book=hymnbook,
                         number=hymn_data.get("number"),
                         title=hymn_data.get("title", ""),
-                        text=hymn_data.get("text", ""),
+                        text=raw_text,
                         received_at=hymn_data.get("received_at"),
                         offered_to=hymn_data.get("offered_to", ""),
                         style=hymn_data.get("style", ""),
                         extra_instructions=hymn_data.get("extra_instructions", ""),
                         repetitions=hymn_data.get("repetitions", ""),
+                        source=Hymn.Source.OCR,
+                        # Preserva o texto cru e a confiança média p/ diff
+                        # visual no workspace do editor (Fase 2).
+                        ocr_text=raw_text,
+                        ocr_avg_confidence=hymn_data.get("ocr_avg_confidence"),
                     )
 
             # Limpa sessão

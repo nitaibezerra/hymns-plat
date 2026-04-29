@@ -1,119 +1,66 @@
 {% comment %}
-Audio player component for hymns
-Usage: {% include 'hymns/_audio_player.html' with audio=hymn_audio %}
+Audio player customizado (Marco 2 — pós-Fase 2 audio redesign).
+
+Visual: imagem #3 do design — botão play moss circular grande, título serif,
+linha mono com duração + autor, waveform real (peaks pré-computados pelo
+ffmpeg), marcadores de tempo. Sem `<audio controls>` nativo.
+
+Espera: variável `audio` (HymnAudio aprovado).
 {% endcomment %}
 
 {% if audio and audio.is_approved %}
-<div class="audio-player" style="
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 12px;
-    padding: 20px;
-    margin: 20px 0;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    color: white;
-">
-    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-        <div style="font-size: 32px;">🎵</div>
-        <div style="flex: 1;">
-            <h3 style="margin: 0 0 5px 0; font-size: 16px; font-weight: 600;">
-                {{ audio.title|default:"Áudio do Hino" }}
-            </h3>
-            {% if audio.source %}
-            <p style="margin: 0; font-size: 13px; opacity: 0.9;">
-                Fonte: {{ audio.source }}
-            </p>
-            {% endif %}
-        </div>
-        {% if audio.allow_download %}
-        <a href="{% url 'hymns:download_audio' audio_id=audio.id %}"
-           class="btn btn-secondary"
-           style="background: rgba(255, 255, 255, 0.2); padding: 8px 16px; font-size: 14px;"
-           download>
-            📥 Download
-        </a>
-        {% endif %}
+{% load hymn_extras %}
+<article
+  data-audio-card
+  data-audio-id="{{ audio.id }}"
+  data-duration="{{ audio.duration|default:0 }}"
+  data-peaks="{{ audio.waveform_peaks|default:'[]'|escapejs }}"
+  class="audio-card relative bg-cream-deep dark:bg-night-deep border border-ink/10 dark:border-cream/10 rounded-2xl p-5 mb-4"
+>
+  <div class="flex items-center gap-4">
+    <button
+      type="button"
+      data-audio-toggle
+      aria-label="Tocar áudio"
+      class="audio-play-btn shrink-0 w-14 h-14 rounded-full bg-moss text-cream inline-flex items-center justify-center shadow-sm transition-transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-moss focus:ring-offset-2 focus:ring-offset-cream-deep"
+    >
+      <svg data-icon="play" class="w-5 h-5 translate-x-[1px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.866l11-6.5a1 1 0 0 0 0-1.732l-11-6.5A1 1 0 0 0 8 5.5z"/></svg>
+      <svg data-icon="pause" class="w-5 h-5 hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg>
+    </button>
+
+    <div class="min-w-0 flex-1">
+      <h3 class="font-serif text-xl md:text-2xl leading-tight truncate">{{ audio.title|default:audio.hymn.title }}</h3>
+      <p class="label-mono mt-1">
+        <time data-audio-total>{{ audio.duration|format_duration|default:"--:--" }}</time>
+        {% if audio.uploaded_by %}· gravado por {{ audio.uploaded_by.username }}{% elif audio.credits %}· {{ audio.credits|truncatechars:40 }}{% endif %}
+      </p>
     </div>
+  </div>
 
-    <audio id="hymn-audio-player" controls style="
-        width: 100%;
-        height: 40px;
-        border-radius: 8px;
-        filter: brightness(0.95);
-    ">
-        <source src="{{ audio.audio_file.url }}" type="audio/{{ audio.format|lower }}">
-        Seu navegador não suporta o elemento de áudio.
-    </audio>
+  <button
+    type="button"
+    data-audio-waveform
+    aria-label="Buscar posição no áudio"
+    class="audio-waveform-btn block w-full mt-4 group"
+  >
+    <svg data-audio-waveform-svg viewBox="0 0 240 36" preserveAspectRatio="none" class="w-full h-9 overflow-visible" aria-hidden="true">
+      <defs>
+        <clipPath id="audio-played-{{ audio.id }}">
+          <rect x="0" y="0" width="0" height="36" data-audio-played-rect></rect>
+        </clipPath>
+      </defs>
+      <g data-audio-bars-base class="text-ink/25 dark:text-cream/25"></g>
+      <g data-audio-bars-played class="text-moss" clip-path="url(#audio-played-{{ audio.id }})"></g>
+    </svg>
+  </button>
 
-    {% if audio.credits or audio.recorded_at %}
-    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.2); font-size: 13px; opacity: 0.9;">
-        {% if audio.recorded_at %}
-        <div style="margin-bottom: 5px;">
-            📅 Gravado em: {{ audio.recorded_at|date:"d/m/Y" }}
-        </div>
-        {% endif %}
-        {% if audio.credits %}
-        <div>
-            🎤 Créditos: {{ audio.credits }}
-        </div>
-        {% endif %}
-    </div>
-    {% endif %}
-</div>
+  <div class="flex justify-between mt-2 label-mono">
+    <time data-audio-current>0:00</time>
+    {% if audio.recorded_at %}<span class="opacity-70">{{ audio.recorded_at|date:"d M Y" }}</span>{% endif %}
+  </div>
 
-<script>
-// Audio player enhancements
-document.addEventListener('DOMContentLoaded', function() {
-    const player = document.getElementById('hymn-audio-player');
-
-    if (player) {
-        // Remember playback position
-        const hymnId = '{{ hymn.id }}';
-        const storageKey = `audio_position_${hymnId}`;
-
-        // Restore position
-        const savedPosition = localStorage.getItem(storageKey);
-        if (savedPosition) {
-            player.currentTime = parseFloat(savedPosition);
-        }
-
-        // Save position periodically
-        player.addEventListener('timeupdate', function() {
-            if (!player.paused && !player.ended) {
-                localStorage.setItem(storageKey, player.currentTime);
-            }
-        });
-
-        // Clear position when audio ends
-        player.addEventListener('ended', function() {
-            localStorage.removeItem(storageKey);
-        });
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            // Space to play/pause (only if not in input)
-            if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
-                e.preventDefault();
-                if (player.paused) {
-                    player.play();
-                } else {
-                    player.pause();
-                }
-            }
-
-            // Left arrow to rewind 5s
-            if (e.code === 'ArrowLeft' && e.ctrlKey) {
-                e.preventDefault();
-                player.currentTime = Math.max(0, player.currentTime - 5);
-            }
-
-            // Right arrow to forward 5s
-            if (e.code === 'ArrowRight' && e.ctrlKey) {
-                e.preventDefault();
-                player.currentTime = Math.min(player.duration, player.currentTime + 5);
-            }
-        });
-    }
-});
-</script>
-
+  <audio data-audio-source preload="metadata" class="sr-only">
+    <source src="{{ audio.audio_file.url }}" type="audio/{{ audio.format|lower|default:'mpeg' }}">
+  </audio>
+</article>
 {% endif %}

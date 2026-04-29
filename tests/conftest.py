@@ -51,10 +51,15 @@ def admin_client(client, user_factory):
 def hymn_book_factory():
     """
     Factory for creating test HymnBooks.
+
+    Default `is_published=True` reflete o estado dos hinários em produção (o
+    backfill da migration de Marco 1.2 marca todos como publicados). Testes que
+    querem validar o estado privado passam `is_published=False` explicitamente.
     """
     from apps.hymns.models import HymnBook
 
     def _create_hymn_book(name="O Cruzeiro", owner_name="Mestre Irineu", **kwargs):
+        kwargs.setdefault("is_published", True)
         return HymnBook.objects.create(name=name, owner_name=owner_name, **kwargs)
 
     return _create_hymn_book

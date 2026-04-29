@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+
+{% block title %}Revisar hino · {{ hymnbook.name }}{% endblock %}
+
+{% block content %}
+<section class="border-b border-ink/10 dark:border-cream/10" data-no-print>
+  <div class="max-w-7xl mx-auto px-6 py-4 grid grid-cols-3 items-center">
+    <a href="{% url 'hymns:editor_hymnbook_detail' hymnbook.slug %}" class="font-mono text-xs uppercase tracking-widest text-ink-soft hover:text-gold">← {{ hymnbook.name }}</a>
+    <div class="text-center">
+      <p class="font-serif text-xl">Revisar hino</p>
+      <p class="label-mono mt-0.5">{{ position|stringformat:"02d" }} de {{ total }} · {{ remaining }} restante{{ remaining|pluralize }}</p>
+    </div>
+    <div class="flex items-center justify-end gap-3">
+      <span class="inline-flex items-center gap-1.5 text-xs uppercase tracking-widest border rounded-full px-3 py-1
+        {% if hymn.review_status == 'reviewed' %}border-moss/50 text-moss bg-moss/10
+        {% elif hymn.review_status == 'in_review' %}border-gold/50 text-gold bg-gold/10
+        {% else %}border-rust/50 text-rust bg-rust/10{% endif %}">● {{ hymn.get_review_status_display|upper }}</span>
+      <span class="label-mono">fonte · {{ hymn.get_source_display|upper }}</span>
+    </div>
+  </div>
+  <div class="h-1 bg-ink/10"><div class="h-full bg-gold" style="width: {{ position|stringformat:'02d' }}%; max-width: 100%;"></div></div>
+</section>
+
+<form method="post" action="{% url 'hymns:editor_revise_hymn' hymn.pk %}" class="max-w-7xl mx-auto px-6 py-8 grid lg:grid-cols-2 gap-6" data-revise-form>
+  {% csrf_token %}
+
+  <section class="card-soft p-5 space-y-4 self-start">
+    <header class="flex items-center justify-between">
+      <p class="label-mono">Fonte original · {{ hymn.get_source_display }}</p>
+      <div class="flex gap-1" data-source-tabs>
+        <button type="button" class="btn-pill" data-tab="ocr" data-active="false">OCR</button>
+        <button type="button" class="btn-pill" data-tab="diff" data-active="true">Diff</button>
+      </div>
+    </header>
+    <pre class="font-mono text-xs leading-6 whitespace-pre-wrap bg-ink/5 dark:bg-white/5 rounded-md p-4 max-h-[480px] overflow-auto" data-tab-pane="ocr" {% if hymn.ocr_text %}{% else %}data-empty{% endif %}>{{ hymn.ocr_text|default:"— Texto OCR não disponível para este hino —" }}</pre>
+    <div class="font-mono text-xs leading-6 bg-ink/5 dark:bg-white/5 rounded-md max-h-[480px] overflow-auto" data-tab-pane="diff">
+      {% for d in diff_lines %}
+        <div class="px-4 py-0.5 {% if d.sign == '+' %}bg-moss/15 text-moss{% elif d.sign == '-' %}bg-rust/15 text-rust line-through opacity-70{% endif %}">
+          <span class="select-none mr-2">{{ d.sign }}</span>{{ d.text }}
+        </div>
+      {% empty %}
+        <p class="px-4 py-3 text-ink-soft">Sem diferenças entre OCR e versão atual{% if not hymn.ocr_text %} (OCR não disponível){% endif %}.</p>
+      {% endfor %}
+    </div>
+
+    {% if hymn.ocr_avg_confidence %}
+      <div>
+        <div class="flex justify-between label-mono mb-2"><span>Confiança OCR</span><span>{{ hymn.ocr_avg_confidence|floatformat:0 }}% médio</span></div>
+        <div class="ocr-confidence-bar">
+          {% with c=hymn.ocr_avg_confidence|floatformat:0|add:0 %}
+            {% for i in '12345678' %}
+              <span class="seg {% if c >= 90 %}high{% elif c >= 70 %}mid{% else %}low{% endif %}"></span>
+            {% endfor %}
+          {% endwith %}
+        </div>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="card-soft p-5 space-y-4">
+    <p class="label-mono">Versão revisada</p>
+
+    <div class="grid grid-cols-[80px_1fr] gap-3">
+      <input type="number" name="number" value="{{ hymn.number }}" required class="rounded-md border border-ink/15 px-3 py-2 bg-cream/60 dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-gold/40 text-lg font-serif text-center">
+      <input type="text" name="title" value="{{ hymn.title }}" required class="rounded-md border border-ink/15 px-3 py-2 bg-cream/60 dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-gold/40 text-lg font-serif">
+    </div>
+
+    <textarea name="text" rows="14" required class="w-full rounded-md border border-ink/15 px-3 py-3 bg-cream/60 dark:bg-white/5 font-mono text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-gold/40">{{ hymn.text }}</textarea>
+
+    <div class="grid grid-cols-2 gap-3">
+      <label class="block">
+        <span class="label-mono">Repetições</span>
+        <input type="text" name="repetitions" value="{{ hymn.repetitions }}" class="mt-1 w-full rounded-md border border-ink/15 px-3 py-2 bg-cream/60 dark:bg-white/5">
+      </label>
+      <label class="block">
+        <span class="label-mono">Estilo</span>
+        <input type="text" name="style" value="{{ hymn.style }}" class="mt-1 w-full rounded-md border border-ink/15 px-3 py-2 bg-cream/60 dark:bg-white/5">
+      </label>
+      <label class="block">
+        <span class="label-mono">Recebido em</span>
+        <input type="text" name="received_at" value="{{ hymn.received_at|date:'Y-m-d' }}" class="mt-1 w-full rounded-md border border-ink/15 px-3 py-2 bg-cream/60 dark:bg-white/5" placeholder="YYYY-MM-DD">
+      </label>
+      <label class="block">
+        <span class="label-mono">Oferecido para</span>
+        <input type="text" name="offered_to" value="{{ hymn.offered_to }}" class="mt-1 w-full rounded-md border border-ink/15 px-3 py-2 bg-cream/60 dark:bg-white/5">
+      </label>
+    </div>
+
+    <div>
+      <p class="label-mono mb-2">Status de revisão</p>
+      <div class="grid grid-cols-3 gap-2 text-sm">
+        {% for value, label in hymn.ReviewStatus.choices %}
+          <label class="block">
+            <input type="radio" name="review_status" value="{{ value }}" {% if hymn.review_status == value %}checked{% endif %} class="peer sr-only">
+            <span class="block text-center py-2 rounded-full border border-ink/15 peer-checked:bg-ink peer-checked:text-cream peer-checked:border-ink dark:peer-checked:bg-gold dark:peer-checked:text-night cursor-pointer">{{ label }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <label class="block">
+      <span class="label-mono">Resumo da mudança · opcional</span>
+      <input type="text" name="change_summary" placeholder="Corrigi 4 typos do OCR (rn→m, ao→ão)" class="mt-1 w-full rounded-md border border-ink/15 px-3 py-2 bg-cream/60 dark:bg-white/5">
+    </label>
+
+    <p class="label-mono"><span data-autosave-status>—</span></p>
+  </section>
+
+  <footer class="lg:col-span-2 sticky bottom-0 bg-cream/95 dark:bg-night/95 backdrop-blur border-t border-ink/10 dark:border-cream/10 -mx-6 px-6 py-4 flex items-center gap-3 flex-wrap" data-no-print>
+    <a href="{% url 'hymns:editor_hymnbook_detail' hymnbook.slug %}" class="btn-pill">← Voltar</a>
+    <button type="submit" name="next_action" value="back" data-action="draft" class="btn-pill">Salvar rascunho · ⌘S</button>
+    <span class="ml-auto"></span>
+    <a href="{% url 'hymns:editor_next_hymn' hymnbook.slug %}" class="btn-pill">Pular sem salvar · Esc</a>
+    <button type="submit" name="next_action" value="next" class="bg-ink text-cream rounded-full px-5 py-2.5 text-sm font-medium dark:bg-gold dark:text-night hover:bg-ink-soft">Marcar revisado e avançar · ⏎</button>
+  </footer>
+</form>
+
+<script>
+(function () {
+  // Tab toggle (OCR/Diff)
+  var tabs = document.querySelector('[data-source-tabs]');
+  if (tabs) {
+    tabs.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-tab]');
+      if (!btn) return;
+      tabs.querySelectorAll('[data-tab]').forEach(function (b) { b.dataset.active = String(b === btn); });
+      document.querySelectorAll('[data-tab-pane]').forEach(function (p) {
+        p.classList.toggle('hidden', p.dataset.tabPane !== btn.dataset.tab);
+      });
+    });
+    // Default: hide non-active
+    document.querySelectorAll('[data-tab-pane]').forEach(function (p) {
+      p.classList.toggle('hidden', p.dataset.tabPane !== 'diff');
+    });
+  }
+
+  // Autosave debounced
+  var form = document.querySelector('[data-revise-form]');
+  if (!form) return;
+  var status = form.querySelector('[data-autosave-status]');
+  var timer;
+  form.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      var data = new FormData(form);
+      data.append('autosave', '1');
+      status.textContent = 'Salvando…';
+      fetch(form.action, { method: 'POST', body: data, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+        .then(function () { status.textContent = 'Salvo automaticamente · agora'; })
+        .catch(function () { status.textContent = 'Erro ao salvar'; });
+    }, 1500);
+  });
+
+  // Atalhos: Enter (em qualquer campo, com modificador)? — para evitar conflito,
+  // usamos Esc para "Pular".
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      window.location.href = "{% url 'hymns:editor_next_hymn' hymnbook.slug %}";
+    }
+  });
+})();
+</script>
+{% endblock %}

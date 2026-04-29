@@ -1,0 +1,42 @@
+/* Design tokens da Fase 2 — light + dark.
+   Espelha os valores do <script>tailwind.config</script> e adiciona variáveis
+   CSS para componentes que precisam de cor sem classes utilitárias. */
+
+:root {
+  --color-bg: #F5EDDC;
+  --color-bg-deep: #EDE3CD;
+  --color-ink: #14213A;
+  --color-ink-soft: #3F4A5F;
+  --color-gold: #B58D3E;
+  --color-gold-soft: #E8D5A8;
+  --color-moss: #6E8C3A;
+  --color-rust: #8C3A2E;
+  --color-shadow: rgba(20, 33, 58, 0.08);
+
+  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --space-frame: 1.5rem;
+  --radius-card: 14px;
+  --radius-pill: 9999px;
+}
+
+html.theme-dark,
+html.dark {
+  --color-bg: #0E1320;
+  --color-bg-deep: #1A2030;
+  --color-ink: #EDE3CD;
+  --color-ink-soft: #B6B0A0;
+  --color-gold: #E8D5A8;
+  --color-gold-soft: #B58D3E;
+  --color-moss: #9CB269;
+  --color-rust: #C36F62;
+  --color-shadow: rgba(0, 0, 0, 0.4);
+}
+
+/* Cores base do body via tokens (Tailwind utilities sobrepõem onde necessário). */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+}

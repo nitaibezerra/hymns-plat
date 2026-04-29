@@ -1,79 +1,72 @@
 {% extends 'base.html' %}
 
-{% block title %}Portal de Hinários do Santo Daime{% endblock %}
+{% block title %}Início{% endblock %}
 
 {% block content %}
-<div class="hero">
-    <h1 style="font-size: 2.5rem; color: #2c5282; margin-bottom: 1rem;">Portal de Hinários do Santo Daime</h1>
-    <p style="font-size: 1.25rem; color: #4a5568; margin-bottom: 2rem;">
-        Explore e pesquise os hinários do Santo Daime
-    </p>
+<section class="bg-cream-deep dark:bg-night-deep border-b border-ink/10 dark:border-cream/10">
+  <div class="max-w-6xl mx-auto px-6 py-16 md:py-20 grid md:grid-cols-[1.4fr_1fr] gap-12">
+    <div>
+      <p class="label-mono mb-4">Hinaria · hinaria.com.br</p>
+      <h1 class="font-serif text-5xl md:text-6xl leading-[1.05] tracking-tight">
+        Hinários para ler, ouvir e<br>
+        <em class="text-ink/80 dark:text-cream/80">guardar com cuidado.</em>
+      </h1>
+      <p class="mt-5 text-lg leading-relaxed text-ink-soft dark:text-cream/70 max-w-xl">
+        Uma biblioteca aberta de hinos recebidos, com revisão editorial cuidadosa e três modos de leitura — pensada para uso durante os trabalhos.
+      </p>
 
-    <div class="stats">
-        <div class="stat-item">
-            <div class="stat-number">{{ total_hymnbooks }}</div>
-            <div class="stat-label">Hinários</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-number">{{ total_hymns }}</div>
-            <div class="stat-label">Hinos</div>
-        </div>
-    </div>
-
-    <form action="{% url 'hymns:search' %}" method="get" style="margin: 2rem 0;">
-        <input
-            type="text"
+      <form action="{% url 'hymns:search' %}" method="get" class="mt-8 max-w-2xl">
+        <div class="flex items-center gap-2 bg-cream dark:bg-night-deep border border-ink/15 dark:border-cream/20 rounded-full p-2 shadow-soft focus-within:ring-2 focus-within:ring-gold/50">
+          <span class="pl-3 text-ink/40">⌕</span>
+          <input
+            type="search"
             name="q"
-            placeholder="Buscar hinos por título, letra ou hinário..."
-            class="search-bar"
-            autofocus
-        >
-        <button type="submit" class="btn">Buscar</button>
-    </form>
-</div>
-
-<section style="margin-top: 3rem;">
-    <h2 style="font-size: 1.75rem; color: #2d3748; margin-bottom: 1.5rem;">Hinários Recentes</h2>
-
-    {% if recent_hymnbooks %}
-        <div class="grid">
-            {% for hymnbook in recent_hymnbooks %}
-                <div class="card">
-                    {% if hymnbook.cover_image %}
-                        <img
-                            src="{{ hymnbook.cover_image.url }}"
-                            alt="{{ hymnbook.name }}"
-                            style="width: 100%; height: 200px; object-fit: cover; border-radius: 4px; margin-bottom: 1rem;"
-                        >
-                    {% endif %}
-                    <h3 style="font-size: 1.25rem; color: #2c5282; margin-bottom: 0.5rem;">
-                        <a href="{% url 'hymns:hymnbook_detail' hymnbook.slug %}" style="color: inherit; text-decoration: none;">
-                            {{ hymnbook.name }}
-                        </a>
-                    </h3>
-                    <p style="color: #718096; margin-bottom: 0.5rem;">
-                        {{ hymnbook.owner_name }}
-                    </p>
-                    <p style="color: #4a5568; font-size: 0.875rem;">
-                        {{ hymnbook.hymn_count }} hino{{ hymnbook.hymn_count|pluralize }}
-                    </p>
-                    {% if hymnbook.description %}
-                        <p style="color: #4a5568; margin-top: 0.75rem; font-size: 0.875rem;">
-                            {{ hymnbook.description|truncatewords:20 }}
-                        </p>
-                    {% endif %}
-                    <a href="{% url 'hymns:hymnbook_detail' hymnbook.slug %}" class="btn" style="margin-top: 1rem; display: inline-block;">
-                        Ver Hinário
-                    </a>
-                </div>
-            {% endfor %}
+            placeholder="Buscar hinos, hinários ou trechos…"
+            class="flex-1 bg-transparent px-2 py-2 focus:outline-none"
+            autocomplete="off"
+          >
+          <button type="submit" class="bg-ink text-cream rounded-full px-5 py-2 text-sm hover:bg-ink-soft dark:bg-gold dark:text-night dark:hover:bg-gold-soft">Buscar</button>
         </div>
-    {% else %}
-        <p style="color: #718096;">Nenhum hinário disponível no momento.</p>
-    {% endif %}
+      </form>
 
-    <div style="text-align: center; margin-top: 2rem;">
-        <a href="{% url 'hymns:hymnbook_list' %}" class="btn btn-secondary">Ver Todos os Hinários</a>
+      <dl class="mt-10 flex flex-wrap gap-x-12 gap-y-4">
+        <div>
+          <dt class="font-serif text-3xl text-gold">{{ total_hymnbooks }}</dt>
+          <dd class="label-mono mt-1">Hinários</dd>
+        </div>
+        <div>
+          <dt class="font-serif text-3xl text-gold">{{ total_hymns }}</dt>
+          <dd class="label-mono mt-1">Hinos</dd>
+        </div>
+        <div>
+          <dt class="font-serif text-3xl text-gold">{{ total_audios }}</dt>
+          <dd class="label-mono mt-1">Áudios</dd>
+        </div>
+        <div>
+          <dt class="font-serif text-3xl text-gold">{{ active_reviewers }}</dt>
+          <dd class="label-mono mt-1">Revisores ativos</dd>
+        </div>
+      </dl>
     </div>
+
+    <aside class="hidden md:flex items-center justify-end" aria-hidden="true">
+      <div class="w-72 h-72 rounded-full bg-gradient-to-br from-gold/40 to-ink/30 dark:from-gold/30 dark:to-night blur-xl"></div>
+    </aside>
+  </div>
+</section>
+
+<section class="max-w-6xl mx-auto px-6 py-12">
+  <header class="flex items-end justify-between mb-6">
+    <h2 class="font-serif text-3xl">Em destaque</h2>
+    <a href="{% url 'hymns:hymnbook_list' %}" class="label-mono hover:text-gold">Ver todos →</a>
+  </header>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for hb in recent_hymnbooks %}
+      {% include "_partials/_hymnbook_card.html" with hb=hb %}
+    {% empty %}
+      <p class="text-ink-soft">Nenhum hinário publicado ainda.</p>
+    {% endfor %}
+  </div>
 </section>
 {% endblock %}

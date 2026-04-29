@@ -1,9 +1,26 @@
+import hashlib
 import uuid
 
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from django.utils.text import slugify
+
+from .managers import HymnBookManager
+
+# Marco 2.0.6 — paleta para cards de hinários quando o dono não escolhe cor.
+# Hex codes inspirados nos cards do design (verde-musgo, vermelho-tijolo, navy,
+# oliva, mostarda, púrpura, ciano, marrom).
+HYMNBOOK_ACCENT_PALETTE = [
+    "#1F5C4D",  # verde musgo
+    "#8C3A2E",  # vermelho tijolo
+    "#1A2A4A",  # navy
+    "#5B6E2A",  # oliva
+    "#B58D3E",  # mostarda
+    "#5E3A6B",  # púrpura
+    "#2E6E76",  # ciano profundo
+    "#6B4A2A",  # marrom
+]
 
 
 class HymnBook(models.Model):
@@ -29,9 +46,32 @@ class HymnBook(models.Model):
     )
     cover_image = models.ImageField("Imagem de capa", upload_to="hymn_covers/", blank=True, null=True)
     description = models.TextField("Descrição", blank=True)
+    accent_color = models.CharField(
+        "Cor de destaque",
+        max_length=7,
+        blank=True,
+        help_text="Hex (ex.: #8C3A2E). Vazio: cor escolhida deterministicamente pela paleta.",
+    )
+
+    is_published = models.BooleanField(
+        "Publicado",
+        default=False,
+        help_text="Hinário visível em listas/busca para o público",
+    )
+    published_at = models.DateTimeField("Publicado em", null=True, blank=True)
+    published_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="published_hymnbooks",
+        verbose_name="Publicado por",
+    )
 
     created_at = models.DateTimeField("Criado em", auto_now_add=True)
     updated_at = models.DateTimeField("Atualizado em", auto_now=True)
+
+    objects = HymnBookManager()
 
     class Meta:
         verbose_name = "Hinário"
@@ -41,6 +81,10 @@ class HymnBook(models.Model):
             models.Index(fields=["name"]),
             models.Index(fields=["owner_name"]),
             models.Index(fields=["created_at"]),
+        ]
+        permissions = [
+            ("can_review_any_hymnbook", "Pode revisar/editar qualquer hinário"),
+            ("can_publish_hymnbook", "Pode publicar/despublicar hinários"),
         ]
 
     def __str__(self):
@@ -56,11 +100,56 @@ class HymnBook(models.Model):
         """Retorna o número de hinos neste hinário."""
         return self.hymns.count()
 
+    @property
+    def display_accent(self) -> str:
+        """Cor de destaque para cards. Usa accent_color se setado, senão escolhe
+        deterministicamente da paleta pelo hash do slug."""
+        if self.accent_color:
+            return self.accent_color
+        seed = self.slug or self.name or ""
+        idx = int(hashlib.md5(seed.encode()).hexdigest(), 16) % len(HYMNBOOK_ACCENT_PALETTE)
+        return HYMNBOOK_ACCENT_PALETTE[idx]
+
+    @property
+    def review_progress(self) -> dict:
+        """
+        Conta hinos por estado de revisão em uma única query agregada.
+        Retorna {total, reviewed, in_review, pct}.
+        """
+        from django.db.models import Count, Q
+
+        agg = self.hymns.aggregate(
+            total=Count("id"),
+            reviewed=Count("id", filter=Q(review_status=Hymn.ReviewStatus.REVIEWED)),
+            in_review=Count("id", filter=Q(review_status=Hymn.ReviewStatus.IN_REVIEW)),
+        )
+        total = agg["total"] or 0
+        reviewed = agg["reviewed"] or 0
+        in_review = agg["in_review"] or 0
+        pct = int(reviewed * 100 / total) if total else 0
+        return {"total": total, "reviewed": reviewed, "in_review": in_review, "pct": pct}
+
+    @property
+    def is_fully_reviewed(self) -> bool:
+        """True se há ao menos um hino e todos estão REVIEWED."""
+        progress = self.review_progress
+        return progress["total"] > 0 and progress["reviewed"] == progress["total"]
+
 
 class Hymn(models.Model):
     """
     Hino - canto individual dentro de um hinário.
     """
+
+    class ReviewStatus(models.TextChoices):
+        NOT_REVIEWED = "not_reviewed", "Não revisado"
+        IN_REVIEW = "in_review", "Em revisão"
+        REVIEWED = "reviewed", "Revisado"
+
+    class Source(models.TextChoices):
+        MANUAL = "manual", "Manual"
+        OCR = "ocr", "OCR"
+        YAML = "yaml", "YAML"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     hymn_book = models.ForeignKey(HymnBook, on_delete=models.CASCADE, related_name="hymns", verbose_name="Hinário")
@@ -75,6 +164,41 @@ class Hymn(models.Model):
     extra_instructions = models.TextField("Instruções extras", blank=True, help_text="Instruções especiais de canto")
     repetitions = models.CharField(
         "Repetições", max_length=100, blank=True, help_text="Ex: 1-4, 5-8 (indicação de estrofes a repetir)"
+    )
+
+    # Estado de revisão (Marco 1.3)
+    review_status = models.CharField(
+        "Status de revisão",
+        max_length=20,
+        choices=ReviewStatus.choices,
+        default=ReviewStatus.NOT_REVIEWED,
+        db_index=True,
+    )
+    last_reviewed_at = models.DateTimeField("Última revisão em", null=True, blank=True)
+    last_reviewed_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_hymns",
+        verbose_name="Última revisão por",
+    )
+    source = models.CharField(
+        "Origem",
+        max_length=10,
+        choices=Source.choices,
+        default=Source.MANUAL,
+        help_text="Como o hino foi cadastrado (manual, OCR, YAML)",
+    )
+
+    # Marco 2.0.1 — preserva o texto cru do OCR para o diff visual na revisão.
+    ocr_text = models.TextField(
+        "Texto OCR original",
+        blank=True,
+        help_text="Texto cru extraído pelo OCR antes de revisão editorial",
+    )
+    ocr_avg_confidence = models.FloatField(
+        "Confiança média do OCR (0-100)", null=True, blank=True
     )
 
     # Full-text search vector (maintained by signal in apps.hymns.signals)
@@ -197,6 +321,10 @@ class HymnAudio(models.Model):
     is_approved = models.BooleanField("Aprovado", default=False, help_text="Moderação")
     allow_download = models.BooleanField("Permitir download", default=True, help_text="Usuários podem baixar o arquivo")
 
+    # Waveform pré-computada (~120 floats 0..1) — usada pelo player custom.
+    # Vazio enquanto a thread daemon não terminou o backfill.
+    waveform_peaks = models.JSONField("Picos da waveform", default=list, blank=True)
+
     # Timestamps
     created_at = models.DateTimeField("Criado em", auto_now_add=True)
     updated_at = models.DateTimeField("Atualizado em", auto_now=True)
@@ -290,3 +418,44 @@ class OCRTask(models.Model):
     @property
     def is_done(self) -> bool:
         return self.status in (self.STATUS_COMPLETED, self.STATUS_FAILED)
+
+
+class HymnRevision(models.Model):
+    """
+    Trilha de auditoria de revisões editoriais de um Hymn.
+
+    Cada save de Hymn que altera campos editoriais (texto, título, status de
+    revisão, etc.) gera uma HymnRevision via signal `post_save`. A diff dos
+    campos é capturada em `field_diff` (JSON: {field: {old, new}}).
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    hymn = models.ForeignKey(Hymn, on_delete=models.CASCADE, related_name="revisions", verbose_name="Hino")
+    revised_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="hymn_revisions",
+        verbose_name="Revisado por",
+    )
+    revised_at = models.DateTimeField("Revisado em", auto_now_add=True)
+    previous_status = models.CharField("Status anterior", max_length=20, blank=True)
+    new_status = models.CharField("Novo status", max_length=20, blank=True)
+    change_summary = models.TextField(
+        "Resumo da mudança", blank=True, help_text="Descrição opcional das mudanças feitas pelo revisor"
+    )
+    field_diff = models.JSONField(
+        "Diff de campos", default=dict, help_text="Snapshot dos campos alterados: {field: {old, new}}"
+    )
+
+    class Meta:
+        verbose_name = "Revisão de hino"
+        verbose_name_plural = "Revisões de hinos"
+        ordering = ["-revised_at"]
+        indexes = [
+            models.Index(fields=["hymn", "-revised_at"]),
+        ]
+
+    def __str__(self):
+        return f"Revisão {self.revised_at:%Y-%m-%d %H:%M} de {self.hymn}"

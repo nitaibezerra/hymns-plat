@@ -1,93 +1,84 @@
 {% extends 'base.html' %}
 
-{% block title %}Buscar Hinos - Portal de Hinários do Santo Daime{% endblock %}
+{% block title %}Buscar{% endblock %}
 
 {% block content %}
-<h1 style="font-size: 2rem; color: #2c5282; margin-bottom: 1.5rem;">Buscar Hinos</h1>
+<section class="max-w-5xl mx-auto px-6 py-10">
+  <p class="label-mono">Busca</p>
 
-<div class="card">
-    <form action="{% url 'hymns:search' %}" method="get">
-        <input
-            type="text"
-            name="q"
-            value="{{ query }}"
-            placeholder="Buscar por título, letra ou nome do hinário..."
-            class="search-bar"
-            autofocus
-        >
-        <button type="submit" class="btn">Buscar</button>
-    </form>
-</div>
+  <form action="{% url 'hymns:search' %}" method="get" class="mt-3 flex items-center gap-3 bg-cream dark:bg-night-deep border border-ink/15 dark:border-cream/20 rounded-full p-2 shadow-soft focus-within:ring-2 focus-within:ring-gold/40">
+    <span class="pl-3 text-ink/40">⌕</span>
+    <input
+      type="search"
+      name="q"
+      value="{{ query }}"
+      placeholder="estrela brilhante…"
+      class="flex-1 bg-transparent px-2 py-2 focus:outline-none"
+      autofocus
+    >
+    {% if filter_hymnbook %}<input type="hidden" name="in_hymnbook" value="{{ filter_hymnbook.slug }}">{% endif %}
+    {% if search_type and search_type != "all" %}<input type="hidden" name="type" value="{{ search_type }}">{% endif %}
+    <button type="submit" class="bg-ink text-cream rounded-full px-5 py-2 text-sm hover:bg-ink-soft dark:bg-gold dark:text-night dark:hover:bg-gold-soft">Buscar</button>
+  </form>
 
-{% if query %}
-    <div style="margin: 1.5rem 0;">
-        <h2 style="font-size: 1.25rem; color: #2d3748;">
-            {% if total > 0 %}
-                {{ total }} resultado{{ total|pluralize }} para "{{ query }}"
-            {% else %}
-                Nenhum resultado encontrado para "{{ query }}"
-            {% endif %}
-        </h2>
+  {% if query %}
+    <div class="mt-6 flex flex-wrap items-center gap-3 text-sm">
+      <span class="font-mono text-xs uppercase tracking-widest text-ink-soft">{{ total }} resultado{{ total|pluralize }} ·</span>
+      {% with base_qs=query %}
+        <a href="?q={{ base_qs }}{% if filter_hymnbook %}&in_hymnbook={{ filter_hymnbook.slug }}{% endif %}" class="btn-pill {% if search_type == 'all' %}data-active{% endif %}" data-active="{{ search_type|default:'all'|yesno:'true,false,false' }}{% if search_type == 'all' %}true{% endif %}">● Tudo ({{ results_count_all }})</a>
+        <a href="?q={{ base_qs }}&type=hymns{% if filter_hymnbook %}&in_hymnbook={{ filter_hymnbook.slug }}{% endif %}" class="btn-pill" data-active="{% if search_type == 'hymns' %}true{% else %}false{% endif %}">● Em hinos ({{ results_count_hymns }})</a>
+        <a href="?q={{ base_qs }}&type=books{% if filter_hymnbook %}&in_hymnbook={{ filter_hymnbook.slug }}{% endif %}" class="btn-pill" data-active="{% if search_type == 'books' %}true{% else %}false{% endif %}">● Em hinários ({{ results_count_books }})</a>
+      {% endwith %}
+
+      {% if filter_hymnbook %}
+        <span class="ml-auto label-mono">Filtrado por:</span>
+        <a href="?q={{ query }}{% if search_type and search_type != 'all' %}&type={{ search_type }}{% endif %}"
+           class="inline-flex items-center gap-2 bg-gold/10 text-gold border border-gold/30 rounded-full px-3 py-1 text-xs">
+          {{ filter_hymnbook.name }} <span aria-hidden="true">×</span>
+        </a>
+      {% endif %}
     </div>
 
-    {% if results %}
-        <div style="display: flex; flex-direction: column; gap: 1rem;">
-            {% for hymn in results %}
-                <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: start; gap: 1.5rem;">
-                        <div style="flex: 1;">
-                            <h3 style="font-size: 1.25rem; color: #2c5282; margin-bottom: 0.5rem;">
-                                <a href="{% url 'hymns:hymn_detail' hymn.pk %}" style="color: inherit; text-decoration: none;">
-                                    {{ hymn.number }}. {{ hymn.title }}
-                                </a>
-                            </h3>
-                            <p style="color: #718096; margin-bottom: 0.75rem;">
-                                <a href="{% url 'hymns:hymnbook_detail' hymn.hymn_book.slug %}" style="color: inherit; text-decoration: none;">
-                                    {{ hymn.hymn_book.name }}
-                                </a>
-                                {% if hymn.hymn_book.owner_name %}
-                                    — {{ hymn.hymn_book.owner_name }}
-                                {% endif %}
-                            </p>
-                            <div style="color: #4a5568; font-size: 0.875rem; line-height: 1.6;">
-                                {{ hymn.text|truncatewords:40 }}
-                            </div>
-                            {% if hymn.style %}
-                                <p style="color: #718096; margin-top: 0.5rem; font-size: 0.875rem;">
-                                    <strong>Estilo:</strong> {{ hymn.style }}
-                                </p>
-                            {% endif %}
-                        </div>
-                        <div>
-                            <a href="{% url 'hymns:hymn_detail' hymn.pk %}" class="btn">
-                                Ver Hino
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            {% endfor %}
+    <div class="mt-6 space-y-3">
+      {% for r in results %}
+        {% if r.type == "hymn" %}
+          <a href="{% url 'hymns:hymn_detail' r.obj.pk %}" class="card-soft p-5 flex gap-6 hover:border-gold/40 transition-colors">
+            <div class="flex flex-col items-center w-16 shrink-0">
+              <p class="label-mono">HINO</p>
+              <p class="font-serif text-2xl">{{ r.obj.number|stringformat:"02d" }}</p>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-serif text-xl">{{ r.obj.title }}</p>
+              <p class="font-serif italic text-ink-soft text-sm">{{ r.obj.hymn_book.name }}</p>
+              <p class="text-sm mt-2 line-clamp-2">{% if r.headline %}…{{ r.headline|safe }}…{% else %}{{ r.obj.text|truncatewords:20 }}{% endif %}</p>
+            </div>
+            <span class="self-center text-2xl text-ink/30">→</span>
+          </a>
+        {% else %}
+          <a href="{% url 'hymns:hymnbook_detail' r.obj.slug %}" class="card-soft p-5 flex gap-6 hover:border-gold/40 transition-colors" style="border-left: 4px solid {{ r.obj.display_accent }};">
+            <div class="flex flex-col items-center w-16 shrink-0">
+              <p class="label-mono">HINÁRIO</p>
+              <p class="font-serif text-2xl" style="color: {{ r.obj.display_accent }};">{{ r.obj.name|first|upper }}</p>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-serif text-xl">{{ r.obj.name }}</p>
+              <p class="font-serif italic text-ink-soft text-sm">{{ r.obj.owner_name }}</p>
+              <p class="text-sm mt-2 text-ink-soft line-clamp-2">{{ r.headline|truncatewords:25 }}</p>
+            </div>
+            <span class="self-center text-2xl text-ink/30">→</span>
+          </a>
+        {% endif %}
+      {% empty %}
+        <div class="card-soft p-10 text-center text-ink-soft">
+          Nenhum resultado para "{{ query }}". Tente outros termos.
         </div>
-    {% elif query %}
-        <div class="card">
-            <p style="color: #718096; text-align: center;">
-                Não foi possível encontrar hinos com os termos buscados. Tente usar outras palavras-chave.
-            </p>
-        </div>
-    {% endif %}
-{% else %}
-    <div class="card">
-        <p style="color: #718096; text-align: center;">
-            Digite um termo de busca para encontrar hinos.
-        </p>
-        <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;">
-            <h3 style="font-size: 1rem; color: #2d3748; margin-bottom: 0.75rem;">Dicas de busca:</h3>
-            <ul style="color: #4a5568; padding-left: 1.5rem;">
-                <li style="margin-bottom: 0.5rem;">Busque por palavras do título do hino</li>
-                <li style="margin-bottom: 0.5rem;">Busque por trechos da letra</li>
-                <li style="margin-bottom: 0.5rem;">Busque pelo nome do hinário</li>
-                <li style="margin-bottom: 0.5rem;">Busque pelo nome do autor/recebedor</li>
-            </ul>
-        </div>
+      {% endfor %}
     </div>
-{% endif %}
+  {% else %}
+    <div class="mt-10 card-soft p-10 text-center">
+      <p class="font-serif text-2xl">Comece pela busca.</p>
+      <p class="text-ink-soft mt-2">Procure por título, trecho da letra, hinário ou autor.</p>
+    </div>
+  {% endif %}
+</section>
 {% endblock %}
