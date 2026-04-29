@@ -63,9 +63,7 @@ class TestPendingAudiosListView:
         assert str(a2.id) in ids
         assert len(ids) == 2
 
-    def test_owner_sees_only_own_hymnbooks_pending(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_owner_sees_only_own_hymnbooks_pending(self, authenticated_client, hymn_book_factory, hymn_factory):
         own = hymn_book_factory(name="Mine", owner_user=authenticated_client.user)
         alheio = hymn_book_factory(name="Other")
         h_own = hymn_factory(hymn_book=own, number=1)
@@ -82,9 +80,7 @@ class TestPendingAudiosListView:
 
 @pytest.mark.django_db
 class TestEditorListShowsPendingBadge:
-    def test_shows_callout_when_pending_exists(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_shows_callout_when_pending_exists(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
         h = hymn_factory(hymn_book=hb, number=1)

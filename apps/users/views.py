@@ -50,9 +50,7 @@ def profile_view(request, username):
             .order_by("-created_at")[:10]
         )
 
-    is_editor = profile_user.is_superuser or profile_user.has_perm(
-        "hymns.can_review_any_hymnbook"
-    )
+    is_editor = profile_user.is_superuser or profile_user.has_perm("hymns.can_review_any_hymnbook")
 
     context = {
         "profile_user": profile_user,

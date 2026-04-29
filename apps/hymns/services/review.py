@@ -25,9 +25,7 @@ def publish_readiness(hymnbook) -> dict:
     checks = [
         {
             "label": (
-                f"Todos os {total} hinos revisados"
-                if total
-                else "Hinário precisa ter pelo menos um hino revisado"
+                f"Todos os {total} hinos revisados" if total else "Hinário precisa ter pelo menos um hino revisado"
             ),
             "ok": total > 0 and reviewed == total,
             "key": "reviewed",
@@ -45,10 +43,7 @@ def publish_readiness(hymnbook) -> dict:
             "key": "owner",
         },
         {
-            "label": (
-                f"Auditoria registrada · {reviewer_count} revisor"
-                + ("es" if reviewer_count != 1 else "")
-            ),
+            "label": (f"Auditoria registrada · {reviewer_count} revisor" + ("es" if reviewer_count != 1 else "")),
             "ok": reviewer_count >= 1,
             "key": "audit",
         },

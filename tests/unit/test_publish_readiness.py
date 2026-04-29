@@ -17,9 +17,7 @@ def _set_status(hymn, status):
 
 @pytest.mark.django_db
 class TestPublishReadinessFunction:
-    def test_all_ok_when_meets_all_criteria(
-        self, hymn_book_factory, hymn_factory, user_factory
-    ):
+    def test_all_ok_when_meets_all_criteria(self, hymn_book_factory, hymn_factory, user_factory):
         owner = user_factory(email="o@example.com")
         hb = hymn_book_factory(
             name="Pronto",
@@ -43,7 +41,7 @@ class TestPublishReadinessFunction:
         assert report["can_publish"] is False
         labels = {(c["label"], c["ok"]) for c in report["checks"]}
         # check de revisão completo deve estar ok=False
-        assert any("revisado" in l.lower() and not ok for l, ok in labels)
+        assert any("revisado" in label.lower() and not ok for label, ok in labels)
 
     def test_fails_when_no_owner_user(self, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="Sem dono", owner_user=None)
@@ -51,9 +49,7 @@ class TestPublishReadinessFunction:
         _set_status(h, Hymn.ReviewStatus.REVIEWED)
         report = publish_readiness(hb)
         # check "Dono identificado" deve falhar
-        assert any(
-            "dono" in c["label"].lower() and not c["ok"] for c in report["checks"]
-        )
+        assert any("dono" in c["label"].lower() and not c["ok"] for c in report["checks"])
         assert report["can_publish"] is False
 
     def test_fails_when_no_description(self, hymn_book_factory, hymn_factory, user_factory):
@@ -62,13 +58,9 @@ class TestPublishReadinessFunction:
         h = hymn_factory(hymn_book=hb, number=1)
         _set_status(h, Hymn.ReviewStatus.REVIEWED)
         report = publish_readiness(hb)
-        assert any(
-            "descrição" in c["label"].lower() and not c["ok"] for c in report["checks"]
-        )
+        assert any("descrição" in c["label"].lower() and not c["ok"] for c in report["checks"])
 
-    def test_reports_reviewer_count(
-        self, hymn_book_factory, hymn_factory, user_factory
-    ):
+    def test_reports_reviewer_count(self, hymn_book_factory, hymn_factory, user_factory):
         owner = user_factory(email="o@example.com")
         u2 = user_factory(email="b@example.com")
         hb = hymn_book_factory(name="X", owner_user=owner, description="d")

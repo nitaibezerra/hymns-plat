@@ -53,9 +53,7 @@ class TestRenderHymnBody:
         html = _render(hymn)
         # Ou via <br>, ou via white-space: pre-* no inline style do wrapper.
         assert (
-            "<br" in html
-            or "pre-line" in html
-            or "pre-wrap" in html
+            "<br" in html or "pre-line" in html or "pre-wrap" in html
         ), f"Renderização perdeu quebras de linha: {html!r}"
 
     def test_renders_plain_text_for_invalid_repetitions(self, hymn_book_factory, hymn_factory):

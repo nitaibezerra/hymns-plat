@@ -197,9 +197,7 @@ class Hymn(models.Model):
         blank=True,
         help_text="Texto cru extraído pelo OCR antes de revisão editorial",
     )
-    ocr_avg_confidence = models.FloatField(
-        "Confiança média do OCR (0-100)", null=True, blank=True
-    )
+    ocr_avg_confidence = models.FloatField("Confiança média do OCR (0-100)", null=True, blank=True)
 
     # Full-text search vector (maintained by signal in apps.hymns.signals)
     search_vector = SearchVectorField(null=True, blank=True)

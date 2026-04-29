@@ -10,10 +10,7 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from apps.hymns.models import HymnAudio
-from apps.hymns.services.audio import (
-    compute_waveform_peaks,
-    extract_duration_seconds,
-)
+from apps.hymns.services.audio import compute_waveform_peaks, extract_duration_seconds
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "audio" / "silence-2s.mp3"
 
@@ -63,9 +60,7 @@ class TestComputeWaveformPeaks:
 @pytest.mark.django_db
 @pytest.mark.skipif(not FIXTURE.exists(), reason="fixture missing")
 class TestWaveformSignal:
-    def test_post_save_populates_peaks_synchronously_when_patched(
-        self, hymn_book_factory, hymn_factory
-    ):
+    def test_post_save_populates_peaks_synchronously_when_patched(self, hymn_book_factory, hymn_factory):
         """
         Em produção a geração ocorre em thread daemon (não bloqueia request).
         Aqui patcheamos `_run_in_thread` para rodar inline e validar que o peak
@@ -90,9 +85,7 @@ class TestWaveformSignal:
         assert len(audio.waveform_peaks) >= 60
         assert audio.duration is not None and audio.duration >= 1
 
-    def test_post_save_skips_when_peaks_already_set(
-        self, hymn_book_factory, hymn_factory
-    ):
+    def test_post_save_skips_when_peaks_already_set(self, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="X")
         h = hymn_factory(hymn_book=hb, number=1)
         audio = HymnAudio.objects.create(
@@ -156,9 +149,7 @@ class TestWaveformSignal:
 @pytest.mark.django_db
 @pytest.mark.skipif(not FIXTURE.exists(), reason="fixture missing")
 class TestBackfillCommand:
-    def test_processes_only_audios_without_peaks(
-        self, hymn_book_factory, hymn_factory, monkeypatch
-    ):
+    def test_processes_only_audios_without_peaks(self, hymn_book_factory, hymn_factory, monkeypatch):
         from django.core.management import call_command
 
         from apps.hymns.services import audio as audio_service
@@ -169,9 +160,7 @@ class TestBackfillCommand:
         hb = hymn_book_factory(name="X")
         h1 = hymn_factory(hymn_book=hb, number=1)
         h2 = hymn_factory(hymn_book=hb, number=2, title="t2")
-        without = HymnAudio.objects.create(
-            hymn=h1, audio_file=_audio_upload("a.mp3"), title="A", format="mp3"
-        )
+        without = HymnAudio.objects.create(hymn=h1, audio_file=_audio_upload("a.mp3"), title="A", format="mp3")
         with_existing = HymnAudio.objects.create(
             hymn=h2,
             audio_file=_audio_upload("b.mp3"),

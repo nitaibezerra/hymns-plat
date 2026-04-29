@@ -42,5 +42,6 @@ class TestHymnbookUpload:
         authenticated_page.click('button[type="submit"]')
 
         authenticated_page.wait_for_load_state("networkidle")
-        error_locator = authenticated_page.locator(".errorlist, .alert-danger, .error")
+        # Phase 2: form errors render with text-rust class (no .errorlist anymore)
+        error_locator = authenticated_page.locator(".text-rust, .errorlist, .alert-danger, .error")
         expect(error_locator.first).to_be_visible()

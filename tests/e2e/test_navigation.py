@@ -17,9 +17,8 @@ class TestPublicNavigation:
         """Home page loads with title and statistics."""
         page.goto(base_url)
 
-        # Title should contain Portal or Hinários
         title = page.title()
-        assert "Portal" in title or "Hinários" in title or "Hinário" in title
+        assert "Hinaria" in title or "Hinários" in title or "Hinário" in title
 
         # Main heading should be visible
         expect(page.locator("h1").first).to_be_visible()
@@ -31,8 +30,8 @@ class TestPublicNavigation:
         # Page should load - use get_by_role with exact=True for precise selection
         expect(page.get_by_role("heading", name="Hinários", exact=True)).to_be_visible()
 
-        # Should have at least one hymnbook card
-        cards = page.locator(".card")
+        # Should have at least one hymnbook card (Phase 2 markup uses <article>)
+        cards = page.locator("a[href^='/hinarios/'] article")
         expect(cards.first).to_be_visible()
 
     def test_hymnbook_detail_shows_hymns(self, page: Page, base_url: str):
@@ -70,6 +69,7 @@ class TestPublicNavigation:
         """Search page loads and accepts input."""
         page.goto(f"{base_url}/busca/")
 
-        # Search input should be visible
-        search_input = page.locator('input[name="q"], input[type="search"]')
+        # Phase 2: header has a global search input AND the page renders its own
+        # form. Disambiguate by selecting the autofocused page input.
+        search_input = page.locator('input[name="q"][autofocus]')
         expect(search_input).to_be_visible()

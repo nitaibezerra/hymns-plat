@@ -88,9 +88,7 @@ class TestInitialRevisionOnNonManualCreation:
     """Marco 2.0.2 — drawer de histórico precisa do evento "criado via OCR"."""
 
     def test_initial_revision_recorded_for_ocr_source(self, hymn_book):
-        h = Hymn.objects.create(
-            hymn_book=hymn_book, number=10, title="t", text="x", source=Hymn.Source.OCR
-        )
+        h = Hymn.objects.create(hymn_book=hymn_book, number=10, title="t", text="x", source=Hymn.Source.OCR)
         revs = HymnRevision.objects.filter(hymn=h)
         assert revs.count() == 1
         rev = revs.first()
@@ -99,16 +97,12 @@ class TestInitialRevisionOnNonManualCreation:
         assert "OCR" in rev.change_summary
 
     def test_initial_revision_recorded_for_yaml_source(self, hymn_book):
-        h = Hymn.objects.create(
-            hymn_book=hymn_book, number=11, title="t", text="x", source=Hymn.Source.YAML
-        )
+        h = Hymn.objects.create(hymn_book=hymn_book, number=11, title="t", text="x", source=Hymn.Source.YAML)
         rev = HymnRevision.objects.get(hymn=h)
         assert "YAML" in rev.change_summary
 
     def test_no_initial_revision_for_manual_source(self, hymn_book):
-        Hymn.objects.create(
-            hymn_book=hymn_book, number=12, title="t", text="x", source=Hymn.Source.MANUAL
-        )
+        Hymn.objects.create(hymn_book=hymn_book, number=12, title="t", text="x", source=Hymn.Source.MANUAL)
         assert HymnRevision.objects.count() == 0
 
 
@@ -122,9 +116,7 @@ class TestReviseHymnView:
 
     def test_random_user_forbidden(self, authenticated_client, hymn):
         url = reverse("hymns:hymn_revise", kwargs={"pk": hymn.pk})
-        resp = authenticated_client.post(
-            url, {"title": "x", "text": "y", "review_status": Hymn.ReviewStatus.REVIEWED}
-        )
+        authenticated_client.post(url, {"title": "x", "text": "y", "review_status": Hymn.ReviewStatus.REVIEWED})
         # redireciona sem mexer no hino
         hymn.refresh_from_db()
         assert hymn.review_status == Hymn.ReviewStatus.NOT_REVIEWED

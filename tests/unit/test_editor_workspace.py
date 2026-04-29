@@ -54,9 +54,7 @@ class TestEditorHymnbookListView:
         slugs = {hb.slug for hb in resp.context["hymnbooks"]}
         assert own.slug in slugs
 
-    def test_default_sort_least_reviewed_first(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_default_sort_least_reviewed_first(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
         full = hymn_book_factory(name="Full")
         h = hymn_factory(hymn_book=full, number=1)
@@ -69,9 +67,7 @@ class TestEditorHymnbookListView:
         slugs = [hb.slug for hb in resp.context["hymnbooks"]]
         assert slugs.index(empty_progress.slug) < slugs.index(full.slug)
 
-    def test_supports_most_reviewed_sort(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_supports_most_reviewed_sort(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
         full = hymn_book_factory(name="Full")
         h = hymn_factory(hymn_book=full, number=1)
@@ -79,25 +75,19 @@ class TestEditorHymnbookListView:
         empty_progress = hymn_book_factory(name="Empty progress")
         hymn_factory(hymn_book=empty_progress, number=1)
 
-        resp = authenticated_client.get(
-            reverse("hymns:editor_hymnbook_list"), {"sort": "most_reviewed"}
-        )
+        resp = authenticated_client.get(reverse("hymns:editor_hymnbook_list"), {"sort": "most_reviewed"})
         slugs = [hb.slug for hb in resp.context["hymnbooks"]]
         assert slugs.index(full.slug) < slugs.index(empty_progress.slug)
 
 
 @pytest.mark.django_db
 class TestEditorHymnbookDetailView:
-    def test_lists_hymns_in_order(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_lists_hymns_in_order(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
         h2 = hymn_factory(hymn_book=hb, number=2, title="t2")
         h1 = hymn_factory(hymn_book=hb, number=1, title="t1")
-        resp = authenticated_client.get(
-            reverse("hymns:editor_hymnbook_detail", kwargs={"slug": hb.slug})
-        )
+        resp = authenticated_client.get(reverse("hymns:editor_hymnbook_detail", kwargs={"slug": hb.slug}))
         assert resp.status_code == 200
         ordered = list(resp.context["hymns"])
         assert ordered == [h1, h2]
@@ -105,9 +95,7 @@ class TestEditorHymnbookDetailView:
 
 @pytest.mark.django_db
 class TestEditorNextHymnView:
-    def test_redirects_to_lowest_numbered_unreviewed(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_redirects_to_lowest_numbered_unreviewed(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
         h1 = hymn_factory(hymn_book=hb, number=1, title="t1")
@@ -116,46 +104,32 @@ class TestEditorNextHymnView:
         _set_status(h1, Hymn.ReviewStatus.REVIEWED)
         _set_status(h3, Hymn.ReviewStatus.REVIEWED)
 
-        resp = authenticated_client.get(
-            reverse("hymns:editor_next_hymn", kwargs={"slug": hb.slug})
-        )
+        resp = authenticated_client.get(reverse("hymns:editor_next_hymn", kwargs={"slug": hb.slug}))
         assert resp.status_code == 302
-        assert resp.url == reverse(
-            "hymns:editor_revise_hymn", kwargs={"pk": h2.pk}
-        )
+        assert resp.url == reverse("hymns:editor_revise_hymn", kwargs={"pk": h2.pk})
 
-    def test_redirects_to_detail_when_done(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_redirects_to_detail_when_done(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
         h = hymn_factory(hymn_book=hb, number=1)
         _set_status(h, Hymn.ReviewStatus.REVIEWED)
 
-        resp = authenticated_client.get(
-            reverse("hymns:editor_next_hymn", kwargs={"slug": hb.slug})
-        )
+        resp = authenticated_client.get(reverse("hymns:editor_next_hymn", kwargs={"slug": hb.slug}))
         assert resp.status_code == 302
         assert reverse("hymns:editor_hymnbook_detail", kwargs={"slug": hb.slug}) in resp.url
 
 
 @pytest.mark.django_db
 class TestEditorReviseHymnView:
-    def test_get_renders_form_for_editor(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_get_renders_form_for_editor(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
         h = hymn_factory(hymn_book=hb, number=1, title="T", text="L")
-        resp = authenticated_client.get(
-            reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})
-        )
+        resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
         assert resp.status_code == 200
         assert resp.context["hymn"] == h
 
-    def test_post_save_and_next_redirects_to_next_hymn(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_post_save_and_next_redirects_to_next_hymn(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
         h1 = hymn_factory(hymn_book=hb, number=1, title="t1", text="x1")
@@ -172,15 +146,11 @@ class TestEditorReviseHymnView:
             },
         )
         assert resp.status_code == 302
-        assert resp.url == reverse(
-            "hymns:editor_revise_hymn", kwargs={"pk": h2.pk}
-        )
+        assert resp.url == reverse("hymns:editor_revise_hymn", kwargs={"pk": h2.pk})
         h1.refresh_from_db()
         assert h1.review_status == Hymn.ReviewStatus.REVIEWED
 
-    def test_post_save_no_next_redirects_to_book_detail(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_post_save_no_next_redirects_to_book_detail(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
         h = hymn_factory(hymn_book=hb, number=1)
@@ -195,18 +165,12 @@ class TestEditorReviseHymnView:
             },
         )
         assert resp.status_code == 302
-        assert resp.url == reverse(
-            "hymns:editor_hymnbook_detail", kwargs={"slug": hb.slug}
-        )
+        assert resp.url == reverse("hymns:editor_hymnbook_detail", kwargs={"slug": hb.slug})
 
-    def test_random_user_forbidden(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_random_user_forbidden(self, authenticated_client, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="X")
         h = hymn_factory(hymn_book=hb, number=1)
-        resp = authenticated_client.get(
-            reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})
-        )
+        resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
         assert resp.status_code == 302
 
     def test_autosave_returns_json(self, authenticated_client, hymn_book_factory, hymn_factory):
@@ -235,11 +199,7 @@ class TestEditorReviseHymnView:
     ):
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
-        h = hymn_factory(
-            hymn_book=hb, number=1, title="t", text="atual", ocr_text="OCR cru"
-        )
-        resp = authenticated_client.get(
-            reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})
-        )
+        h = hymn_factory(hymn_book=hb, number=1, title="t", text="atual", ocr_text="OCR cru")
+        resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
         # diff_lines deve ter pelo menos 1 entrada (linhas diferentes)
         assert resp.context["diff_lines"]

@@ -20,16 +20,12 @@ class TestHymnOCRMetadataFields:
         assert hymn.ocr_avg_confidence is None
 
     def test_can_persist_ocr_text(self, hymn_book):
-        h = Hymn.objects.create(
-            hymn_book=hymn_book, number=1, title="t", text="x", ocr_text="OCR cru"
-        )
+        h = Hymn.objects.create(hymn_book=hymn_book, number=1, title="t", text="x", ocr_text="OCR cru")
         h.refresh_from_db()
         assert h.ocr_text == "OCR cru"
 
     def test_can_persist_ocr_avg_confidence(self, hymn_book):
-        h = Hymn.objects.create(
-            hymn_book=hymn_book, number=1, title="t", text="x", ocr_avg_confidence=87.5
-        )
+        h = Hymn.objects.create(hymn_book=hymn_book, number=1, title="t", text="x", ocr_avg_confidence=87.5)
         h.refresh_from_db()
         assert abs(h.ocr_avg_confidence - 87.5) < 0.01
 

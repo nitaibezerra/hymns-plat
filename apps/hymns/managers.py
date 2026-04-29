@@ -35,12 +35,8 @@ class HymnBookQuerySet(models.QuerySet):
 
         return self.annotate(
             total_hymns=Count("hymns"),
-            reviewed_hymns=Count(
-                "hymns", filter=Q(hymns__review_status=Hymn.ReviewStatus.REVIEWED)
-            ),
-            in_review_hymns=Count(
-                "hymns", filter=Q(hymns__review_status=Hymn.ReviewStatus.IN_REVIEW)
-            ),
+            reviewed_hymns=Count("hymns", filter=Q(hymns__review_status=Hymn.ReviewStatus.REVIEWED)),
+            in_review_hymns=Count("hymns", filter=Q(hymns__review_status=Hymn.ReviewStatus.IN_REVIEW)),
         ).annotate(
             review_pct=Case(
                 When(total_hymns=0, then=Value(0)),

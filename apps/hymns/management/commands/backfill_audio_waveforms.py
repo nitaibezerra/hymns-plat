@@ -24,9 +24,7 @@ class Command(BaseCommand):
         ok = 0
         fail = 0
         for i, audio in enumerate(qs, start=1):
-            self.stdout.write(
-                f"  [{i:>3}/{total}] {audio.audio_file.name} ...", ending=" "
-            )
+            self.stdout.write(f"  [{i:>3}/{total}] {audio.audio_file.name} ...", ending=" ")
             self.stdout.flush()
             try:
                 populate_waveform_for_audio(audio.pk)

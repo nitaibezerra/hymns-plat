@@ -153,6 +153,4 @@ def _generate_waveform_for_audio(sender, instance, created, raw=False, **kwargs)
         return
     if not instance.audio_file:
         return
-    audio_service._run_in_thread(
-        audio_service.populate_waveform_for_audio, instance.pk
-    )
+    audio_service._run_in_thread(audio_service.populate_waveform_for_audio, instance.pk)

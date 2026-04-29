@@ -72,21 +72,19 @@ def shoot(page: Page, name: str, theme: str) -> None:
 
 def assert_tailwind_loaded(page: Page, result: Result) -> None:
     # Tailwind CDN script presente no <head>
-    has_cdn = page.evaluate(
-        "() => Array.from(document.scripts).some(s => s.src.includes('cdn.tailwindcss.com'))"
-    )
+    has_cdn = page.evaluate("() => Array.from(document.scripts).some(s => s.src.includes('cdn.tailwindcss.com'))")
     log_check(result, "Tailwind CDN carregado", has_cdn)
 
     # `bg-cream` deve resolver para a cor cream (#F5EDDC) quando claro
-    bg = page.evaluate(
-        "() => getComputedStyle(document.body).backgroundColor"
-    )
+    bg = page.evaluate("() => getComputedStyle(document.body).backgroundColor")
     log_check(result, "Background é design token cream/night", bg.startswith("rgb"), detail=bg)
 
 
 def assert_fonts_loaded(page: Page, result: Result) -> None:
     # Cormorant + Inter + JetBrains Mono presentes
-    has_serif = page.evaluate("() => document.fonts && Array.from(document.fonts).some(f => f.family.includes('Cormorant'))")
+    has_serif = page.evaluate(
+        "() => document.fonts && Array.from(document.fonts).some(f => f.family.includes('Cormorant'))"
+    )
     log_check(result, "Cormorant Garamond carregada", has_serif)
 
 
@@ -109,11 +107,15 @@ def toggle_dark_and_screenshot(page: Page, name: str) -> None:
     page.wait_for_load_state("networkidle")
 
 
-def visit(page: Page, name: str, url: str, authenticated: bool, extra: Callable[[Page, Result], None] | None = None) -> Result:
+def visit(
+    page: Page, name: str, url: str, authenticated: bool, extra: Callable[[Page, Result], None] | None = None
+) -> Result:
     result = Result(name=name, url=url, ok=True)
     resp = page.goto(url)
     page.wait_for_load_state("networkidle")
-    log_check(result, f"GET {url} → 200", resp is not None and resp.status == 200, detail=str(resp.status if resp else "?"))
+    log_check(
+        result, f"GET {url} → 200", resp is not None and resp.status == 200, detail=str(resp.status if resp else "?")
+    )
     assert_tailwind_loaded(page, result)
     assert_fonts_loaded(page, result)
     assert_header_present(page, result, authenticated=authenticated)
@@ -209,7 +211,11 @@ def editor_revise_extras(page: Page, result: Result) -> None:
     log_check(result, "Painel Versão revisada", page.locator("text=Versão revisada").first.is_visible())
     log_check(result, "Toggle OCR/Diff", page.locator("[data-source-tabs] [data-tab]").count() >= 2)
     log_check(result, "3 pílulas de status", page.locator("input[name='review_status']").count() == 3)
-    log_check(result, "Botão 'Marcar revisado e avançar'", page.locator("button:has-text('Marcar revisado')").first.is_visible())
+    log_check(
+        result,
+        "Botão 'Marcar revisado e avançar'",
+        page.locator("button:has-text('Marcar revisado')").first.is_visible(),
+    )
 
 
 def upload_extras(page: Page, result: Result) -> None:
@@ -236,18 +242,48 @@ def main() -> int:
         # Anônimo
         page = ctx.new_page()
         results.append(visit(page, "01-home", BASE + "/", authenticated=False, extra=home_extras))
-        results.append(visit(page, "02-hymnbook-list", BASE + "/hinarios/", authenticated=False, extra=hymnbook_list_extras))
-        results.append(visit(page, "03-hymnbook-detail", f"{BASE}/hinarios/{HYMNBOOK_SLUG}/", authenticated=False, extra=hymnbook_detail_extras))
-        results.append(visit(page, "04-hymn-detail", f"{BASE}/hinos/{HYMN_PK}/", authenticated=False, extra=hymn_detail_extras))
+        results.append(
+            visit(page, "02-hymnbook-list", BASE + "/hinarios/", authenticated=False, extra=hymnbook_list_extras)
+        )
+        results.append(
+            visit(
+                page,
+                "03-hymnbook-detail",
+                f"{BASE}/hinarios/{HYMNBOOK_SLUG}/",
+                authenticated=False,
+                extra=hymnbook_detail_extras,
+            )
+        )
+        results.append(
+            visit(page, "04-hymn-detail", f"{BASE}/hinos/{HYMN_PK}/", authenticated=False, extra=hymn_detail_extras)
+        )
         results.append(visit(page, "05-search", BASE + "/busca/", authenticated=False, extra=search_extras))
         page.close()
 
         # Logado
         page = ctx.new_page()
         login(page)
-        results.append(visit(page, "06-editor-list", BASE + "/editor/hinarios/", authenticated=True, extra=editor_list_extras))
-        results.append(visit(page, "07-editor-detail", f"{BASE}/editor/hinarios/{HYMNBOOK_SLUG}/", authenticated=True, extra=editor_detail_extras))
-        results.append(visit(page, "08-editor-revise", f"{BASE}/editor/hinos/{HYMN_PK}/revisar/", authenticated=True, extra=editor_revise_extras))
+        results.append(
+            visit(page, "06-editor-list", BASE + "/editor/hinarios/", authenticated=True, extra=editor_list_extras)
+        )
+        results.append(
+            visit(
+                page,
+                "07-editor-detail",
+                f"{BASE}/editor/hinarios/{HYMNBOOK_SLUG}/",
+                authenticated=True,
+                extra=editor_detail_extras,
+            )
+        )
+        results.append(
+            visit(
+                page,
+                "08-editor-revise",
+                f"{BASE}/editor/hinos/{HYMN_PK}/revisar/",
+                authenticated=True,
+                extra=editor_revise_extras,
+            )
+        )
         results.append(visit(page, "09-upload", BASE + "/contribuir/", authenticated=True, extra=upload_extras))
         results.append(visit(page, "10-profile", f"{BASE}/perfil/{USER}/", authenticated=True, extra=profile_extras))
         results.append(visit(page, "11-notifications", BASE + "/notificacoes/", authenticated=True))

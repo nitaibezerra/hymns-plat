@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import sys
 import time
-from pathlib import Path
 from urllib.request import Request, urlopen
 
 import django
@@ -31,7 +30,7 @@ django.setup()
 
 from django.core.files.base import ContentFile  # noqa: E402
 
-from apps.hymns.models import Hymn, HymnAudio, HymnBook  # noqa: E402
+from apps.hymns.models import HymnAudio, HymnBook  # noqa: E402
 from apps.users.models import User  # noqa: E402
 
 BASE_URL = "https://hinos.santodaime.org/audio/acervo/sebastiao/justiceiro/comitiva/"

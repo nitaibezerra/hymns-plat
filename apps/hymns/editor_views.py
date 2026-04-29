@@ -43,9 +43,7 @@ def _editor_visible_books(user):
 
 def _pending_audios_for(user):
     """Áudios não aprovados que `user` tem permissão de aprovar."""
-    qs = HymnAudio.objects.filter(is_approved=False).select_related(
-        "hymn", "hymn__hymn_book", "uploaded_by"
-    )
+    qs = HymnAudio.objects.filter(is_approved=False).select_related("hymn", "hymn__hymn_book", "uploaded_by")
     if user.is_superuser or user.has_perm("hymns.can_review_any_hymnbook"):
         return qs
     return qs.filter(hymn__hymn_book__owner_user=user)
@@ -67,9 +65,7 @@ def editor_pending_audios(request):
 
 @login_required
 def editor_approve_audio(request, pk):
-    audio = get_object_or_404(
-        HymnAudio.objects.select_related("hymn", "hymn__hymn_book"), pk=pk
-    )
+    audio = get_object_or_404(HymnAudio.objects.select_related("hymn", "hymn__hymn_book"), pk=pk)
     if not can_edit_hymnbook(request.user, audio.hymn.hymn_book):
         messages.error(request, "Você não tem permissão para aprovar este áudio.")
         return redirect("hymns:editor_pending_audios")
@@ -83,9 +79,7 @@ def editor_approve_audio(request, pk):
 
 @login_required
 def editor_reject_audio(request, pk):
-    audio = get_object_or_404(
-        HymnAudio.objects.select_related("hymn", "hymn__hymn_book"), pk=pk
-    )
+    audio = get_object_or_404(HymnAudio.objects.select_related("hymn", "hymn__hymn_book"), pk=pk)
     if not can_edit_hymnbook(request.user, audio.hymn.hymn_book):
         messages.error(request, "Você não tem permissão para rejeitar este áudio.")
         return redirect("hymns:editor_pending_audios")
@@ -99,8 +93,6 @@ def editor_reject_audio(request, pk):
 @login_required
 def editor_hymnbook_list(request):
     from datetime import timedelta
-
-    from django.db.models import Count, Q
 
     from .models import Hymn, HymnRevision
 
@@ -118,12 +110,10 @@ def editor_hymnbook_list(request):
         qs = qs.order_by("review_pct", "name")
 
     # Stats inline (4 hinários · 173 hinos pendentes · 89 revisados · 7 dias)
-    visible_ids = list(
-        _editor_visible_books(request.user).values_list("pk", flat=True)
+    visible_ids = list(_editor_visible_books(request.user).values_list("pk", flat=True))
+    pending_hymns = (
+        Hymn.objects.filter(hymn_book_id__in=visible_ids).exclude(review_status=Hymn.ReviewStatus.REVIEWED).count()
     )
-    pending_hymns = Hymn.objects.filter(hymn_book_id__in=visible_ids).exclude(
-        review_status=Hymn.ReviewStatus.REVIEWED
-    ).count()
     cutoff = timezone.now() - timedelta(days=7)
     recent_reviewed = HymnRevision.objects.filter(
         hymn__hymn_book_id__in=visible_ids,
@@ -181,11 +171,7 @@ def editor_next_hymn(request, slug):
         messages.error(request, "Você não tem permissão para revisar este hinário.")
         return redirect("hymns:home")
 
-    pending = (
-        hymnbook.hymns.exclude(review_status=Hymn.ReviewStatus.REVIEWED)
-        .order_by("number")
-        .first()
-    )
+    pending = hymnbook.hymns.exclude(review_status=Hymn.ReviewStatus.REVIEWED).order_by("number").first()
     if pending is None:
         messages.success(request, "Todos os hinos deste hinário estão revisados.")
         return redirect("hymns:editor_hymnbook_detail", slug=hymnbook.slug)
@@ -225,9 +211,7 @@ def editor_revise_hymn(request, pk):
 
         # Marco 2.1.5 — autosave HTMX devolve JSON com timestamp.
         if request.POST.get("autosave") == "1" or request.headers.get("HX-Request"):
-            return JsonResponse(
-                {"ok": True, "saved_at": timezone.now().isoformat()}
-            )
+            return JsonResponse({"ok": True, "saved_at": timezone.now().isoformat()})
 
         next_action = request.POST.get("next_action", "next")
         if next_action == "next":
@@ -242,14 +226,10 @@ def editor_revise_hymn(request, pk):
         return redirect("hymns:editor_hymnbook_detail", slug=hymn.hymn_book.slug)
 
     # Posição na fila + restantes
-    book_hymns = list(
-        hymn.hymn_book.hymns.order_by("number").values_list("pk", "review_status")
-    )
+    book_hymns = list(hymn.hymn_book.hymns.order_by("number").values_list("pk", "review_status"))
     total = len(book_hymns)
     position = next((i + 1 for i, t in enumerate(book_hymns) if str(t[0]) == str(hymn.pk)), 0)
-    remaining = sum(
-        1 for _pk, status in book_hymns if status != Hymn.ReviewStatus.REVIEWED
-    )
+    remaining = sum(1 for _pk, status in book_hymns if status != Hymn.ReviewStatus.REVIEWED)
     if hymn.review_status != Hymn.ReviewStatus.REVIEWED:
         remaining = max(remaining - 1, 0)
 
