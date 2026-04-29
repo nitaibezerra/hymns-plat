@@ -38,7 +38,7 @@ class TestReviewProgressProperty:
         h1 = hymn_factory(hymn_book=hb, number=1)
         h2 = hymn_factory(hymn_book=hb, number=2, title="t2")
         h3 = hymn_factory(hymn_book=hb, number=3, title="t3")
-        h4 = hymn_factory(hymn_book=hb, number=4, title="t4")
+        hymn_factory(hymn_book=hb, number=4, title="t4")
         _set_status(h1, Hymn.ReviewStatus.REVIEWED)
         _set_status(h2, Hymn.ReviewStatus.REVIEWED)
         _set_status(h3, Hymn.ReviewStatus.IN_REVIEW)
@@ -99,12 +99,8 @@ class TestWithReviewProgressAnnotation:
 
 @pytest.mark.django_db
 class TestPublishBlockedUntilFullyReviewed:
-    def test_publish_blocked_when_not_fully_reviewed(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
-        hb = hymn_book_factory(
-            name="Pendente", owner_user=authenticated_client.user, is_published=False
-        )
+    def test_publish_blocked_when_not_fully_reviewed(self, authenticated_client, hymn_book_factory, hymn_factory):
+        hb = hymn_book_factory(name="Pendente", owner_user=authenticated_client.user, is_published=False)
         a = hymn_factory(hymn_book=hb, number=1)
         hymn_factory(hymn_book=hb, number=2, title="t2")
         _set_status(a, Hymn.ReviewStatus.REVIEWED)
@@ -114,20 +110,14 @@ class TestPublishBlockedUntilFullyReviewed:
         hb.refresh_from_db()
         assert hb.is_published is False
 
-    def test_publish_blocked_when_no_hymns(
-        self, authenticated_client, hymn_book_factory
-    ):
-        hb = hymn_book_factory(
-            name="Vazio", owner_user=authenticated_client.user, is_published=False
-        )
+    def test_publish_blocked_when_no_hymns(self, authenticated_client, hymn_book_factory):
+        hb = hymn_book_factory(name="Vazio", owner_user=authenticated_client.user, is_published=False)
         url = reverse("hymns:hymnbook_publish", kwargs={"slug": hb.slug})
         authenticated_client.post(url)
         hb.refresh_from_db()
         assert hb.is_published is False
 
-    def test_publish_allowed_when_fully_reviewed(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
+    def test_publish_allowed_when_fully_reviewed(self, authenticated_client, hymn_book_factory, hymn_factory):
         from apps.hymns.models import HymnRevision
 
         hb = hymn_book_factory(

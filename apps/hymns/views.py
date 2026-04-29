@@ -79,12 +79,8 @@ class HymnDetailView(DetailView):
             (i for i, s in enumerate(siblings) if str(s["pk"]) == str(hymn.pk)),
             None,
         )
-        context["prev_hymn"] = (
-            siblings[idx - 1] if idx is not None and idx > 0 else None
-        )
-        context["next_hymn"] = (
-            siblings[idx + 1] if idx is not None and idx + 1 < len(siblings) else None
-        )
+        context["prev_hymn"] = siblings[idx - 1] if idx is not None and idx > 0 else None
+        context["next_hymn"] = siblings[idx + 1] if idx is not None and idx + 1 < len(siblings) else None
 
         return context
 
@@ -150,9 +146,7 @@ def search_view(request):
         book_qs = (
             visible_books.annotate(
                 name_sim=TrigramSimilarity(UnaccentFunc("name"), UnaccentFunc(Value(query))),
-                owner_sim=TrigramSimilarity(
-                    UnaccentFunc("owner_name"), UnaccentFunc(Value(query))
-                ),
+                owner_sim=TrigramSimilarity(UnaccentFunc("owner_name"), UnaccentFunc(Value(query))),
             )
             .filter(Q(name_sim__gt=0.2) | Q(owner_sim__gt=0.2))
             .order_by("-name_sim", "-owner_sim")
@@ -215,9 +209,7 @@ def home_view(request):
 
     from .models import HymnAudio, HymnRevision
 
-    recent_hymnbooks = list(
-        HymnBook.objects.visible_to(request.user).order_by("-created_at")[:6]
-    )
+    recent_hymnbooks = list(HymnBook.objects.visible_to(request.user).order_by("-created_at")[:6])
     total_hymnbooks = HymnBook.objects.published().count()
     total_hymns = Hymn.objects.filter(hymn_book__is_published=True).count()
     total_audios = HymnAudio.objects.filter(is_approved=True).count()

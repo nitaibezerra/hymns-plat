@@ -9,9 +9,7 @@ from django.urls import reverse
 
 @pytest.mark.django_db
 class TestSearchTabs:
-    def test_default_type_returns_hymns_and_books(
-        self, client, hymn_book_factory, hymn_factory
-    ):
+    def test_default_type_returns_hymns_and_books(self, client, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="O Cruzeiro Lua")
         hymn_factory(hymn_book=hb, number=1, title="Lua Branca", text="lua")
         resp = client.get(reverse("hymns:search"), {"q": "lua"})
@@ -48,9 +46,7 @@ class TestSearchTabs:
 class TestSearchHeadline:
     def test_snippet_contains_mark_tag(self, client, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="O Cruzeiro")
-        hymn_factory(
-            hymn_book=hb, number=1, title="Lua Branca", text="Lua branca da luz serena"
-        )
+        hymn_factory(hymn_book=hb, number=1, title="Lua Branca", text="Lua branca da luz serena")
         resp = client.get(reverse("hymns:search"), {"q": "lua"})
         # ao menos um resultado tem <mark> no headline
         headlines = [r.get("headline", "") for r in resp.context["results"]]
@@ -64,9 +60,7 @@ class TestSearchHymnbookFilter:
         hb2 = hymn_book_factory(name="Nova Jerusalém")
         hymn_factory(hymn_book=hb1, number=1, title="Lua A", text="x")
         hymn_factory(hymn_book=hb2, number=1, title="Lua B", text="x")
-        resp = client.get(
-            reverse("hymns:search"), {"q": "lua", "in_hymnbook": hb1.slug, "type": "hymns"}
-        )
+        resp = client.get(reverse("hymns:search"), {"q": "lua", "in_hymnbook": hb1.slug, "type": "hymns"})
         titles = {r["obj"].title for r in resp.context["results"] if r["type"] == "hymn"}
         assert "Lua A" in titles
         assert "Lua B" not in titles

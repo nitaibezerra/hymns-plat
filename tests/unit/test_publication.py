@@ -95,9 +95,7 @@ class TestPublicListAndHomeFilters:
         assert "Privado" not in names
 
     def test_hymnbook_list_shows_owners_unpublished(self, authenticated_client, hymn_book_factory):
-        hymn_book_factory(
-            name="Privado-meu", owner_user=authenticated_client.user, is_published=False
-        )
+        hymn_book_factory(name="Privado-meu", owner_user=authenticated_client.user, is_published=False)
         hymn_book_factory(name="Privado-outro", is_published=False)
         resp = authenticated_client.get(reverse("hymns:hymnbook_list"))
         names = [hb.name for hb in resp.context["hymnbooks"]]
@@ -115,9 +113,7 @@ class TestPublicListAndHomeFilters:
 
 @pytest.mark.django_db
 class TestSearchFilters:
-    def test_search_excludes_hymns_from_unpublished_book_for_anon(
-        self, client, hymn_book_factory, hymn_factory
-    ):
+    def test_search_excludes_hymns_from_unpublished_book_for_anon(self, client, hymn_book_factory, hymn_factory):
         unpublished = hymn_book_factory(name="Oculto", is_published=False)
         published = hymn_book_factory(name="Visível")
         hymn_factory(hymn_book=unpublished, number=1, title="Lua Oculta", text="lua oculta")
@@ -128,12 +124,8 @@ class TestSearchFilters:
         assert "Lua Visível" in titles
         assert "Lua Oculta" not in titles
 
-    def test_search_shows_owners_hymns_from_unpublished(
-        self, authenticated_client, hymn_book_factory, hymn_factory
-    ):
-        own = hymn_book_factory(
-            name="Meu", owner_user=authenticated_client.user, is_published=False
-        )
+    def test_search_shows_owners_hymns_from_unpublished(self, authenticated_client, hymn_book_factory, hymn_factory):
+        own = hymn_book_factory(name="Meu", owner_user=authenticated_client.user, is_published=False)
         hymn_factory(hymn_book=own, number=1, title="Lua Privada", text="oculta")
         resp = authenticated_client.get(reverse("hymns:search"), {"q": "Privada"})
         titles = [r["obj"].title for r in resp.context["results"] if r["type"] == "hymn"]
@@ -173,9 +165,7 @@ class TestPublishView:
 
         _make_editor(authenticated_client.user)
         owner = user_factory(email="own@example.com")
-        hb = hymn_book_factory(
-            name="Alheio", owner_user=owner, is_published=False, description="x"
-        )
+        hb = hymn_book_factory(name="Alheio", owner_user=owner, is_published=False, description="x")
         h = hymn_factory(hymn_book=hb, number=1)
         Hymn.objects.filter(pk=h.pk).update(review_status=Hymn.ReviewStatus.REVIEWED)
         HymnRevision.objects.create(hymn=h, revised_by=owner)
@@ -197,9 +187,7 @@ class TestPublishView:
 @pytest.mark.django_db
 class TestUnpublishView:
     def test_owner_can_unpublish(self, authenticated_client, hymn_book_factory):
-        hb = hymn_book_factory(
-            name="Unpub", owner_user=authenticated_client.user, is_published=True
-        )
+        hb = hymn_book_factory(name="Unpub", owner_user=authenticated_client.user, is_published=True)
         url = reverse("hymns:hymnbook_unpublish", kwargs={"slug": hb.slug})
         resp = authenticated_client.post(url)
         assert resp.status_code == 302

@@ -6,8 +6,6 @@ Testes do template do audio-card. Cobertura mínima:
 - Esconde-se quando o áudio não está aprovado.
 """
 
-import json
-
 import pytest
 from django.template import Context, Template
 from django.urls import reverse
@@ -65,7 +63,7 @@ class TestAudioPlayerPartial:
         html = _render_partial(a)
         # Sem peaks, ainda renderiza o card; o JS preenche fallback.
         assert "data-audio-card" in html
-        assert 'data-peaks="[]"' in html or "data-peaks=\"\\[\\]\"" in html or 'data-peaks=' in html
+        assert 'data-peaks="[]"' in html or 'data-peaks="\\[\\]"' in html or "data-peaks=" in html
 
     def test_skips_when_not_approved(self, hymn_book_factory, hymn_factory):
         a = self._audio(hymn_book_factory, hymn_factory, is_approved=False)
@@ -75,9 +73,7 @@ class TestAudioPlayerPartial:
 
 @pytest.mark.django_db
 class TestHymnDetailIntegrates:
-    def test_hymn_detail_renders_custom_player_for_approved_audio(
-        self, client, hymn_book_factory, hymn_factory
-    ):
+    def test_hymn_detail_renders_custom_player_for_approved_audio(self, client, hymn_book_factory, hymn_factory):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         hb = hymn_book_factory(name="O X")

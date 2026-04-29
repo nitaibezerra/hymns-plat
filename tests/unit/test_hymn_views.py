@@ -145,7 +145,9 @@ class TestHymnBookDetailView:
 
     def test_detail_view_slug_lookup(self, client):
         """Test that detail view looks up by slug."""
-        hymn_book = HymnBook.objects.create(is_published=True, name="Hinário do Padrinho Sebastião", owner_name="Padrinho")
+        hymn_book = HymnBook.objects.create(
+            is_published=True, name="Hinário do Padrinho Sebastião", owner_name="Padrinho"
+        )
         url = reverse("hymns:hymnbook_detail", kwargs={"slug": "hinario-do-padrinho-sebastiao"})
         response = client.get(url)
 
