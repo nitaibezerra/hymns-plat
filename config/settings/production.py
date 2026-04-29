@@ -6,10 +6,18 @@ from .base import *  # noqa
 
 DEBUG = False
 
-# Security settings
-SECURE_SSL_REDIRECT = True
+# Hosts and CSRF (Railway behind Cloudflare)
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS")
+CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=["https://*.up.railway.app"])
+
+# Tells Django the X-Forwarded-Proto header from Railway proxy means HTTPS
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Security
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = "Lax"
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
@@ -17,34 +25,42 @@ SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
-# Allowed hosts should be set via environment variable
-ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS")
+# Wagtail admin needs an absolute URL for emails and previews
+WAGTAILADMIN_BASE_URL = env("WAGTAILADMIN_BASE_URL", default="https://hinaria.com.br")
 
-# Static files
+# Static files via WhiteNoise (already in MIDDLEWARE from base.py)
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# Email settings
-EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
-EMAIL_HOST = env("EMAIL_HOST", default="")
-EMAIL_PORT = env.int("EMAIL_PORT", default=587)
-EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
-EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+# Email — Resend by default; falls back to console when no password set
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+if EMAIL_HOST_PASSWORD:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = env("EMAIL_HOST", default="smtp.resend.com")
+    EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+    EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+    EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="resend")
+    DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Hinaria <noreply@hinaria.com.br>")
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
-# Storage settings (S3 or GCS)
-USE_S3 = env.bool("USE_S3", default=False)
-
-if USE_S3:
-    # AWS S3 settings
-    AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
+# Media storage — Cloudflare R2 via django-storages (S3-compatible).
+# Activated when AWS_ACCESS_KEY_ID is set; otherwise falls back to local /media.
+AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
+if AWS_ACCESS_KEY_ID:
     AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
     AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME")
-    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="us-east-1")
-    AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
+    AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL")
+    AWS_S3_CUSTOM_DOMAIN = env("AWS_S3_CUSTOM_DOMAIN", default="")
+    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="auto")
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
+    AWS_S3_ADDRESSING_STYLE = "virtual"
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_FILE_OVERWRITE = False
 
-    # Media files
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
+    if AWS_S3_CUSTOM_DOMAIN:
+        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
 
 # Logging
 LOGGING = {

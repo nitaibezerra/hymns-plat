@@ -21,6 +21,8 @@ pyyaml = "^6.0"
 gunicorn = "^23.0"
 whitenoise = "^6.8"
 django-environ = "^0.11"
+django-storages = {extras = ["s3"], version = "^1.14"}
+boto3 = "^1.35"
 # Pinned to a specific commit so CI is reproducible. To work on a local
 # checkout instead, run: pip install -e ../hymn-ocr (in this venv).
 hymn-ocr = { git = "https://github.com/nitaibezerra/hymn-ocr.git", branch = "main" }
