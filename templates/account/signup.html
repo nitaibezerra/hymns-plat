@@ -1,98 +1,63 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% load i18n %}
 
-{% block title %}Criar Conta - {{ block.super }}{% endblock %}
+{% block title %}Criar conta{% endblock %}
 
 {% block content %}
-<div style="max-width: 500px; margin: 40px auto; padding: 30px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-    <h1 style="margin: 0 0 10px 0; color: #2c5282; font-size: 28px;">Criar Conta</h1>
-    <p style="color: #666; margin-bottom: 30px;">Junte-se à comunidade e contribua com hinários</p>
+<section class="max-w-md mx-auto px-6 py-16">
+  <p class="label-mono">Conta</p>
+  <h1 class="font-serif text-4xl mt-2">Criar conta</h1>
+  <p class="text-ink-soft mt-2">Junte-se à comunidade e contribua com hinários.</p>
 
-    {% if form.errors %}
-    <div style="background: #fee; border-left: 4px solid #c33; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-        <p style="margin: 0; color: #c33; font-weight: bold;">Por favor, corrija os erros abaixo:</p>
+  {% if form.errors %}
+    <div class="mt-6 rounded-md border border-rust/30 bg-rust/10 text-rust px-4 py-3 text-sm">
+      <p class="font-medium">Corrija os erros abaixo:</p>
+      {% for e in form.non_field_errors %}<p>{{ e }}</p>{% endfor %}
     </div>
+  {% endif %}
+
+  <form method="post" action="{% url 'account_signup' %}" class="mt-8 card-soft p-8 space-y-5">
+    {% csrf_token %}
+
+    <label class="block">
+      <span class="label-mono">E-mail *</span>
+      <input type="email" name="email" id="id_email" required value="{{ form.email.value|default:'' }}"
+             class="mt-1 w-full rounded-md border border-ink/15 px-3 py-2 bg-cream/60 dark:bg-white/5">
+      {% if form.email.errors %}<p class="text-rust text-sm mt-1">{{ form.email.errors.0 }}</p>{% endif %}
+    </label>
+
+    <label class="block">
+      <span class="label-mono">Nome de usuário</span>
+      <input type="text" name="username" id="id_username" value="{{ form.username.value|default:'' }}"
+             class="mt-1 w-full rounded-md border border-ink/15 px-3 py-2 bg-cream/60 dark:bg-white/5">
+      <p class="text-xs text-ink-soft mt-1">Opcional — gerado a partir do e-mail.</p>
+      {% if form.username.errors %}<p class="text-rust text-sm mt-1">{{ form.username.errors.0 }}</p>{% endif %}
+    </label>
+
+    <label class="block">
+      <span class="label-mono">Senha *</span>
+      <input type="password" name="password1" id="id_password1" required
+             class="mt-1 w-full rounded-md border border-ink/15 px-3 py-2 bg-cream/60 dark:bg-white/5">
+      <p class="text-xs text-ink-soft mt-1">Mínimo 8 caracteres.</p>
+      {% if form.password1.errors %}<p class="text-rust text-sm mt-1">{{ form.password1.errors.0 }}</p>{% endif %}
+    </label>
+
+    <label class="block">
+      <span class="label-mono">Confirmar senha *</span>
+      <input type="password" name="password2" id="id_password2" required
+             class="mt-1 w-full rounded-md border border-ink/15 px-3 py-2 bg-cream/60 dark:bg-white/5">
+      {% if form.password2.errors %}<p class="text-rust text-sm mt-1">{{ form.password2.errors.0 }}</p>{% endif %}
+    </label>
+
+    {% if redirect_field_value %}
+      <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
     {% endif %}
 
-    <form method="post" action="{% url 'account_signup' %}">
-        {% csrf_token %}
+    <button type="submit" class="w-full bg-ink text-cream rounded-full py-2.5 text-sm font-medium dark:bg-gold dark:text-night hover:bg-ink-soft">Criar conta →</button>
+  </form>
 
-        <div style="margin-bottom: 20px;">
-            <label for="id_email" style="display: block; margin-bottom: 5px; color: #2c5282; font-weight: 500;">
-                Email *
-            </label>
-            <input type="email" name="email" id="id_email"
-                   placeholder="seu@email.com"
-                   required
-                   value="{{ form.email.value|default:'' }}"
-                   style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; box-sizing: border-box;">
-            {% if form.email.errors %}
-            <p style="color: #c33; font-size: 14px; margin: 5px 0 0 0;">{{ form.email.errors.0 }}</p>
-            {% endif %}
-        </div>
-
-        <div style="margin-bottom: 20px;">
-            <label for="id_username" style="display: block; margin-bottom: 5px; color: #2c5282; font-weight: 500;">
-                Nome de usuário
-            </label>
-            <input type="text" name="username" id="id_username"
-                   placeholder="seu_usuario"
-                   value="{{ form.username.value|default:'' }}"
-                   style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; box-sizing: border-box;">
-            <p style="color: #666; font-size: 13px; margin: 5px 0 0 0;">
-                Opcional - será gerado automaticamente a partir do email se não preenchido
-            </p>
-            {% if form.username.errors %}
-            <p style="color: #c33; font-size: 14px; margin: 5px 0 0 0;">{{ form.username.errors.0 }}</p>
-            {% endif %}
-        </div>
-
-        <div style="margin-bottom: 20px;">
-            <label for="id_password1" style="display: block; margin-bottom: 5px; color: #2c5282; font-weight: 500;">
-                Senha *
-            </label>
-            <input type="password" name="password1" id="id_password1"
-                   placeholder="••••••••"
-                   required
-                   style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; box-sizing: border-box;">
-            <p style="color: #666; font-size: 13px; margin: 5px 0 0 0;">
-                Mínimo 8 caracteres
-            </p>
-            {% if form.password1.errors %}
-            <p style="color: #c33; font-size: 14px; margin: 5px 0 0 0;">{{ form.password1.errors.0 }}</p>
-            {% endif %}
-        </div>
-
-        <div style="margin-bottom: 20px;">
-            <label for="id_password2" style="display: block; margin-bottom: 5px; color: #2c5282; font-weight: 500;">
-                Confirmar Senha *
-            </label>
-            <input type="password" name="password2" id="id_password2"
-                   placeholder="••••••••"
-                   required
-                   style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; box-sizing: border-box;">
-            {% if form.password2.errors %}
-            <p style="color: #c33; font-size: 14px; margin: 5px 0 0 0;">{{ form.password2.errors.0 }}</p>
-            {% endif %}
-        </div>
-
-        {% if redirect_field_value %}
-        <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}" />
-        {% endif %}
-
-        <button type="submit"
-                style="width: 100%; padding: 14px; background: #2c5282; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
-            Criar Conta
-        </button>
-    </form>
-
-    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; text-align: center;">
-        <p style="color: #666;">
-            Já tem uma conta?
-            <a href="{% url 'account_login' %}" style="color: #2c5282; text-decoration: none; font-weight: 600;">
-                Entrar
-            </a>
-        </p>
-    </div>
-</div>
+  <p class="mt-6 text-sm text-center text-ink-soft">
+    Já tem conta? <a href="{% url 'account_login' %}" class="text-gold hover:underline">Entrar</a>
+  </p>
+</section>
 {% endblock %}

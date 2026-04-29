@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block title %}Editor · Áudios pendentes{% endblock %}
+
+{% block content %}
+<section class="max-w-5xl mx-auto px-6 py-10">
+  <nav class="font-mono text-xs uppercase tracking-widest text-ink-soft mb-4">
+    <a href="{% url 'hymns:editor_hymnbook_list' %}" class="hover:text-gold">← Workspace editorial</a>
+  </nav>
+
+  <header class="flex items-end justify-between gap-6 flex-wrap mb-8">
+    <div>
+      <p class="label-mono">Workspace editorial</p>
+      <h1 class="font-serif text-4xl mt-2">Áudios pendentes</h1>
+      <p class="text-ink-soft mt-2">Gravações enviadas aguardando aprovação. Ouça antes de aprovar.</p>
+    </div>
+    <p class="label-mono">{{ audios|length }} pendente{{ audios|length|pluralize }}</p>
+  </header>
+
+  {% if audios %}
+    <ul class="space-y-4">
+      {% for a in audios %}
+        <li class="card-soft p-5">
+          <div class="flex flex-wrap gap-4 items-start">
+            <div class="flex-1 min-w-0">
+              <p class="label-mono">
+                <a href="{% url 'hymns:hymn_detail' a.hymn.pk %}" class="hover:text-gold">
+                  HINO {{ a.hymn.number|stringformat:"02d" }} · {{ a.hymn.hymn_book.name|upper }}
+                </a>
+              </p>
+              <p class="font-serif text-2xl mt-1">{{ a.hymn.title }}</p>
+              {% if a.title %}<p class="font-serif italic text-ink-soft mt-1">"{{ a.title }}"</p>{% endif %}
+              <p class="text-xs label-mono mt-3">
+                Enviado por
+                {% if a.uploaded_by %}{{ a.uploaded_by.username }}{% else %}—{% endif %}
+                · {{ a.created_at|timesince }} atrás
+                {% if a.format %} · {{ a.format|upper }}{% endif %}
+                {% if a.duration %} · {{ a.duration }}s{% endif %}
+              </p>
+              {% if a.credits %}<p class="text-sm text-ink-soft mt-2">{{ a.credits }}</p>{% endif %}
+            </div>
+
+            <div class="flex flex-col gap-2 shrink-0">
+              <form method="post" action="{% url 'hymns:editor_approve_audio' a.pk %}">
+                {% csrf_token %}
+                <button class="bg-moss text-cream rounded-full px-4 py-2 text-sm font-medium hover:opacity-90 w-full">✓ Aprovar</button>
+              </form>
+              <form method="post" action="{% url 'hymns:editor_reject_audio' a.pk %}"
+                    onsubmit="return confirm('Rejeitar e remover este áudio? Ação irreversível.');">
+                {% csrf_token %}
+                <button class="border border-rust/40 text-rust rounded-full px-4 py-2 text-sm hover:bg-rust/10 w-full">Rejeitar</button>
+              </form>
+            </div>
+          </div>
+
+          <audio controls class="w-full mt-4">
+            <source src="{{ a.audio_file.url }}" type="audio/{{ a.format|lower|default:'mpeg' }}">
+            Seu navegador não suporta áudio HTML5.
+          </audio>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="card-soft p-10 text-center text-ink-soft">
+      <p class="font-serif text-2xl">Nenhum áudio pendente.</p>
+      <p class="mt-2">Quando alguém enviar uma gravação, ela aparece aqui para aprovação.</p>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

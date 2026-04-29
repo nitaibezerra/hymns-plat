@@ -1,35 +1,41 @@
 {% extends 'base.html' %}
 
-{% comment %}
-Marco 1.5 — workspace do editor (template provisório).
-A Fase 2 (UI) reescreve esta tela.
-{% endcomment %}
-
-{% block title %}Editor — {{ hymnbook.name }}{% endblock %}
+{% block title %}Editor · {{ hymnbook.name }}{% endblock %}
 
 {% block content %}
-<nav style="margin-bottom: 1rem;">
-    <a href="{% url 'hymns:editor_hymnbook_list' %}">&larr; Voltar para fila</a>
-</nav>
+<section class="max-w-5xl mx-auto px-6 py-8">
+  <nav class="font-mono text-xs uppercase tracking-widest text-ink-soft mb-4">
+    <a href="{% url 'hymns:editor_hymnbook_list' %}" class="hover:text-gold">← Fila de revisão</a>
+  </nav>
 
-<h1>{{ hymnbook.name }}</h1>
-<p>Progresso: {{ progress.reviewed }}/{{ progress.total }} revisados ({{ progress.pct }}%)</p>
+  <header class="flex flex-wrap items-end gap-6">
+    <div class="flex-1 min-w-0">
+      <p class="label-mono">Hinário em revisão</p>
+      <h1 class="font-serif text-4xl mt-2">{{ hymnbook.name }}</h1>
+      <p class="text-ink-soft mt-1">{{ hymnbook.owner_name }}</p>
+    </div>
+    <a href="{% url 'hymns:editor_next_hymn' hymnbook.slug %}" class="bg-ink text-cream rounded-full px-5 py-2.5 text-sm dark:bg-gold dark:text-night hover:bg-ink-soft">Revisar próximo →</a>
+  </header>
 
-<a href="{% url 'hymns:editor_next_hymn' hymnbook.slug %}" class="btn">Revisar próximo não-revisado &rarr;</a>
+  <div class="mt-6">
+    <div class="flex justify-between text-sm font-mono mb-2"><span>{{ progress.reviewed }}/{{ progress.total }} revisados</span><span>{{ progress.pct }}%</span></div>
+    <div class="h-2 bg-ink/10 rounded-full overflow-hidden"><div class="h-full bg-gold" style="width: {{ progress.pct }}%;"></div></div>
+  </div>
 
-<table style="margin-top: 1rem;">
-    <thead>
-        <tr><th>#</th><th>Título</th><th>Status</th><th></th></tr>
-    </thead>
-    <tbody>
-        {% for h in hymns %}
-        <tr>
-            <td>{{ h.number }}</td>
-            <td>{{ h.title }}</td>
-            <td>{{ h.get_review_status_display }}</td>
-            <td><a href="{% url 'hymns:editor_revise_hymn' h.pk %}">Revisar</a></td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+  <ul class="mt-8 divide-y divide-ink/10">
+    {% for h in hymns %}
+      <li class="py-3 flex items-center gap-4">
+        <span class="font-mono text-xs text-ink-soft w-8 text-right">{{ h.number|stringformat:"02d" }}</span>
+        <span class="font-serif text-lg flex-1 truncate">{{ h.title }}</span>
+        <span class="label-mono
+          {% if h.review_status == 'reviewed' %}text-moss
+          {% elif h.review_status == 'in_review' %}text-gold
+          {% else %}text-rust{% endif %}">
+          ● {{ h.get_review_status_display }}
+        </span>
+        <a href="{% url 'hymns:editor_revise_hymn' h.pk %}" class="text-xs font-mono uppercase tracking-widest border border-ink/15 hover:bg-ink/5 rounded-full px-3 py-1.5">Revisar</a>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
 {% endblock %}

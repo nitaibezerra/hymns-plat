@@ -1,0 +1,42 @@
+{# Drawer renderizado dentro do detalhe de hino (Marco 2.1.8). #}
+<div class="space-y-4 text-sm">
+  <header class="flex items-center justify-between">
+    <p class="label-mono">Histórico de revisões</p>
+    <p class="font-serif italic">{{ hymn.title }}</p>
+  </header>
+
+  <ol class="space-y-3">
+    {% for r in revisions %}
+      <li class="card-soft p-3">
+        <div class="flex items-center justify-between">
+          <p class="font-medium">
+            {% if r.revised_by %}{{ r.revised_by.username }}{% else %}Sistema{% endif %}
+          </p>
+          <p class="label-mono">{{ r.revised_at|timesince }} atrás</p>
+        </div>
+        <p class="text-ink-soft text-sm mt-1">
+          {{ r.change_summary|default:"Edição" }}
+          {% if r.previous_status and r.previous_status != r.new_status %}
+            · {{ r.previous_status }} → {{ r.new_status }}
+          {% endif %}
+        </p>
+        {% if r.field_diff %}
+          <details class="mt-2">
+            <summary class="cursor-pointer text-xs font-mono uppercase tracking-widest text-ink-soft">Mudanças ({{ r.field_diff|length }} campo{{ r.field_diff|length|pluralize }})</summary>
+            <ul class="mt-2 space-y-2">
+              {% for field, diff in r.field_diff.items %}
+                <li class="font-mono text-xs">
+                  <p class="label-mono">{{ field }}</p>
+                  <p class="bg-rust/10 text-rust px-2 py-0.5 rounded line-through">- {{ diff.old|default:"" }}</p>
+                  <p class="bg-moss/10 text-moss px-2 py-0.5 rounded">+ {{ diff.new|default:"" }}</p>
+                </li>
+              {% endfor %}
+            </ul>
+          </details>
+        {% endif %}
+      </li>
+    {% empty %}
+      <li class="text-ink-soft">Sem revisões registradas.</li>
+    {% endfor %}
+  </ol>
+</div>

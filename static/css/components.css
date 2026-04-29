@@ -1,0 +1,108 @@
+/* Componentes reutilizáveis da Fase 2.
+   Tailwind cobre o grosso; aqui ficam só os refinos que dependem de pseudo
+   elementos, dot-leader (índice de hinário) e barras de repetição. */
+
+/* "label-mono": labels uppercase tracked usadas no design (PORTAL · HINÁRIOS). */
+.label-mono {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* dot-leader: linha de pontilhado entre número/título e o estilo. */
+.dot-leader {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.dot-leader > .leader-fill {
+  flex: 1;
+  border-bottom: 1px dotted color-mix(in srgb, var(--color-ink) 22%, transparent);
+  transform: translateY(-3px);
+  min-width: 1.5rem;
+}
+
+/* Pílulas de toggle (modo de leitura, status de revisão). */
+.btn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--color-ink-soft);
+  border: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
+  cursor: pointer;
+  transition: background-color 120ms, color 120ms, border-color 120ms;
+}
+.btn-pill:hover {
+  background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+}
+.btn-pill[aria-selected="true"],
+.btn-pill[data-active="true"] {
+  background: var(--color-ink);
+  color: var(--color-bg);
+  border-color: var(--color-ink);
+}
+html.dark .btn-pill[aria-selected="true"],
+html.dark .btn-pill[data-active="true"] {
+  background: var(--color-gold);
+  color: var(--color-night, #0E1320);
+  border-color: var(--color-gold);
+}
+
+/* Cards */
+.card-soft {
+  background: color-mix(in srgb, var(--color-bg) 92%, var(--color-ink) 0%);
+  border: 1px solid color-mix(in srgb, var(--color-ink) 8%, transparent);
+  border-radius: var(--radius-card);
+  box-shadow: 0 1px 2px var(--color-shadow);
+}
+
+/* Refinos da grade de barras de repetição (já implementadas em
+   apps/hymns/repetitions.py — apenas suaviza cor para harmonizar com tokens). */
+.hymn-grid .repetition-bar {
+  border-left-color: var(--color-ink) !important;
+  opacity: 0.7;
+}
+
+/* Heatmap de confiança OCR. */
+.ocr-confidence-bar {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+}
+.ocr-confidence-bar .seg {
+  flex: 1;
+  height: 16px;
+  border-radius: 3px;
+}
+.ocr-confidence-bar .seg.low { background: var(--color-rust); opacity: 0.85; }
+.ocr-confidence-bar .seg.mid { background: var(--color-gold); opacity: 0.85; }
+.ocr-confidence-bar .seg.high { background: var(--color-moss); opacity: 0.85; }
+
+/* Print: detalhe de hino em PDF-like. */
+@media print {
+  header, footer, [data-no-print] { display: none !important; }
+  body { background: white; color: black; }
+  .hymn-card { box-shadow: none; border: none; padding: 0; }
+}
+
+/* Audio card (Marco 2 — pós-Fase 2). */
+.audio-card [data-audio-bars-played] rect,
+.audio-card [data-audio-played-rect] {
+  transition: width 80ms linear;
+}
+.audio-card .audio-waveform-btn { cursor: pointer; }
+.audio-card .audio-waveform-btn:hover [data-audio-bars-base] { color: var(--color-ink-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-card [data-audio-played-rect],
+  .audio-play-btn { transition: none; }
+}

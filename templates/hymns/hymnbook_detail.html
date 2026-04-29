@@ -1,96 +1,135 @@
 {% extends 'base.html' %}
+{% load hymn_extras %}
 
-{% block title %}{{ hymnbook.name }} - Portal de Hinários do Santo Daime{% endblock %}
+{% block title %}{{ hymnbook.name }}{% endblock %}
 
 {% block content %}
-<nav style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
-    <a href="{% url 'hymns:hymnbook_list' %}" class="btn btn-secondary">&larr; Voltar para Hinários</a>
-    {% if can_edit %}
-    <div style="display: flex; gap: 10px;">
-        <a href="{% url 'hymns:hymn_create' hymnbook.slug %}" class="btn">+ Adicionar Hino</a>
-        <a href="{% url 'hymns:hymnbook_edit' hymnbook.slug %}" class="btn btn-secondary">Editar</a>
-        <a href="{% url 'hymns:hymnbook_delete' hymnbook.slug %}" class="btn btn-secondary" style="background: #c33; color: white;">Deletar</a>
+{% with accent=hymnbook.display_accent %}
+<section class="relative overflow-hidden text-cream" style="background: linear-gradient(140deg, {{ accent }} 0%, color-mix(in srgb, {{ accent }} 55%, black) 100%);">
+  <div class="max-w-6xl mx-auto px-6 py-12 md:py-16 grid md:grid-cols-[260px_1fr] gap-10 items-end">
+    <div class="rounded-xl shadow-soft aspect-[3/4] relative overflow-hidden border border-cream/15" style="background: color-mix(in srgb, {{ accent }} 75%, black);">
+      <span class="absolute inset-0 grid place-items-center font-serif text-[12rem] leading-none text-cream/15" aria-hidden="true">{{ hymnbook.name|first|upper }}</span>
+      <div class="absolute top-4 left-4 label-mono text-cream/80">EST. {{ hymnbook.created_at|date:"Y" }}</div>
+      <div class="absolute bottom-4 left-4 right-4">
+        <p class="font-serif text-xl">{{ hymnbook.name }}</p>
+        <p class="label-mono mt-1 text-cream/80">{{ hymnbook.owner_name }}</p>
+      </div>
     </div>
-    {% endif %}
-</nav>
+    <div>
+      <p class="label-mono text-cream/80">Hinário {% if hymnbook.is_published %}publicado{% else %}rascunho{% endif %}</p>
+      <h1 class="font-serif text-5xl md:text-6xl mt-2 leading-tight">{{ hymnbook.name }}</h1>
+      {% if hymnbook.intro_name and hymnbook.intro_name != hymnbook.name %}
+        <p class="font-serif italic text-2xl text-cream/80 mt-2">{{ hymnbook.intro_name }}</p>
+      {% endif %}
+      <p class="mt-3 text-cream/80 max-w-2xl">{{ hymnbook.description|default:"Hinário recebido por "|add:hymnbook.owner_name|add:"." }}</p>
 
-<div class="card">
-    <div style="display: flex; gap: 2rem; align-items: start;">
-        {% if hymnbook.cover_image %}
-            <img
-                src="{{ hymnbook.cover_image.url }}"
-                alt="{{ hymnbook.name }}"
-                style="width: 300px; height: 400px; object-fit: cover; border-radius: 4px; flex-shrink: 0;"
-            >
+      <div class="mt-6 flex flex-wrap gap-x-6 gap-y-2 items-center">
+        <span class="label-mono text-cream/80">{{ hymns|length }} hinos</span>
+        {% if hymnbook.is_published %}
+          <span class="inline-flex items-center gap-1.5 text-xs uppercase tracking-widest border border-moss/50 text-moss bg-moss/15 rounded-full px-3 py-1">● Publicado</span>
+        {% else %}
+          <span class="inline-flex items-center gap-1.5 text-xs uppercase tracking-widest border border-gold/60 text-gold bg-gold/10 rounded-full px-3 py-1">● Rascunho</span>
         {% endif %}
-        <div style="flex: 1;">
-            <h1 style="font-size: 2rem; color: #2c5282; margin-bottom: 1rem;">
-                {{ hymnbook.name }}
-            </h1>
-            {% if hymnbook.intro_name %}
-                <p style="font-size: 1.25rem; color: #718096; margin-bottom: 1rem;">
-                    {{ hymnbook.intro_name }}
-                </p>
-            {% endif %}
-            <p style="color: #4a5568; margin-bottom: 0.5rem;">
-                <strong>Dono:</strong> {{ hymnbook.owner_name }}
-            </p>
-            <p style="color: #4a5568; margin-bottom: 1rem;">
-                <strong>Total de Hinos:</strong> {{ hymnbook.hymn_count }}
-            </p>
-            {% if hymnbook.description %}
-                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;">
-                    <h2 style="font-size: 1.25rem; color: #2d3748; margin-bottom: 0.75rem;">Descrição</h2>
-                    <p style="color: #4a5568; line-height: 1.8; white-space: pre-line;">{{ hymnbook.description }}</p>
-                </div>
-            {% endif %}
-        </div>
+        {% if can_edit %}
+          <div class="ml-auto flex gap-2">
+            <a href="{% url 'hymns:hymn_create' hymnbook.slug %}" class="text-xs uppercase tracking-widest border border-cream/30 hover:bg-cream/10 rounded-full px-3 py-1.5">+ Hino</a>
+            <a href="{% url 'hymns:hymnbook_edit' hymnbook.slug %}" class="text-xs uppercase tracking-widest border border-cream/30 hover:bg-cream/10 rounded-full px-3 py-1.5">Editar</a>
+          </div>
+        {% endif %}
+      </div>
     </div>
-</div>
+  </div>
+</section>
+{% endwith %}
 
-<div class="card">
-    <h2 style="font-size: 1.5rem; color: #2d3748; margin-bottom: 1rem;">Hinos</h2>
+<section class="max-w-6xl mx-auto px-6 -mt-6 relative z-10">
+  <div class="bg-cream dark:bg-night-deep rounded-xl border border-ink/10 dark:border-cream/10 shadow-soft p-3 flex items-center gap-2 flex-wrap" data-mode-toggle data-storage-key="hymnbook-mode-{{ hymnbook.slug }}">
+    <span class="label-mono px-3">Modo de leitura</span>
+    <button type="button" class="btn-pill" data-mode="indice" data-active="true">≡ Índice</button>
+    <button type="button" class="btn-pill" data-mode="corrido">≡ Corrido</button>
+    <button type="button" class="btn-pill" data-mode="carrossel">↔ Carrossel</button>
+    <span class="ml-auto label-mono pr-3 hidden md:inline">lista clicável · acesso rápido</span>
+  </div>
+</section>
 
-    {% if hymns %}
-        <div style="overflow-x: auto;">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 80px;">Número</th>
-                        <th>Título</th>
-                        <th style="width: 150px;">Estilo</th>
-                        <th style="width: 100px;"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for hymn in hymns %}
-                        <tr>
-                            <td style="font-weight: 600; color: #2c5282;">{{ hymn.number }}</td>
-                            <td>
-                                <a href="{% url 'hymns:hymn_detail' hymn.pk %}" style="color: #2d3748; text-decoration: none;">
-                                    {{ hymn.title }}
-                                </a>
-                            </td>
-                            <td style="color: #718096;">
-                                {{ hymn.style|default:"—" }}
-                            </td>
-                            <td>
-                                <a href="{% url 'hymns:hymn_detail' hymn.pk %}" class="btn" style="font-size: 0.875rem; padding: 0.35rem 0.75rem;">
-                                    Ver
-                                </a>
-                                {% if can_edit %}
-                                <a href="{% url 'hymns:hymn_edit' hymn.pk %}" class="btn btn-secondary" style="font-size: 0.875rem; padding: 0.35rem 0.75rem; margin-left: 5px;">
-                                    Editar
-                                </a>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <p style="color: #718096; text-align: center; padding: 2rem;">Este hinário ainda não possui hinos cadastrados.</p>
-    {% endif %}
-</div>
+<section class="max-w-6xl mx-auto px-6 py-10" data-mode-pane="indice">
+  <ol class="grid sm:grid-cols-2 gap-x-12 gap-y-2 font-serif">
+    {% for h in hymns %}
+      <li>
+        <a href="{% url 'hymns:hymn_detail' h.pk %}" class="dot-leader py-2 hover:text-gold">
+          <span class="font-mono text-xs text-ink-soft pr-2">{{ h.number|stringformat:"02d" }}</span>
+          <span class="text-lg">{{ h.title }}</span>
+          <span class="leader-fill"></span>
+          {% if h.style %}<span class="label-mono">{{ h.style }}</span>{% endif %}
+          {% if h.audios.first %}<span class="text-gold" title="Tem áudio">♫</span>{% endif %}
+        </a>
+      </li>
+    {% empty %}
+      <p class="text-ink-soft">Nenhum hino cadastrado.</p>
+    {% endfor %}
+  </ol>
+</section>
+
+<section class="max-w-3xl mx-auto px-6 pb-16 hidden" data-mode-pane="corrido">
+  {% for h in hymns %}
+    <article class="hymn-card py-12 border-b border-ink/10 dark:border-cream/10 last:border-b-0" id="hymn-{{ h.number }}">
+      <p class="label-mono text-center">HINO {{ h.number|stringformat:"02d" }} · {{ hymnbook.name|upper }}</p>
+      <h2 class="font-serif text-3xl text-center mt-3">{{ h.title }}</h2>
+      <hr class="w-24 mx-auto border-ink/30 mt-2 mb-6">
+      <div class="font-serif text-xl leading-[1.7] max-w-prose mx-auto">
+        {% render_hymn_body h %}
+      </div>
+      <div class="mt-8 text-center text-gold text-2xl" aria-hidden="true">{% if forloop.counter|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="hidden" data-mode-pane="carrossel" aria-roledescription="carousel">
+  <div class="overflow-x-auto snap-x snap-mandatory flex" data-carousel>
+    {% for h in hymns %}
+      <article class="hymn-card snap-center shrink-0 w-screen max-w-screen-md mx-auto px-6 py-12">
+        <p class="label-mono text-center">HINO {{ h.number|stringformat:"02d" }} · {{ hymnbook.name|upper }}</p>
+        <h2 class="font-serif text-3xl text-center mt-3">{{ h.title }}</h2>
+        <hr class="w-24 mx-auto border-ink/30 mt-2 mb-6">
+        <div class="font-serif text-xl leading-[1.7] max-w-prose mx-auto">{% render_hymn_body h %}</div>
+        <div class="mt-8 text-center text-gold text-2xl" aria-hidden="true">{% if forloop.counter|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
+      </article>
+    {% endfor %}
+  </div>
+  <div class="flex justify-center gap-2 py-4 label-mono">use ← → para navegar</div>
+</section>
+
+<script>
+(function () {
+  var toggle = document.querySelector('[data-mode-toggle]');
+  if (!toggle) return;
+  var key = toggle.dataset.storageKey;
+  var saved = localStorage.getItem(key) || 'indice';
+
+  function activate(mode) {
+    toggle.querySelectorAll('[data-mode]').forEach(function (b) {
+      b.setAttribute('data-active', String(b.dataset.mode === mode));
+    });
+    document.querySelectorAll('[data-mode-pane]').forEach(function (p) {
+      p.classList.toggle('hidden', p.dataset.modePane !== mode);
+    });
+    localStorage.setItem(key, mode);
+  }
+
+  toggle.querySelectorAll('[data-mode]').forEach(function (btn) {
+    btn.addEventListener('click', function () { activate(btn.dataset.mode); });
+  });
+  activate(saved);
+
+  // Tap esquerda/direita no carrossel
+  document.querySelectorAll('[data-carousel]').forEach(function (c) {
+    c.addEventListener('click', function (e) {
+      var rect = c.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var step = rect.width;
+      c.scrollBy({ left: x < rect.width / 2 ? -step : step, behavior: 'smooth' });
+    });
+  });
+})();
+</script>
 {% endblock %}

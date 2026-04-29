@@ -1,0 +1,53 @@
+{% load static %}
+<header class="border-b border-ink/10 dark:border-cream/10 sticky top-0 z-30 bg-cream/90 dark:bg-night/90 backdrop-blur" data-no-print>
+  <div class="max-w-7xl mx-auto px-6 h-16 flex items-center gap-6">
+    <a href="{% url 'hymns:home' %}" class="flex items-center gap-2.5 group" aria-label="Hinaria">
+      {% include "_partials/_logo_mark.html" %}
+      <span class="font-serif text-2xl tracking-tight">Hinaria</span>
+    </a>
+
+    <nav class="hidden md:flex items-center gap-5 text-sm" aria-label="Principal">
+      {% url 'hymns:home' as home_url %}
+      {% url 'hymns:hymnbook_list' as books_url %}
+      {% url 'hymns:search' as search_url %}
+      <a href="{{ home_url }}" class="hover:text-gold {% if request.path == home_url %}text-gold border-b border-gold pb-1{% endif %}">Início</a>
+      <a href="{{ books_url }}" class="hover:text-gold {% if books_url in request.path %}text-gold border-b border-gold pb-1{% endif %}">Hinários</a>
+      <a href="{{ search_url }}" class="hover:text-gold {% if search_url in request.path %}text-gold border-b border-gold pb-1{% endif %}">Buscar</a>
+      {% if user.is_authenticated %}
+        <a href="{% url 'hymns:editor_hymnbook_list' %}" class="hover:text-gold {% if '/editor/' in request.path %}text-gold border-b border-gold pb-1{% endif %}">Editor</a>
+        <a href="{% url 'users:upload' %}" class="hover:text-gold {% if '/contribuir/' in request.path %}text-gold border-b border-gold pb-1{% endif %}">Contribuir</a>
+      {% endif %}
+    </nav>
+
+    <form action="{% url 'hymns:search' %}" method="get" class="ml-auto hidden md:block relative">
+      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-ink/40">⌕</span>
+      <input
+        type="search"
+        name="q"
+        placeholder="Buscar hinos…"
+        data-global-search
+        class="w-64 pl-9 pr-12 py-2 rounded-full bg-ink/5 dark:bg-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
+      >
+      <kbd class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono uppercase tracking-widest text-ink/40">⌘K</kbd>
+    </form>
+
+    <div class="flex items-center gap-3 ml-auto md:ml-2">
+      <button type="button" data-theme-toggle aria-label="Alternar tema" class="text-lg leading-none w-9 h-9 rounded-full hover:bg-ink/5 dark:hover:bg-white/10">
+        <span data-theme-icon>☾</span>
+      </button>
+
+      {% if user.is_authenticated %}
+        <a href="{% url 'users:notifications' %}" class="relative w-9 h-9 rounded-full hover:bg-ink/5 dark:hover:bg-white/10 inline-flex items-center justify-center" aria-label="Notificações">
+          <span aria-hidden="true">🔔</span>
+          <span id="notification-count" class="hidden absolute -top-1 -right-1 bg-rust text-cream text-[10px] font-semibold rounded-full px-1.5"></span>
+        </a>
+        <a href="{% url 'users:profile' user.username %}" class="w-9 h-9 rounded-full bg-ink text-cream flex items-center justify-center font-mono text-xs uppercase tracking-widest hover:bg-ink-soft" aria-label="Perfil">
+          {{ user.username|slice:":2"|upper }}
+        </a>
+      {% else %}
+        <a href="{% url 'account_login' %}" class="text-sm hover:text-gold">Entrar</a>
+        <a href="{% url 'account_signup' %}" class="text-sm bg-ink text-cream px-3 py-1.5 rounded-full hover:bg-ink-soft">Criar conta</a>
+      {% endif %}
+    </div>
+  </div>
+</header>

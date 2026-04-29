@@ -1,48 +1,81 @@
 {% extends 'base.html' %}
 
-{% comment %}
-Marco 1.5 — workspace do editor (template provisório).
-A Fase 2 (UI) reescreve esta tela.
-{% endcomment %}
-
-{% block title %}Editor — Hinários{% endblock %}
+{% block title %}Editor · Fila de revisão{% endblock %}
 
 {% block content %}
-<h1>Workspace do Editor</h1>
+<section class="max-w-6xl mx-auto px-6 py-8">
+  <header class="flex items-end justify-between gap-6 flex-wrap">
+    <div>
+      <p class="label-mono">Workspace editorial</p>
+      <h1 class="font-serif text-4xl mt-2">Fila de revisão</h1>
+      <p class="text-ink-soft dark:text-cream/70 mt-2 max-w-xl">
+        Hinários aguardando revisão hino-a-hino. Comece pelo de menor progresso ou volte ao que você estava revisando.
+      </p>
+    </div>
+    <dl class="grid grid-cols-3 gap-x-10 gap-y-1 ml-auto text-right">
+      <div><dt class="label-mono">Hinários</dt><dd class="font-serif text-2xl">{{ stats.books }}</dd></div>
+      <div><dt class="label-mono">Pendentes</dt><dd class="font-serif text-2xl text-gold">{{ stats.pending_hymns }}</dd></div>
+      <div><dt class="label-mono">Revisados · 7 dias</dt><dd class="font-serif text-2xl">{{ stats.recent_reviewed }}</dd></div>
+    </dl>
+  </header>
 
-<form method="get" style="margin-bottom: 1rem;">
-    <label>Ordenar:
-        <select name="sort" onchange="this.form.submit()">
-            <option value="least_reviewed" {% if sort == 'least_reviewed' %}selected{% endif %}>Menos revisados</option>
-            <option value="most_reviewed" {% if sort == 'most_reviewed' %}selected{% endif %}>Mais revisados</option>
-            <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Recentes</option>
-        </select>
-    </label>
-</form>
+  {% if pending_audios_count %}
+    <a href="{% url 'hymns:editor_pending_audios' %}"
+       class="mt-6 flex items-center gap-4 bg-gold/15 border border-gold/40 text-ink dark:text-cream rounded-xl px-5 py-4 hover:bg-gold/25">
+      <span class="w-10 h-10 rounded-full bg-gold/30 inline-flex items-center justify-center text-gold" aria-hidden="true">♫</span>
+      <div class="flex-1">
+        <p class="font-medium">{{ pending_audios_count }} áudio{{ pending_audios_count|pluralize }} aguardando aprovação</p>
+        <p class="label-mono">Ouça e libere para aparecer no detalhe do hino</p>
+      </div>
+      <span class="text-sm font-mono uppercase tracking-widest">Revisar áudios →</span>
+    </a>
+  {% endif %}
 
-<table>
-    <thead>
-        <tr>
-            <th>Hinário</th>
-            <th>Progresso</th>
-            <th>Estado</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for hb in hymnbooks %}
-        <tr>
-            <td>{{ hb.name }}</td>
-            <td>{{ hb.reviewed_hymns }}/{{ hb.total_hymns }} ({{ hb.review_pct }}%)</td>
-            <td>{% if hb.is_published %}Publicado{% else %}Rascunho{% endif %}</td>
-            <td>
-                <a href="{% url 'hymns:editor_hymnbook_detail' hb.slug %}">Abrir</a> |
-                <a href="{% url 'hymns:editor_next_hymn' hb.slug %}">Revisar próximo</a>
-            </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="4">Nenhum hinário disponível.</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
+  {% if resume %}
+    <a href="{% url 'hymns:editor_revise_hymn' resume.hymn.pk %}"
+       class="mt-6 flex items-center gap-4 bg-ink text-cream rounded-xl px-5 py-4 hover:bg-ink-soft dark:bg-night-deep dark:hover:bg-white/5">
+      <span class="w-10 h-10 rounded-full border border-cream/30 inline-flex items-center justify-center" aria-hidden="true">↩</span>
+      <div class="flex-1">
+        <p class="font-medium">Continuar revisão</p>
+        <p class="label-mono text-cream/70">{{ resume.hymn.hymn_book.name }} · você parou no hino {{ resume.hymn.number }} · "{{ resume.hymn.title }}"</p>
+      </div>
+      <span class="text-sm font-mono uppercase tracking-widest">Retomar →</span>
+    </a>
+  {% endif %}
+
+  <div class="mt-8 flex items-center gap-3 flex-wrap text-sm">
+    <span class="label-mono">Ordenar:</span>
+    <a href="?sort=least_reviewed" class="btn-pill" data-active="{% if sort == 'least_reviewed' %}true{% else %}false{% endif %}">● Menos revisados</a>
+    <a href="?sort=most_reviewed" class="btn-pill" data-active="{% if sort == 'most_reviewed' %}true{% else %}false{% endif %}">● Mais revisados</a>
+    <a href="?sort=recent" class="btn-pill" data-active="{% if sort == 'recent' %}true{% else %}false{% endif %}">● Recém adicionados</a>
+    <span class="ml-auto label-mono">{{ hymnbooks|length }} hinário{{ hymnbooks|length|pluralize }}</span>
+  </div>
+
+  <ul class="mt-6 space-y-3">
+    {% for hb in hymnbooks %}
+      {% with pct=hb.review_pct|default:0 %}
+      <li class="card-soft p-5 flex items-center gap-6 flex-wrap">
+        <div class="w-12 h-12 rounded-full inline-flex items-center justify-center font-serif text-xl shrink-0" style="background: color-mix(in srgb, {{ hb.display_accent }} 18%, transparent); color: {{ hb.display_accent }};">{{ forloop.counter|stringformat:"02d" }}</div>
+        <div class="min-w-0 flex-1">
+          <p class="font-serif text-xl truncate">{{ hb.name }}</p>
+          <p class="label-mono mt-1">
+            {{ hb.owner_name }} · subido {{ hb.created_at|timesince }} atrás
+          </p>
+        </div>
+        <div class="w-72">
+          <div class="flex justify-between text-xs font-mono mb-1"><span>{{ hb.reviewed_hymns }}/{{ hb.total_hymns }} revisados</span><span>{{ pct }}%</span></div>
+          <div class="h-2 bg-ink/10 rounded-full overflow-hidden"><div class="h-full bg-gold" style="width: {{ pct }}%;"></div></div>
+        </div>
+        {% if hb.review_pct == 100 and not hb.is_published %}
+          <form action="{% url 'hymns:hymnbook_publish' hb.slug %}" method="post">{% csrf_token %}<button class="bg-gold text-night rounded-full px-4 py-2 text-sm font-medium hover:bg-gold-soft">Publicar hinário ✓</button></form>
+        {% else %}
+          <a href="{% url 'hymns:editor_next_hymn' hb.slug %}" class="bg-ink text-cream rounded-full px-4 py-2 text-sm hover:bg-ink-soft dark:bg-cream/10 dark:hover:bg-cream/20">Revisar próximo →</a>
+        {% endif %}
+      </li>
+      {% endwith %}
+    {% empty %}
+      <li class="card-soft p-10 text-center text-ink-soft">Nenhum hinário disponível.</li>
+    {% endfor %}
+  </ul>
+</section>
 {% endblock %}
