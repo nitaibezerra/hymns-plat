@@ -207,7 +207,7 @@ jobs:
 
           # Create sample hymnbook
           if not HymnBook.objects.exists():
-              hb = HymnBook.objects.create(name='O Cruzeiro', owner_name='Mestre Irineu', intro_name='Cruzeiro')
+              hb = HymnBook.objects.create(name='O Cruzeiro', owner_name='Mestre Irineu', intro_name='Cruzeiro', is_published=True)
               Hymn.objects.create(hymn_book=hb, number=1, title='Lua Branca', text='Lua branca da luz serena')
               Hymn.objects.create(hymn_book=hb, number=2, title='Tuperci', text='Tuperci é um anjo')
               print('Sample data created')
