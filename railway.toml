@@ -6,7 +6,8 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-healthcheckPath = "/health/"
-healthcheckTimeout = 300
+# /health/ probe is intentionally disabled here.
+# Railway's internal healthcheck request is rejected by ALLOWED_HOSTS;
+# we monitor /health/ externally from Cloudflare/uptime tooling instead.
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
