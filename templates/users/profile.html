@@ -17,7 +17,7 @@
         {% if profile_is_editor %}EDITOR · {% endif %}
         Membro há {{ profile_user.date_joined|timesince }}
       </p>
-      <h1 class="font-serif text-5xl mt-2">{{ profile_user.get_full_name|default:profile_user.username }}</h1>
+      <h1 class="font-serif text-3xl md:text-5xl mt-2">{{ profile_user.get_full_name|default:profile_user.username }}</h1>
       {% if profile_user.bio %}<p class="font-serif italic text-xl text-ink-soft mt-2">"{{ profile_user.bio }}"</p>{% endif %}
       <dl class="mt-5 flex flex-wrap gap-x-10 gap-y-2">
         <div><dt class="label-mono">Hinos revisados</dt><dd class="font-serif text-2xl">{{ reviews_count }}</dd></div>
@@ -55,11 +55,38 @@
     </section>
 
     <section class="card-soft p-6">
-      <header class="flex justify-between items-end mb-4">
-        <h2 class="font-serif text-2xl">Notificações</h2>
+      <header class="flex justify-between items-end mb-4 gap-3">
+        <h2 class="font-serif text-2xl flex items-center gap-2">
+          Notificações
+          {% if unread_notifications_count %}
+            <span class="text-xs label-mono inline-flex items-center gap-1 border border-rust/40 bg-rust/10 text-rust rounded-full px-2 py-0.5">● {{ unread_notifications_count }} NOVA{{ unread_notifications_count|pluralize:"S" }}</span>
+          {% endif %}
+        </h2>
         {% if is_own_profile %}<a href="{% url 'users:notifications' %}" class="label-mono hover:text-gold">Ver todas →</a>{% endif %}
       </header>
-      <p class="text-sm text-ink-soft">Atividade recente do que você está revisando.</p>
+      {% if notifications %}
+        <ul class="space-y-3">
+          {% for n in notifications %}
+            <li class="flex items-start gap-3 {% if not n.is_read %}relative{% endif %}">
+              <span class="w-9 h-9 shrink-0 rounded-full bg-ink/10 dark:bg-cream/10 text-ink dark:text-cream flex items-center justify-center font-mono text-xs uppercase">
+                {% if n.sender %}{{ n.sender.username|slice:":2"|upper }}{% else %}S{% endif %}
+              </span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm leading-snug">
+                  {% if n.sender %}<strong>{{ n.sender.username }}</strong>{% else %}<strong>Sistema</strong>{% endif %}
+                  <span class="text-ink-soft">{{ n.message|default:n.title }}</span>
+                </p>
+                <p class="label-mono mt-1">{{ n.created_at|timesince }} atrás</p>
+              </div>
+              {% if not n.is_read %}<span class="w-2 h-2 bg-rust rounded-full mt-3" aria-label="não lida"></span>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% elif is_own_profile %}
+        <p class="text-sm text-ink-soft">Nada novo por aqui. Quando alguém revisar um hino seu ou seguir você, vai aparecer aqui.</p>
+      {% else %}
+        <p class="text-sm text-ink-soft">Atividade recente do que {{ profile_user.username }} está revisando.</p>
+      {% endif %}
     </section>
   </div>
 

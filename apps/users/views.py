@@ -52,6 +52,13 @@ def profile_view(request, username):
 
     is_editor = profile_user.is_superuser or profile_user.has_perm("hymns.can_review_any_hymnbook")
 
+    # Notifications panel — only visible to the profile owner.
+    notifications = []
+    unread_count = 0
+    if request.user.is_authenticated and request.user == profile_user:
+        notifications = list(profile_user.notifications.select_related("sender").order_by("-created_at")[:10])
+        unread_count = profile_user.notifications.filter(is_read=False).count()
+
     context = {
         "profile_user": profile_user,
         "hymnbooks": hymnbooks,
@@ -63,6 +70,8 @@ def profile_view(request, username):
         "reviews_count": reviews_count,
         "recent_revisions": recent_revisions,
         "profile_is_editor": is_editor,
+        "notifications": notifications,
+        "unread_notifications_count": unread_count,
     }
 
     return render(request, "users/profile.html", context)

@@ -99,6 +99,15 @@
         </button>
       {% endif %}
     </section>
+
+    <section class="card-soft p-5">
+      <p class="label-mono mb-3">Modo de leitura</p>
+      <div class="grid grid-cols-3 gap-2 text-xs">
+        <a href="{% url 'hymns:hymnbook_detail' hymn.hymn_book.slug %}?mode=indice" class="text-center font-mono uppercase tracking-widest bg-ink text-cream rounded-full py-2 dark:bg-gold dark:text-night">Único</a>
+        <a href="{% url 'hymns:hymnbook_detail' hymn.hymn_book.slug %}?mode=corrido" class="text-center font-mono uppercase tracking-widest border border-ink/15 hover:bg-ink/5 rounded-full py-2">Corrido</a>
+        <a href="{% url 'hymns:hymnbook_detail' hymn.hymn_book.slug %}?mode=carrossel" class="text-center font-mono uppercase tracking-widest border border-ink/15 hover:bg-ink/5 rounded-full py-2">Carrossel</a>
+      </div>
+    </section>
   </aside>
 </section>
 

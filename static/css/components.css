@@ -2,6 +2,22 @@
    Tailwind cobre o grosso; aqui ficam só os refinos que dependem de pseudo
    elementos, dot-leader (índice de hinário) e barras de repetição. */
 
+/* Highlight de busca — sobrepõe o amarelo nativo do <mark> com gold-soft sutil
+   da paleta editorial. box-decoration-break:clone garante o estilo correto
+   quando o highlight quebra de linha. */
+mark {
+  background: rgb(232 213 168 / 0.55);
+  color: var(--color-ink);
+  padding: 0.05em 0.25em;
+  border-radius: 3px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+html.dark mark {
+  background: rgb(181 141 62 / 0.4);
+  color: var(--color-ink);
+}
+
 /* "label-mono": labels uppercase tracked usadas no design (PORTAL · HINÁRIOS). */
 .label-mono {
   font-family: var(--font-mono);
