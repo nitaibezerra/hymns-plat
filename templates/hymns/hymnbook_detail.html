@@ -8,12 +8,16 @@
 <section class="relative overflow-hidden text-cream" style="background: linear-gradient(140deg, {{ accent }} 0%, color-mix(in srgb, {{ accent }} 55%, black) 100%);">
   <div class="max-w-6xl mx-auto px-6 py-12 md:py-16 grid md:grid-cols-[260px_1fr] gap-10 items-end">
     <div class="rounded-xl shadow-soft aspect-[3/4] relative overflow-hidden border border-cream/15" style="background: color-mix(in srgb, {{ accent }} 75%, black);">
-      <span class="absolute inset-0 grid place-items-center font-serif text-[12rem] leading-none text-cream/15" aria-hidden="true">{{ hymnbook.name|first|upper }}</span>
-      <div class="absolute top-4 left-4 label-mono text-cream/80">EST. {{ hymnbook.created_at|date:"Y" }}</div>
-      <div class="absolute bottom-4 left-4 right-4">
-        <p class="font-serif text-xl">{{ hymnbook.name }}</p>
-        <p class="label-mono mt-1 text-cream/80">{{ hymnbook.owner_name }}</p>
-      </div>
+      {% if hymnbook.cover_image %}
+        <img src="{{ hymnbook.cover_image.url }}" alt="Capa de {{ hymnbook.name }}" class="absolute inset-0 w-full h-full object-cover">
+      {% else %}
+        <span class="absolute inset-0 grid place-items-center font-serif text-[12rem] leading-none text-cream/15" aria-hidden="true">{{ hymnbook.name|first|upper }}</span>
+        <div class="absolute top-4 left-4 label-mono text-cream/80">EST. {{ hymnbook.created_at|date:"Y" }}</div>
+        <div class="absolute bottom-4 left-4 right-4">
+          <p class="font-serif text-xl">{{ hymnbook.name }}</p>
+          <p class="label-mono mt-1 text-cream/80">{{ hymnbook.owner_name }}</p>
+        </div>
+      {% endif %}
     </div>
     <div>
       <p class="label-mono text-cream/80">Hinário {% if hymnbook.is_published %}publicado{% else %}rascunho{% endif %}</p>
