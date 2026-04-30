@@ -43,6 +43,10 @@ class HymnBookDetailView(DetailView):
         context = super().get_context_data(**kwargs)
         context["hymns"] = self.object.hymns.all().order_by("number")
         context["can_edit"] = can_edit_hymnbook(self.request.user, self.object)
+        mode = self.request.GET.get("mode", "indice")
+        if mode not in {"indice", "corrido", "carrossel"}:
+            mode = "indice"
+        context["mode"] = mode
         return context
 
 

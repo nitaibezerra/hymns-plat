@@ -1,5 +1,4 @@
-{# Stepper visual do wizard de upload (Marco 2.1.6).
-   Variável esperada: `step` (1..4). #}
+{% comment %}Stepper visual do wizard de upload (Marco 2.1.6). Variável esperada: `step` (1..4).{% endcomment %}
 <ol class="grid grid-cols-4 gap-4 max-w-3xl mx-auto" aria-label="Progresso">
   {% for label in "UPLOAD,PROCESSANDO,CONFERIR,CONFIRMAR"|stringformat:"s"|cut:" " %}{% endfor %}
   {% for s in '1234' %}

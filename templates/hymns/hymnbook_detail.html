@@ -47,16 +47,16 @@
 {% endwith %}
 
 <section class="max-w-6xl mx-auto px-6 -mt-6 relative z-10">
-  <div class="bg-cream dark:bg-night-deep rounded-xl border border-ink/10 dark:border-cream/10 shadow-soft p-3 flex items-center gap-2 flex-wrap" data-mode-toggle data-storage-key="hymnbook-mode-{{ hymnbook.slug }}">
+  <div class="bg-cream dark:bg-night-deep rounded-xl border border-ink/10 dark:border-cream/10 shadow-soft p-3 flex items-center gap-2 flex-wrap" data-mode-toggle data-storage-key="hymnbook-mode-{{ hymnbook.slug }}" data-initial-mode="{{ mode }}">
     <span class="label-mono px-3">Modo de leitura</span>
-    <button type="button" class="btn-pill" data-mode="indice" data-active="true">≡ Índice</button>
-    <button type="button" class="btn-pill" data-mode="corrido">≡ Corrido</button>
-    <button type="button" class="btn-pill" data-mode="carrossel">↔ Carrossel</button>
+    <button type="button" class="btn-pill" data-mode="indice" data-active="{{ mode|yesno:'true,false,false'|stringformat:'s' }}{% if mode == 'indice' %}true{% endif %}">≡ Índice</button>
+    <button type="button" class="btn-pill" data-mode="corrido"{% if mode == 'corrido' %} data-active="true"{% endif %}>≡ Corrido</button>
+    <button type="button" class="btn-pill" data-mode="carrossel"{% if mode == 'carrossel' %} data-active="true"{% endif %}>↔ Carrossel</button>
     <span class="ml-auto label-mono pr-3 hidden md:inline">lista clicável · acesso rápido</span>
   </div>
 </section>
 
-<section class="max-w-6xl mx-auto px-6 py-10" data-mode-pane="indice">
+<section class="max-w-6xl mx-auto px-6 py-10{% if mode != 'indice' %} hidden{% endif %}" data-mode-pane="indice">
   <ol class="grid sm:grid-cols-2 gap-x-12 gap-y-2 font-serif">
     {% for h in hymns %}
       <li>
@@ -74,7 +74,7 @@
   </ol>
 </section>
 
-<section class="max-w-3xl mx-auto px-6 pb-16 hidden" data-mode-pane="corrido">
+<section class="max-w-3xl mx-auto px-6 pb-16{% if mode != 'corrido' %} hidden{% endif %}" data-mode-pane="corrido">
   {% for h in hymns %}
     <article class="hymn-card py-12 border-b border-ink/10 dark:border-cream/10 last:border-b-0" id="hymn-{{ h.number }}">
       <p class="label-mono text-center">HINO {{ h.number|stringformat:"02d" }} · {{ hymnbook.name|upper }}</p>
@@ -88,7 +88,7 @@
   {% endfor %}
 </section>
 
-<section class="hidden" data-mode-pane="carrossel" aria-roledescription="carousel">
+<section class="{% if mode != 'carrossel' %}hidden{% endif %}" data-mode-pane="carrossel" aria-roledescription="carousel">
   <div class="overflow-x-auto snap-x snap-mandatory flex" data-carousel>
     {% for h in hymns %}
       <article class="hymn-card snap-center shrink-0 w-screen max-w-screen-md mx-auto px-6 py-12">
@@ -108,7 +108,9 @@
   var toggle = document.querySelector('[data-mode-toggle]');
   if (!toggle) return;
   var key = toggle.dataset.storageKey;
-  var saved = localStorage.getItem(key) || 'indice';
+  // URL (data-initial-mode set from request.GET.mode) takes precedence over localStorage.
+  // Server already rendered the right pane visible; we only re-sync if user navigated by JS.
+  var saved = toggle.dataset.initialMode || localStorage.getItem(key) || 'indice';
 
   function activate(mode) {
     toggle.querySelectorAll('[data-mode]').forEach(function (b) {
