@@ -22,10 +22,10 @@
   </div>
 </section>
 
-<section class="max-w-6xl mx-auto px-6 pb-16 grid lg:grid-cols-[1fr_320px] gap-8">
-  <article class="card-soft p-10 md:p-14 hymn-card">
+<section class="max-w-6xl mx-auto px-6 pb-16 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-8">
+  <article class="card-soft p-5 sm:p-8 md:p-14 hymn-card min-w-0 overflow-hidden">
     <p class="label-mono text-center">HINO {{ hymn.number|stringformat:"02d" }} · {{ hymn.hymn_book.name|upper }}</p>
-    <h1 class="font-serif text-4xl md:text-5xl text-center mt-4 leading-tight">{{ hymn.title }}</h1>
+    <h1 class="font-serif text-3xl sm:text-4xl md:text-5xl text-center mt-4 leading-tight break-words text-balance">{{ hymn.title }}</h1>
     <hr class="w-32 mx-auto border-ink/30 mt-3 mb-8">
 
     <div class="font-serif text-xl md:text-2xl leading-[1.7] max-w-prose mx-auto">
@@ -98,6 +98,15 @@
           Histórico de revisões
         </button>
       {% endif %}
+    </section>
+
+    <section class="card-soft p-5">
+      <p class="label-mono mb-3">Modo de leitura</p>
+      <div class="grid grid-cols-3 gap-2 text-xs">
+        <a href="{% url 'hymns:hymnbook_detail' hymn.hymn_book.slug %}?mode=indice" class="text-center font-mono uppercase tracking-widest bg-ink text-cream rounded-full py-2 dark:bg-gold dark:text-night">Único</a>
+        <a href="{% url 'hymns:hymnbook_detail' hymn.hymn_book.slug %}?mode=corrido" class="text-center font-mono uppercase tracking-widest border border-ink/15 hover:bg-ink/5 rounded-full py-2">Corrido</a>
+        <a href="{% url 'hymns:hymnbook_detail' hymn.hymn_book.slug %}?mode=carrossel" class="text-center font-mono uppercase tracking-widest border border-ink/15 hover:bg-ink/5 rounded-full py-2">Carrossel</a>
+      </div>
     </section>
   </aside>
 </section>

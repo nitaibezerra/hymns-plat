@@ -5,7 +5,7 @@
 {% block content %}
 <section class="max-w-3xl mx-auto px-6 py-10">
   <p class="label-mono">Contribuir · processando</p>
-  <h1 class="font-serif text-4xl mt-2">Extraindo o texto…</h1>
+  <h1 class="font-serif text-3xl md:text-4xl mt-2">Extraindo o texto…</h1>
   <p class="text-ink-soft mt-2">Estamos extraindo os hinos do PDF <strong>{{ task.pdf_filename|default:"enviado" }}</strong> via OCR.</p>
 
   <div class="mt-8">{% include "_partials/_upload_stepper.html" with step=2 %}</div>

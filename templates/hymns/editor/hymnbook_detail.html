@@ -11,7 +11,7 @@
   <header class="flex flex-wrap items-end gap-6">
     <div class="flex-1 min-w-0">
       <p class="label-mono">Hinário em revisão</p>
-      <h1 class="font-serif text-4xl mt-2">{{ hymnbook.name }}</h1>
+      <h1 class="font-serif text-3xl md:text-4xl mt-2">{{ hymnbook.name }}</h1>
       <p class="text-ink-soft mt-1">{{ hymnbook.owner_name }}</p>
     </div>
     <a href="{% url 'hymns:editor_next_hymn' hymnbook.slug %}" class="bg-ink text-cream rounded-full px-5 py-2.5 text-sm dark:bg-gold dark:text-night hover:bg-ink-soft">Revisar próximo →</a>
