@@ -63,37 +63,37 @@
       {% endif %}
     </div>
   </div>
-
-  {# Mobile drawer (md:hidden). Toggled by [data-mobile-menu-toggle]. #}
-  <div data-mobile-menu-backdrop class="fixed inset-0 bg-ink/40 dark:bg-black/60 opacity-0 pointer-events-none transition-opacity md:hidden z-40" aria-hidden="true"></div>
-  <aside id="mobile-menu" data-mobile-menu class="fixed inset-y-0 right-0 w-72 max-w-[85vw] bg-cream dark:bg-night-deep shadow-soft border-l border-ink/10 dark:border-cream/10 translate-x-full transition-transform md:hidden z-50 flex flex-col" aria-hidden="true" tabindex="-1">
-    <div class="flex items-center justify-between px-5 h-16 border-b border-ink/10 dark:border-cream/10">
-      <span class="font-serif text-xl">Hinaria</span>
-      <button type="button" data-mobile-menu-close aria-label="Fechar menu" class="w-9 h-9 rounded-full hover:bg-ink/5 dark:hover:bg-white/10 inline-flex items-center justify-center text-ink dark:text-cream">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </div>
-    <nav class="flex-1 overflow-y-auto py-2" aria-label="Menu mobile">
-      <a href="{% url 'hymns:home' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if request.path == '/' %}text-gold{% endif %}">Início</a>
-      <a href="{% url 'hymns:hymnbook_list' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/hinarios/' in request.path %}text-gold{% endif %}">Hinários</a>
-      <a href="{% url 'hymns:search' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/busca/' in request.path %}text-gold{% endif %}">Buscar</a>
-      {% if user.is_authenticated %}
-        <a href="{% url 'hymns:editor_hymnbook_list' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/editor/' in request.path %}text-gold{% endif %}">Editor</a>
-        <a href="{% url 'users:upload' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/contribuir/' in request.path %}text-gold{% endif %}">Contribuir</a>
-        <hr class="border-ink/10 dark:border-cream/10 my-2">
-        <a href="{% url 'users:profile' user.username %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Meu perfil</a>
-        <a href="{% url 'account_logout' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Sair</a>
-      {% else %}
-        <hr class="border-ink/10 dark:border-cream/10 my-2">
-        <a href="{% url 'account_login' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Entrar</a>
-        <a href="{% url 'account_signup' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Criar conta</a>
-      {% endif %}
-    </nav>
-    <form action="{% url 'hymns:search' %}" method="get" class="p-4 border-t border-ink/10 dark:border-cream/10">
-      <input type="search" name="q" placeholder="Buscar hinos…" class="w-full px-4 py-2 rounded-full bg-ink/5 dark:bg-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-gold/40">
-    </form>
-  </aside>
 </header>
+
+{% comment %}Mobile drawer (md:hidden). Lives outside <header> because header has backdrop-filter, which creates a containing block that traps `position: fixed` and prevents inset-y-0 from reaching the viewport edges.{% endcomment %}
+<div data-mobile-menu-backdrop class="fixed inset-0 bg-ink/40 dark:bg-black/60 opacity-0 pointer-events-none transition-opacity md:hidden z-40" aria-hidden="true"></div>
+<aside id="mobile-menu" data-mobile-menu class="fixed inset-y-0 right-0 w-72 max-w-[85vw] bg-cream dark:bg-night-deep shadow-soft border-l border-ink/10 dark:border-cream/10 translate-x-full transition-transform md:hidden z-50 flex flex-col" aria-hidden="true" tabindex="-1">
+  <div class="flex items-center justify-between px-5 h-16 border-b border-ink/10 dark:border-cream/10">
+    <span class="font-serif text-xl">Hinaria</span>
+    <button type="button" data-mobile-menu-close aria-label="Fechar menu" class="w-9 h-9 rounded-full hover:bg-ink/5 dark:hover:bg-white/10 inline-flex items-center justify-center text-ink dark:text-cream">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <nav class="flex-1 overflow-y-auto py-2" aria-label="Menu mobile">
+    <a href="{% url 'hymns:home' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if request.path == '/' %}text-gold{% endif %}">Início</a>
+    <a href="{% url 'hymns:hymnbook_list' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/hinarios/' in request.path %}text-gold{% endif %}">Hinários</a>
+    <a href="{% url 'hymns:search' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/busca/' in request.path %}text-gold{% endif %}">Buscar</a>
+    {% if user.is_authenticated %}
+      <a href="{% url 'hymns:editor_hymnbook_list' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/editor/' in request.path %}text-gold{% endif %}">Editor</a>
+      <a href="{% url 'users:upload' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/contribuir/' in request.path %}text-gold{% endif %}">Contribuir</a>
+      <hr class="border-ink/10 dark:border-cream/10 my-2">
+      <a href="{% url 'users:profile' user.username %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Meu perfil</a>
+      <a href="{% url 'account_logout' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Sair</a>
+    {% else %}
+      <hr class="border-ink/10 dark:border-cream/10 my-2">
+      <a href="{% url 'account_login' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Entrar</a>
+      <a href="{% url 'account_signup' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Criar conta</a>
+    {% endif %}
+  </nav>
+  <form action="{% url 'hymns:search' %}" method="get" class="p-4 border-t border-ink/10 dark:border-cream/10">
+    <input type="search" name="q" placeholder="Buscar hinos…" class="w-full px-4 py-2 rounded-full bg-ink/5 dark:bg-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-gold/40">
+  </form>
+</aside>
