@@ -12,6 +12,12 @@ CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=["https:/
 
 # Tells Django the X-Forwarded-Proto header from Railway proxy means HTTPS
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# A Cloudflare Worker reverses-proxies hinaria.com.br → hinaria-production.up.railway.app
+# (Railway didn't issue a cert for the custom domain in time). The Worker rewrites the
+# Host header to the railway URL so Railway's edge routes correctly, then forwards the
+# original visitor host in X-Forwarded-Host. This setting makes Django honour that header
+# when building absolute URLs and checking ALLOWED_HOSTS.
+USE_X_FORWARDED_HOST = True
 
 # Security
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
