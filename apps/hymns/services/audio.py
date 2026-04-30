@@ -124,7 +124,13 @@ def populate_waveform_for_audio(audio_pk) -> None:
     """
     Worker que recarrega o HymnAudio, gera peaks e duration, e salva.
     Idempotente: se peaks já existem, não faz nada.
+
+    Funciona tanto com FileSystemStorage (`.path`) quanto com S3/R2
+    (django-storages.S3Boto3Storage), copiando para um arquivo temporário
+    quando o backend não expõe um path local.
     """
+    import tempfile
+
     from apps.hymns.models import HymnAudio
 
     try:
@@ -136,9 +142,25 @@ def populate_waveform_for_audio(audio_pk) -> None:
     if not audio.audio_file:
         return
 
-    path = audio.audio_file.path
-    peaks = compute_waveform_peaks(path)
-    duration = extract_duration_seconds(path) if not audio.duration else audio.duration
+    try:
+        path = audio.audio_file.path
+        local_temp: tempfile._TemporaryFileWrapper | None = None
+    except NotImplementedError:
+        # Cloud storage — download to a temp file so ffmpeg can read it.
+        suffix = Path(audio.audio_file.name).suffix or ".mp3"
+        local_temp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+        with audio.audio_file.open("rb") as src:
+            for chunk in src.chunks():
+                local_temp.write(chunk)
+        local_temp.close()
+        path = local_temp.name
+
+    try:
+        peaks = compute_waveform_peaks(path)
+        duration = extract_duration_seconds(path) if not audio.duration else audio.duration
+    finally:
+        if local_temp is not None:
+            Path(local_temp.name).unlink(missing_ok=True)
 
     HymnAudio.objects.filter(pk=audio.pk).update(
         waveform_peaks=peaks,
