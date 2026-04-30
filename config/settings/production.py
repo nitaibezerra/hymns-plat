@@ -32,8 +32,18 @@ SECURE_HSTS_PRELOAD = True
 # Wagtail admin needs an absolute URL for emails and previews
 WAGTAILADMIN_BASE_URL = env("WAGTAILADMIN_BASE_URL", default="https://hinaria.com.br")
 
-# Static files via WhiteNoise (already in MIDDLEWARE from base.py)
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# Default storage backends — Django 5.x uses the STORAGES dict (legacy
+# STATICFILES_STORAGE / DEFAULT_FILE_STORAGE were removed). Initialise with
+# whitenoise for static + filesystem fallback for media; the R2 block below
+# overrides the "default" backend when AWS_ACCESS_KEY_ID is set.
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Email — Resend by default; falls back to console when no password set
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
@@ -62,7 +72,7 @@ if AWS_ACCESS_KEY_ID:
     AWS_QUERYSTRING_AUTH = False
     AWS_S3_FILE_OVERWRITE = False
 
-    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    STORAGES["default"] = {"BACKEND": "storages.backends.s3boto3.S3Boto3Storage"}
     if AWS_S3_CUSTOM_DOMAIN:
         MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
 
