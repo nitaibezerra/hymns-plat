@@ -43,15 +43,19 @@
       {% endfor %}
     </div>
 
-    {% if hymn.ocr_avg_confidence %}
+    {% if ocr_line_confidences %}
       <div>
-        <div class="flex justify-between label-mono mb-2"><span>Confiança OCR</span><span>{{ hymn.ocr_avg_confidence|floatformat:0 }}% médio</span></div>
-        <div class="ocr-confidence-bar">
-          {% with c=hymn.ocr_avg_confidence|floatformat:0|add:0 %}
-            {% for i in '12345678' %}
-              <span class="seg {% if c >= 90 %}high{% elif c >= 70 %}mid{% else %}low{% endif %}"></span>
-            {% endfor %}
-          {% endwith %}
+        <div class="flex justify-between label-mono mb-2">
+          <span>Confiança OCR · por linha</span>
+          {% if hymn.ocr_avg_confidence %}<span>{{ hymn.ocr_avg_confidence|floatformat:0 }}% médio</span>{% endif %}
+        </div>
+        <div class="ocr-confidence-sparkline" aria-hidden="true">
+          {% for c in ocr_line_confidences %}
+            <span class="bar {% if c >= 85 %}high{% elif c >= 70 %}mid{% else %}low{% endif %}"
+                  data-confidence="{{ c }}"
+                  style="height: {{ c }}%"
+                  title="Linha {{ forloop.counter }} · {{ c }}%"></span>
+          {% endfor %}
         </div>
       </div>
     {% endif %}
@@ -152,11 +156,45 @@
     }, 1500);
   });
 
-  // Atalhos: Enter (em qualquer campo, com modificador)? — para evitar conflito,
-  // usamos Esc para "Pular".
+  // Atalhos globais (gap 4 do design):
+  //  · Esc       → pular sem salvar (próximo hino)
+  //  · ⌘S/Ctrl+S → submeter como rascunho (next_action=back)
+  //  · ⏎         → submeter como revisado (next_action=next), exceto dentro
+  //                de TEXTAREA/INPUT (Enter mantém comportamento nativo lá)
+  //  · ⌘⏎/Ctrl+⏎ → submeter como revisado de qualquer lugar
+  function submitWithAction(action) {
+    if (!form) return;
+    var input = form.querySelector('input[name="next_action"][type="hidden"]');
+    if (!input) {
+      input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'next_action';
+      form.appendChild(input);
+    }
+    input.value = action;
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    } else {
+      form.submit();
+    }
+  }
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
       window.location.href = "{% url 'hymns:editor_next_hymn' hymnbook.slug %}";
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      submitWithAction('back');
+      return;
+    }
+    if (e.key === 'Enter') {
+      var t = e.target;
+      var inField = t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.isContentEditable);
+      if (e.metaKey || e.ctrlKey || !inField) {
+        e.preventDefault();
+        submitWithAction('next');
+      }
     }
   });
 })();

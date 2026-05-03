@@ -243,6 +243,7 @@ def editor_revise_hymn(request, pk):
             "total": total,
             "remaining": remaining,
             "diff_lines": _compute_diff_lines(hymn.ocr_text, hymn.text),
+            "ocr_line_confidences": _compute_ocr_line_confidences(hymn.ocr_text, hymn.text),
         },
     )
 
@@ -263,3 +264,29 @@ def _compute_diff_lines(ocr: str, current: str) -> list[dict]:
         )
         if line and line[0] in {"+", "-", " "} and not line.startswith("+++") and not line.startswith("---")
     ]
+
+
+def _compute_ocr_line_confidences(ocr: str, current: str) -> list[int]:
+    """Sinal posterior de fidelidade do OCR por linha.
+
+    Não armazenamos confiança por-linha do Tesseract; ao invés disso, calculamos
+    a similaridade entre cada linha do OCR e a linha mais próxima do texto
+    revisado. Lines que o editor reescreveu pesado caem para perto de 0; lines
+    intactas ficam em 100. É o melhor sinal disponível com o esquema atual e
+    é editorialmente útil — destaca exatamente onde o OCR errou.
+    """
+    import difflib
+
+    if not ocr:
+        return []
+    current_lines = [ln for ln in current.splitlines() if ln.strip()]
+    out: list[int] = []
+    for ocr_line in ocr.splitlines():
+        if not ocr_line.strip():
+            continue
+        if not current_lines:
+            out.append(0)
+            continue
+        best = max(difflib.SequenceMatcher(None, ocr_line, candidate).ratio() for candidate in current_lines)
+        out.append(round(best * 100))
+    return out

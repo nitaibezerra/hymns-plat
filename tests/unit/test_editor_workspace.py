@@ -203,3 +203,104 @@ class TestEditorReviseHymnView:
         resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
         # diff_lines deve ter pelo menos 1 entrada (linhas diferentes)
         assert resp.context["diff_lines"]
+
+
+@pytest.mark.django_db
+class TestRevisePerLineConfidenceSparkline:
+    """Gap 3 — design `_design/.../revise-hymn.jsx` 82-97 mostra um sparkline com
+    uma barra por linha do OCR. Como não armazenamos confiança por linha do
+    Tesseract, derivamos um sinal posterior: similaridade entre cada linha do
+    OCR e a linha mais próxima do texto revisado (`SequenceMatcher.ratio()`).
+    Isso destaca exatamente as linhas que o editor reescreveu — sinal útil."""
+
+    def test_context_exposes_ocr_line_confidences_when_ocr_present(
+        self, authenticated_client, hymn_book_factory, hymn_factory
+    ):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(
+            hymn_book=hb,
+            number=1,
+            text="Sol da manhã\nQue ilumina\nO meu coração",
+            ocr_text="Sol da manhã\nQue iluminna\nO meu coraçao",
+        )
+        resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
+        confidences = resp.context["ocr_line_confidences"]
+        assert isinstance(confidences, list)
+        assert len(confidences) == 3
+        # Linha 1 idêntica → 100; linhas 2 e 3 com typos → < 100
+        assert confidences[0] == 100
+        assert confidences[1] < 100
+        assert confidences[2] < 100
+        # Cada valor entre 0 e 100
+        for c in confidences:
+            assert 0 <= c <= 100
+
+    def test_context_empty_when_no_ocr_text(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, text="texto", ocr_text="")
+        resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
+        assert resp.context["ocr_line_confidences"] == []
+
+    def test_template_renders_sparkline_bar_per_line(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(
+            hymn_book=hb,
+            number=1,
+            text="a\nb\nc\nd",
+            ocr_text="a\nb\nc\nd",
+            ocr_avg_confidence=87,
+        )
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        assert "ocr-confidence-sparkline" in body
+        # Uma barra por linha do OCR (4)
+        assert body.count("data-confidence=") == 4
+
+    def test_template_skips_sparkline_section_when_no_ocr(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, ocr_text="", ocr_avg_confidence=None)
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        assert "ocr-confidence-sparkline" not in body
+
+
+class TestReviseKeyboardShortcuts:
+    """Gap 4 — `⌘S` (Salvar rascunho) e `⏎` (Marcar revisado e avançar) já
+    aparecem nos labels dos botões; aqui pinamos os handlers globais no JS
+    inline do template para que o contrato dos labels seja respeitado.
+
+    `Enter` é interceptado apenas fora de `textarea`/`input` (e via `⌘+Enter`
+    de qualquer lugar) para não atrapalhar a edição multi-linha do corpo.
+    """
+
+    def _template(self) -> str:
+        from pathlib import Path
+
+        return (Path(__file__).resolve().parents[2] / "templates/hymns/editor/revise_hymn.html").read_text(
+            encoding="utf-8"
+        )
+
+    def test_template_handles_meta_or_ctrl_s(self):
+        tpl = self._template()
+        # Detecção de ⌘S / Ctrl+S no listener.
+        assert "metaKey" in tpl and "ctrlKey" in tpl
+        assert "'s'" in tpl or '"s"' in tpl
+
+    def test_template_handles_enter_to_mark_reviewed(self):
+        tpl = self._template()
+        # Enter precisa virar submit com next_action=next.
+        assert "Enter" in tpl
+        assert "next_action" in tpl
+        assert "'next'" in tpl or '"next"' in tpl
+
+    def test_template_avoids_hijacking_enter_in_textarea(self):
+        tpl = self._template()
+        # O handler precisa ignorar Enter quando o foco está em TEXTAREA.
+        assert "TEXTAREA" in tpl
+
+    def test_template_meta_s_submits_with_back(self):
+        tpl = self._template()
+        # ⌘S deve submeter com next_action=back (rascunho).
+        assert "'back'" in tpl or '"back"' in tpl
