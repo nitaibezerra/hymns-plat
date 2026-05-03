@@ -1,0 +1,301 @@
+/* Audio player Spotify-style. Chrome SEMPRE escuro independente do tema do
+   app — ver _design/PLAYER_DESIGN.md §6. Texto warm-paper, accents gold-soft.
+   Bar 76px no rodapé; expanded full-screen overlay; layout grid 3-col em
+   desktop, simplificado no mobile. */
+
+.player-root.hidden { display: none; }
+
+#player-bar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  height: 76px;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr) minmax(0, 320px);
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  background: rgba(20, 18, 26, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(246, 239, 226, 0.08);
+  color: #f6efe2;
+  font-family: var(--font-sans);
+}
+
+@media (max-width: 768px) {
+  #player-bar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    padding: 0 12px;
+    gap: 8px;
+  }
+  #player-bar .player-progress { display: none; }
+  #player-bar .player-actions { gap: 4px; }
+}
+
+/* Now playing — left column */
+.player-now {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  cursor: pointer;
+}
+.player-cover {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: linear-gradient(135deg, var(--color-firmament), var(--color-gold));
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 500;
+  color: #f6efe2;
+  letter-spacing: 0.02em;
+}
+.player-now-meta { min-width: 0; }
+.player-title {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(246, 239, 226, 0.6);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Controls — center column */
+.player-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  max-width: 520px;
+  width: 100%;
+  justify-self: center;
+}
+.player-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.player-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: rgba(246, 239, 226, 0.7);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.player-btn:hover {
+  background: rgba(246, 239, 226, 0.12);
+  color: var(--color-gold-soft, #d9b06a);
+}
+.player-btn-sm { width: 28px; height: 28px; }
+.player-play {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 0;
+  background: #f6efe2;
+  color: #14121a;
+  cursor: pointer;
+  transition: transform 120ms;
+}
+.player-play:hover { transform: scale(1.05); }
+.player-play-big {
+  width: 60px;
+  height: 60px;
+}
+
+/* Progress bar */
+.player-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.player-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(246, 239, 226, 0.55);
+  min-width: 36px;
+  text-align: center;
+}
+.player-progress input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  background: rgba(246, 239, 226, 0.15);
+  border-radius: 999px;
+  cursor: pointer;
+  outline: none;
+  background-image: linear-gradient(var(--color-gold-soft, #d9b06a), var(--color-gold-soft, #d9b06a));
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+}
+.player-progress input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f6efe2;
+  cursor: pointer;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+.player-progress input[type="range"]::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f6efe2;
+  cursor: pointer;
+  border: 0;
+}
+.player-progress-big input[type="range"] { height: 4px; }
+
+/* Actions — right column */
+.player-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: end;
+}
+
+/* Expanded overlay */
+.player-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: linear-gradient(180deg, #1a1620 0%, #14121a 60%);
+  color: #f6efe2;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  font-family: var(--font-sans);
+}
+.player-expanded.hidden { display: none; }
+.player-expanded-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 28px;
+  border-bottom: 1px solid rgba(246, 239, 226, 0.06);
+}
+.player-position {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(246, 239, 226, 0.5);
+}
+.player-btn-text {
+  background: transparent;
+  border: 0;
+  color: rgba(246, 239, 226, 0.75);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+.player-btn-text:hover {
+  background: rgba(246, 239, 226, 0.08);
+  color: #f6efe2;
+}
+
+.player-expanded-body {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: 56px;
+  padding: 32px 64px;
+  align-items: start;
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
+@media (max-width: 768px) {
+  .player-expanded-body {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 20px 24px;
+  }
+}
+.player-expanded-cover {
+  aspect-ratio: 1 / 1;
+  border-radius: 4px;
+  background: linear-gradient(135deg, var(--color-firmament), var(--color-gold));
+  display: grid;
+  place-items: center;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+.player-expanded-cover-num {
+  font-family: var(--font-display);
+  font-size: 96px;
+  font-weight: 500;
+  color: #f6efe2;
+  letter-spacing: 0.005em;
+}
+.player-expanded-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(246, 239, 226, 0.5);
+  margin-bottom: 8px;
+}
+.player-expanded-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 500;
+  color: #f6efe2;
+  margin-bottom: 24px;
+  line-height: 1.15;
+}
+.player-expanded-lyrics {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  line-height: 1.6;
+  color: rgba(246, 239, 226, 0.85);
+  white-space: pre-wrap;
+  max-height: 460px;
+  overflow-y: auto;
+  margin: 0;
+  padding-right: 12px;
+}
+
+.player-expanded-controls {
+  padding: 24px 64px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+.player-expanded-controls .player-progress { max-width: 720px; }
+
+/* Empuxa o footer/conteúdo do app pra cima do bar quando ele está visível,
+   pra última linha não ficar coberta. JS adiciona/remove .player-active no
+   <body> em sync com state.visible. */
+body.player-active { padding-bottom: 76px; }
+@media (prefers-reduced-motion: reduce) {
+  .player-play, .player-progress input[type="range"] { transition: none; }
+}

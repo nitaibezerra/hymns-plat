@@ -29,11 +29,20 @@
 
       <div class="mt-6 flex flex-wrap gap-x-6 gap-y-2 items-center">
         <span class="label-mono text-cream/80">{{ hymns|length }} hinos</span>
+        {% if audios_count %}<span class="label-mono text-cream/80">{{ audios_count }} áudio{{ audios_count|pluralize:"s" }}</span>{% endif %}
         {% if hymnbook.is_published %}
           <span class="inline-flex items-center gap-1.5 text-xs uppercase tracking-widest border border-firmament/50 text-firmament bg-firmament/10 rounded-full px-3 py-1">● Publicado</span>
         {% else %}
           <span class="inline-flex items-center gap-1.5 text-xs uppercase tracking-widest border border-ink/20 text-ink-mute bg-ink/5 rounded-full px-3 py-1">● Rascunho</span>
         {% endif %}
+        <button type="button"
+                data-player-start="{{ hymnbook.slug }}"
+                {% if not audios_count %}disabled aria-disabled="true"{% endif %}
+                class="inline-flex items-center gap-2 rounded-full bg-gold-soft text-night px-4 py-1.5 text-sm font-medium hover:bg-gold disabled:opacity-40 disabled:cursor-not-allowed transition"
+                title="{% if audios_count %}Tocar hinário do início{% else %}Sem gravações ainda{% endif %}">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1 L12 7 L3 13 Z"/></svg>
+          Tocar hinário
+        </button>
         {% if can_edit %}
           <div class="ml-auto flex gap-2">
             <a href="{% url 'hymns:hymn_create' hymnbook.slug %}" class="text-xs uppercase tracking-widest border border-cream/30 hover:bg-cream/10 rounded-full px-3 py-1.5">+ Hino</a>
@@ -59,13 +68,24 @@
 <section class="max-w-6xl mx-auto px-6 py-10{% if mode != 'indice' %} hidden{% endif %}" data-mode-pane="indice">
   <ol class="grid sm:grid-cols-2 gap-x-12 gap-y-2 font-serif max-w-4xl mx-auto">
     {% for h in hymns %}
-      <li>
-        <a href="{% url 'hymns:hymn_detail' h.pk %}" class="dot-leader py-2 hover:text-gold">
+      <li class="flex items-center gap-2">
+        {% if h.number in hymns_with_audio %}
+          <button type="button"
+                  data-player-play-hymn
+                  data-slug="{{ hymnbook.slug }}"
+                  data-n="{{ h.number }}"
+                  class="shrink-0 w-7 h-7 grid place-items-center rounded-full border border-firmament/30 text-firmament hover:bg-firmament hover:text-cream transition"
+                  aria-label="Tocar hino {{ h.number }}">
+            <svg width="9" height="9" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1 L12 7 L3 13 Z"/></svg>
+          </button>
+        {% else %}
+          <span class="shrink-0 w-7 h-7 grid place-items-center text-ink-mute opacity-40" aria-label="Sem gravação" title="Sem gravação ainda">⊘</span>
+        {% endif %}
+        <a href="{% url 'hymns:hymn_detail' h.pk %}" class="dot-leader py-2 hover:text-gold flex-1 min-w-0">
           <span class="font-mono text-xs text-ink-soft pr-2">{{ h.number|stringformat:"02d" }}</span>
           <span class="text-lg">{{ h.title }}</span>
           <span class="leader-fill"></span>
           {% if h.style %}<span class="label-mono">{{ h.style }}</span>{% endif %}
-          {% if h.audios.first %}<span class="text-gold" title="Tem áudio">♫</span>{% endif %}
         </a>
       </li>
     {% empty %}

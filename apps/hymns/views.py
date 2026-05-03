@@ -41,7 +41,13 @@ class HymnBookDetailView(DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["hymns"] = self.object.hymns.all().order_by("number")
+        hymns = list(self.object.hymns.all().prefetch_related("audios").order_by("number"))
+        # Set de números com áudio aprovado — usado pelo template pra ícone ▶/⊘
+        # por linha e pra desabilitar o botão "Tocar hinário" quando 0 áudios.
+        hymns_with_audio = {h.number for h in hymns if any(a.is_approved for a in h.audios.all())}
+        context["hymns"] = hymns
+        context["hymns_with_audio"] = hymns_with_audio
+        context["audios_count"] = len(hymns_with_audio)
         context["can_edit"] = can_edit_hymnbook(self.request.user, self.object)
         mode = self.request.GET.get("mode", "indice")
         if mode not in {"indice", "corrido", "carrossel"}:

@@ -118,3 +118,41 @@ def api_hymn_diff(request, pk):
             "source": hymn.source,
         }
     )
+
+
+def api_hymnbook_queue(request, slug):
+    """Fila do player Spotify-style. Retorna TODOS os hinos do livro com flag
+    `hasAudio` (JS filtra para construir queue de reprodução; UI do índice
+    usa a lista completa para renderizar ▶/⊘ por linha).
+
+    Sem `HymnAudio.is_primary`: a primeira gravação aprovada por `created_at`
+    ASC é a que toca."""
+    hb = get_object_or_404(HymnBook.objects.visible_to(request.user), slug=slug)
+    hymns_qs = hb.hymns.prefetch_related("audios").order_by("number")
+    hymns_payload = []
+    for h in hymns_qs:
+        approved = sorted(
+            (a for a in h.audios.all() if a.is_approved),
+            key=lambda a: a.created_at,
+        )
+        first = approved[0] if approved else None
+        hymns_payload.append(
+            {
+                "n": h.number,
+                "title": h.title,
+                "style": h.style or "",
+                "hasAudio": bool(first),
+                "audioUrl": first.audio_file.url if first else None,
+                "duration": first.duration if first else None,
+            }
+        )
+    return JsonResponse(
+        {
+            "book": {
+                "slug": hb.slug,
+                "name": hb.name,
+                "owner": hb.owner_name,
+            },
+            "hymns": hymns_payload,
+        }
+    )
