@@ -78,13 +78,13 @@
   <div class="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-8">
     {% for h in hymns %}
       <article class="hymn-page hymn-card px-6 sm:px-12 md:px-14 py-8 sm:py-10" id="hymn-{{ h.number }}">
-        <p class="label-mono text-center">HINO {{ h.number|stringformat:"02d" }} · {{ hymnbook.name|upper }}</p>
-        <h2 class="font-display text-3xl text-center mt-3">{{ h.title }}</h2>
-        <hr class="w-24 mx-auto border-rule mt-2 mb-6">
+        <div class="hymn-num">HINO {{ h.number|stringformat:"02d" }} · {{ hymnbook.name|upper }}</div>
+        <h2 class="hymn-title">{{ h.title }}</h2>
+        <div class="title-rule"></div>
         <div class="font-serif text-xl leading-[1.7] max-w-prose mx-auto hymn-body-centered">
           {% render_hymn_body h %}
         </div>
-        <div class="mt-8 text-center text-gold text-2xl" aria-hidden="true">{% if forloop.counter|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
+        <div class="hymn-end" aria-hidden="true">{% if forloop.counter|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
       </article>
     {% endfor %}
   </div>
@@ -108,11 +108,11 @@
       <article class="hymn-card snap-start shrink-0 w-screen h-full overflow-y-auto bg-cream-deep dark:bg-night-deep" id="hymn-slide-{{ h.number }}">
         <div class="min-h-full flex items-center justify-center px-4 sm:px-6 pt-24 pb-24">
           <div class="hymn-page hymn-page-deep w-full max-w-2xl px-6 sm:px-12 md:px-16 py-10 sm:py-14 text-center">
-            <p class="label-mono">HINO {{ h.number|stringformat:"02d" }} · {{ hymnbook.name|upper }}</p>
-            <h2 class="font-display text-3xl sm:text-4xl mt-3 leading-tight text-balance">{{ h.title }}</h2>
-            <hr class="w-24 mx-auto border-rule mt-4 mb-8">
+            <div class="hymn-num">HINO {{ h.number|stringformat:"02d" }} · {{ hymnbook.name|upper }}</div>
+            <h2 class="hymn-title">{{ h.title }}</h2>
+            <div class="title-rule"></div>
             <div class="font-serif text-xl leading-[1.7] mx-auto carousel-body">{% render_hymn_body h %}</div>
-            <div class="mt-10 text-gold text-2xl" aria-hidden="true">{% if forloop.counter|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
+            <div class="hymn-end" aria-hidden="true">{% if forloop.counter|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
           </div>
         </div>
       </article>

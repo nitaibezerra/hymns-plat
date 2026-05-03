@@ -23,22 +23,24 @@
 </section>
 
 <section class="max-w-6xl mx-auto px-6 pb-16 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-8">
-  <article class="card-soft p-5 sm:p-8 md:p-14 hymn-card min-w-0 overflow-hidden">
-    <p class="label-mono text-center">HINO {{ hymn.number|stringformat:"02d" }} · {{ hymn.hymn_book.name|upper }}</p>
-    <h1 class="font-display text-3xl sm:text-4xl md:text-5xl text-center mt-4 leading-tight break-words text-balance">{{ hymn.title }}</h1>
-    <hr class="w-32 mx-auto border-ink/30 mt-3 mb-8">
+  <article class="hymn-page hymn-card p-6 sm:p-12 md:p-14 min-w-0 overflow-hidden">
+    <div class="hymn-num">HINO {{ hymn.number|stringformat:"02d" }} · {{ hymn.hymn_book.name|upper }}</div>
+    <h1 class="hymn-title">{{ hymn.title }}</h1>
+    <div class="title-rule"></div>
 
     <div class="font-serif text-xl md:text-2xl leading-[1.7] max-w-prose mx-auto hymn-body-centered">
       {% render_hymn_body hymn %}
     </div>
 
-    <div class="mt-10 text-center text-gold text-3xl" aria-hidden="true">{% if hymn.number|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
+    <div class="hymn-end" aria-hidden="true">{% if hymn.number|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
 
-    <footer class="mt-10 pt-6 border-t border-ink/10 dark:border-cream/10 flex flex-wrap gap-x-8 gap-y-2 text-xs font-mono uppercase tracking-widest text-ink-soft">
-      {% if hymn.received_at %}<span>Recebido · {{ hymn.received_at|date:"d M Y" }}</span>{% endif %}
-      {% if hymn.style %}<span>{{ hymn.style }}</span>{% endif %}
-      {% if hymn.offered_to %}<span>Oferecido · {{ hymn.offered_to }}</span>{% endif %}
-    </footer>
+    {% if hymn.received_at or hymn.style or hymn.offered_to %}
+      <div class="hymn-meta-row">
+        {% if hymn.received_at %}<span>Recebido · {{ hymn.received_at|date:"d M Y" }}</span>{% endif %}
+        {% if hymn.style %}<span>{{ hymn.style }}</span>{% endif %}
+        {% if hymn.offered_to %}<span>Oferecido · {{ hymn.offered_to }}</span>{% endif %}
+      </div>
+    {% endif %}
 
     {% if hymn.extra_instructions %}
       <p class="mt-6 text-sm italic text-ink-soft text-center max-w-prose mx-auto whitespace-pre-line">{{ hymn.extra_instructions }}</p>
