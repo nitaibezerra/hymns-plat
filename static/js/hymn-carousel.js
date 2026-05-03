@@ -9,13 +9,18 @@
   var total = slides.length;
   if (total === 0) return;
 
-  var counter = document.querySelector('[data-carousel-counter]');
-  var progress = document.querySelector('[data-carousel-progress]');
   var dots = document.querySelectorAll('[data-carousel-dot]');
   var prevBtn = document.querySelector('[data-carousel-prev]');
   var nextBtn = document.querySelector('[data-carousel-next]');
-  var hymnbookName = (document.querySelector('h1') || {}).textContent || '';
-  hymnbookName = hymnbookName.trim().toUpperCase();
+
+  // Janela proporcional: máximo 11 dots; se hinário tem <11, oculta excedentes
+  // (1:1 mapping). Caso contrário, cada dot representa um "bucket" da régua
+  // total para indicar posição relativa (início/meio/fim).
+  var MAX_DOTS = 11;
+  var dotsCount = Math.min(MAX_DOTS, total);
+  dots.forEach(function (d, idx) {
+    d.style.display = idx < dotsCount ? '' : 'none';
+  });
 
   function currentIndex() {
     var w = carousel.clientWidth;
@@ -23,25 +28,64 @@
     return Math.round(carousel.scrollLeft / w);
   }
 
+  // Mapeia índice do hino [0..total-1] → posição do dot [0..dotsCount-1].
+  // Para hinários grandes (>11), usa floor(idx * dotsCount / total). Para
+  // hinários pequenos (≤11), é 1:1 (idx === pos).
+  function dotPositionForIndex(i) {
+    if (total <= dotsCount) return i;
+    return Math.min(dotsCount - 1, Math.floor((i * dotsCount) / total));
+  }
+
+  // Inverso: dado um dot ativo, retorna o índice do hino representado por ele
+  // (centro do bucket). Usado no click handler.
+  function indexForDotPosition(pos) {
+    if (total <= dotsCount) return pos;
+    return Math.min(total - 1, Math.floor(((pos + 0.5) * total) / dotsCount));
+  }
+
+  // Em hinários grandes (total > dotsCount), o dot ativo cresce proporcional-
+  // mente ao progresso DENTRO do bucket — fornece feedback visual a cada hino
+  // mesmo quando 1 dot representa ~11 hinos. Width vai de 8px (início do
+  // bucket) até 32px (fim).
+  function activeDotWidth(i, dotPos) {
+    if (total <= dotsCount) return null; // sem ajuste; CSS controla
+    var bucketStart = Math.floor((dotPos * total) / dotsCount);
+    var bucketEnd = Math.floor(((dotPos + 1) * total) / dotsCount);
+    var bucketSize = Math.max(1, bucketEnd - bucketStart);
+    var fraction = (i - bucketStart) / bucketSize;
+    if (fraction < 0) fraction = 0;
+    if (fraction > 1) fraction = 1;
+    return Math.round(8 + fraction * 24);
+  }
+
+  function slideContentHeight(slide) {
+    if (!slide) return 0;
+    // Altura natural do conteúdo do slide (inner div com pílula + card +
+    // paddings). offsetHeight do article não basta porque o flex container
+    // pode estar ditando altura via height.
+    var inner = slide.firstElementChild;
+    return inner ? inner.offsetHeight : slide.offsetHeight;
+  }
+
+  function syncContainerHeight(i) {
+    if (!carousel) return;
+    var h = slideContentHeight(slides[i]);
+    if (h > 0) carousel.style.height = h + 'px';
+  }
+
   function update() {
     var i = currentIndex();
-    var slide = slides[i];
-    var hymnNumber = slide ? (slide.id || '').replace('hymn-slide-', '') : String(i + 1);
-    var label = 'HINO ' + String(hymnNumber).padStart(2, '0') + ' · DE ' + total;
-    if (counter) counter.textContent = label;
-    if (progress) progress.style.width = (((i + 1) / total) * 100).toFixed(2) + '%';
+    var activeDotPos = dotPositionForIndex(i);
+    var activeWidth = activeDotWidth(i, activeDotPos);
     dots.forEach(function (d, idx) {
-      var active = idx === i;
-      d.dataset.active = String(active);
-      d.classList.toggle('bg-gold', active);
-      d.classList.toggle('bg-ink/20', !active);
-      d.classList.toggle('w-3', active);
-      d.classList.toggle('h-3', active);
-      d.classList.toggle('w-2', !active);
-      d.classList.toggle('h-2', !active);
+      var isActive = idx === activeDotPos;
+      d.dataset.active = String(isActive);
+      // Width custom só pro ativo em hinários grandes; resto fica com CSS.
+      d.style.width = isActive && activeWidth !== null ? activeWidth + 'px' : '';
     });
     if (prevBtn) prevBtn.disabled = i === 0;
     if (nextBtn) nextBtn.disabled = i === total - 1;
+    syncContainerHeight(i);
   }
 
   function goTo(i) {
@@ -63,7 +107,10 @@
   });
 
   dots.forEach(function (d) {
-    d.addEventListener('click', function () { goTo(parseInt(d.dataset.index, 10)); });
+    d.addEventListener('click', function () {
+      var pos = parseInt(d.dataset.dotPosition, 10);
+      goTo(indexForDotPosition(pos));
+    });
   });
 
   if (prevBtn) prevBtn.addEventListener('click', function () { goTo(currentIndex() - 1); });
@@ -96,4 +143,10 @@
   });
 
   update();
+
+  // Re-sincronizar altura do container quando fonts carregarem (font-display
+  // swap muda métricas tipográficas → altura do card cresce/encolhe).
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { update(); });
+  }
 })();

@@ -38,30 +38,29 @@ class TestHymnbookModeViaURL:
         resp = client.get(reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug}) + "?mode=evil")
         assert resp.context["mode"] == "indice"
 
-    def test_carrossel_slides_are_full_width(self, client, hymn_book_factory, hymn_factory):
-        """Each carousel slide must be w-screen (no max-w cap) so neighbors don't peek."""
+    def test_carrossel_slides_use_full_container_width(self, client, hymn_book_factory, hymn_factory):
+        """Cada slide ocupa a largura do container in-page do carousel.
+        Layout in-page: container max-w-6xl com slides w-full + snap-x. Sem
+        peek do vizinho graças ao overflow-hidden no wrapper externo."""
         hb = hymn_book_factory(name="X")
         hymn_factory(hymn_book=hb, number=1)
         resp = client.get(reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug}) + "?mode=carrossel")
         body = resp.content.decode()
-        # The slide article must use w-screen and NOT max-w-screen-md (the old buggy cap).
         carousel_idx = body.find('data-mode-pane="carrossel"')
         assert carousel_idx >= 0
-        # Search the carousel section onwards for the article
-        carousel_section = body[carousel_idx : carousel_idx + 5000]
+        carousel_section = body[carousel_idx : carousel_idx + 8000]
         assert "max-w-screen-md" not in carousel_section, "carousel slides should not be capped"
-        assert "w-screen" in carousel_section
+        assert "snap-x" in carousel_section
         assert "carousel-body" in carousel_section, "body wrapper class must exist for centered text"
 
     def test_carrossel_chrome_is_present(self, client, hymn_book_factory, hymn_factory):
-        """Chrome elements (counter, progress, dots, prev/next) must render inside the carousel pane."""
+        """Chrome elements (pill, dots, prev/next) must render in the carousel pane."""
         hb = hymn_book_factory(name="X")
         hymn_factory(hymn_book=hb, number=1)
         resp = client.get(reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug}) + "?mode=carrossel")
         body = resp.content.decode()
         for marker in (
-            "data-carousel-counter",
-            "data-carousel-progress",
+            "carousel-counter-pill",  # pílula in-slide (substitui data-carousel-counter)
             "data-carousel-dots",
             "data-carousel-prev",
             "data-carousel-next",
