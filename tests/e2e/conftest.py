@@ -5,8 +5,14 @@ NOTE: E2E tests run against a live server, NOT test database.
 The server should be running on localhost:9000 before running tests.
 """
 
+import os
+import subprocess
+from pathlib import Path
+
 import pytest
 from playwright.sync_api import Browser, Page, sync_playwright
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(scope="session")
@@ -34,19 +40,53 @@ def base_url():
     return "http://localhost:9000"
 
 
+def _create_session_for(email: str) -> str:
+    """Cria uma sessão Django no DB do servidor live e retorna o sessionid.
+
+    Usado pela fixture `authenticated_page` — o site público é Google-only,
+    então não dá pra entrar via form. Esse helper conversa direto com o ORM
+    via management shell (mesma DB do `runserver` na :9000).
+    """
+    code = (
+        "from django.contrib.auth import BACKEND_SESSION_KEY, HASH_SESSION_KEY, SESSION_KEY;"
+        "from django.contrib.sessions.backends.db import SessionStore;"
+        "from apps.users.models import User;"
+        f"u = User.objects.get(email={email!r});"
+        "s = SessionStore();"
+        "s[SESSION_KEY] = str(u.pk);"
+        "s[BACKEND_SESSION_KEY] = 'django.contrib.auth.backends.ModelBackend';"
+        "s[HASH_SESSION_KEY] = u.get_session_auth_hash();"
+        "s.save();"
+        "print(s.session_key)"
+    )
+    result = subprocess.run(
+        ["poetry", "run", "python", "manage.py", "shell", "-c", code],
+        env={**os.environ, "DJANGO_SETTINGS_MODULE": "config.settings.local"},
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip().splitlines()[-1]
+
+
 @pytest.fixture
 def authenticated_page(page: Page, base_url: str):
+    """Page com sessão autenticada injetada via cookie.
+
+    Pré-requisito: usuário `teste2e@example.com` existe no DB do servidor
+    live (criado pelo step "Create test user" do CI ou manualmente em dev).
     """
-    Page with authenticated user.
-    Uses test credentials that should exist in the database.
-    Create user with: poetry run python manage.py shell
-    >>> from apps.users.models import User
-    >>> User.objects.create_user('teste2e', 'teste2e@example.com', 'testpass123')
-    """
-    page.goto(f"{base_url}/accounts/login/")
-    # Uses test user credentials - must exist in running server's database
-    page.fill('input[name="login"]', "teste2e@example.com")
-    page.fill('input[name="password"]', "testpass123")
-    page.click('button[type="submit"]')
-    page.wait_for_load_state("networkidle")
+    sessionid = _create_session_for("teste2e@example.com")
+    page.goto(base_url)  # estabelece origem antes do set_cookie
+    page.context.add_cookies(
+        [
+            {
+                "name": "sessionid",
+                "value": sessionid,
+                "domain": "localhost",
+                "path": "/",
+            }
+        ]
+    )
     return page
