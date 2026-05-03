@@ -215,6 +215,11 @@ jobs:
       - name: Start Django server
         env:
           DJANGO_SETTINGS_MODULE: config.settings.local
+          # Fake credentials so the Google button renders in E2E. The button
+          # only triggers a redirect to accounts.google.com (which the tests
+          # don't follow) — the values themselves are never validated.
+          GOOGLE_OAUTH_CLIENT_ID: e2e-fake-client-id
+          GOOGLE_OAUTH_CLIENT_SECRET: e2e-fake-secret
         run: |
           poetry run python manage.py runserver 9000 &
           sleep 5
