@@ -5,6 +5,8 @@ NOTE: These tests run against a live server on localhost:9000.
 Start the server before running: poetry run python manage.py runserver 9000
 """
 
+import os
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -26,6 +28,16 @@ class TestAuthentication:
 
         expect(page.locator('input[name="login"]')).to_be_visible()
         expect(page.locator('input[name="password"]')).to_be_visible()
+
+    def test_login_page_shows_google_button_when_provider_active(self, page: Page, base_url: str):
+        """Quando GOOGLE_OAUTH_CLIENT_ID está setado, o botão Google aparece no login."""
+        if not os.environ.get("GOOGLE_OAUTH_CLIENT_ID"):
+            pytest.skip("GOOGLE_OAUTH_CLIENT_ID não setado — provider Google inativo")
+        page.goto(f"{base_url}/accounts/login/")
+
+        google_link = page.locator('a[href="/accounts/google/login/"]')
+        expect(google_link).to_be_visible()
+        expect(google_link).to_contain_text("Continuar com Google")
 
     def test_login_with_invalid_credentials_shows_error(self, page: Page, base_url: str):
         """Login with invalid credentials shows error."""

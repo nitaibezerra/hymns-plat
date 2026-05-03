@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
 ]
 
 MIDDLEWARE = [
@@ -194,6 +195,26 @@ ACCOUNT_EMAIL_VERIFICATION = "optional"
 LOGIN_REDIRECT_URL = "/"
 ACCOUNT_LOGOUT_REDIRECT_URL = "/"
 
+# django-allauth — social account (Google OAuth via env vars, sem SocialApp em DB)
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_LOGIN_ON_GET = True
+
+SOCIALACCOUNT_PROVIDERS = {}
+
+_google_client_id = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+if _google_client_id:
+    SOCIALACCOUNT_PROVIDERS["google"] = {
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online"},
+        "APP": {
+            "client_id": _google_client_id,
+            "secret": env("GOOGLE_OAUTH_CLIENT_SECRET", default=""),
+            "key": "",
+        },
+    }
+
 AUTHENTICATION_BACKENDS = [
     # Needed to login by username in Django admin, regardless of `allauth`
     "django.contrib.auth.backends.ModelBackend",
@@ -201,8 +222,9 @@ AUTHENTICATION_BACKENDS = [
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
-# Email settings (console backend for development)
+# Email settings (console backend for development; SMTP overrides in production)
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Hinaria <noreply@hinaria.com.br>")
 
 # Security settings (will be overridden in production)
 SECURE_SSL_REDIRECT = False

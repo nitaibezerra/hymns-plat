@@ -51,15 +51,15 @@ STORAGES = {
     },
 }
 
-# Email — Resend by default; falls back to console when no password set
+# Email — Resend SMTP (mesmo padrão do copa-dos-reis); falls back to console
+# when EMAIL_HOST_PASSWORD is empty so deploys without a token still boot.
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 if EMAIL_HOST_PASSWORD:
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
     EMAIL_HOST = env("EMAIL_HOST", default="smtp.resend.com")
     EMAIL_PORT = env.int("EMAIL_PORT", default=587)
-    EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
     EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="resend")
-    DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Hinaria <noreply@hinaria.com.br>")
+    EMAIL_USE_TLS = True
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
