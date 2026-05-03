@@ -116,3 +116,55 @@ class TestPlayerStaticAssets:
     def test_player_css_loaded_in_base(self):
         base = _read("templates/base.html")
         assert "css/player.css" in base
+
+
+class TestPlayPauseToggleVisibility:
+    """Bug fix: SVGElement não herda de HTMLElement, então `.hidden = true` é
+    no-op. Trocamos pra controlar visibilidade via [data-state] no botão +
+    CSS — funciona em qualquer Element (HTMLElement OR SVGElement)."""
+
+    def test_pause_icon_has_no_hidden_attr(self):
+        """Inicial: ambos SVGs renderizam; CSS oculta pause via display:none."""
+        partial = _read("templates/hymns/_player_global.html")
+        assert "data-icon-pause hidden" not in partial
+
+    def test_css_hides_pause_by_default(self):
+        css = _read("static/css/player.css")
+        assert "[data-play] [data-icon-pause]" in css and "display: none" in css
+
+    def test_css_swaps_via_data_state(self):
+        css = _read("static/css/player.css")
+        assert '[data-play][data-state="playing"] [data-icon-play]' in css
+
+    def test_js_sets_data_state(self):
+        js = _read("static/js/player.js")
+        assert "btn.dataset.state" in js
+
+    def test_js_handles_spacebar_shortcut(self):
+        js = _read("static/js/player.js")
+        # global toggle play/pause via spacebar
+        assert "Space" in js or "' '" in js
+        assert "togglePlay" in js
+
+
+class TestIndexRowPauseIndicator:
+    """Quando o hino tocando está visível na lista do índice, o ícone do
+    botão `[data-player-play-hymn]` deve virar ⏸ no item atual."""
+
+    def test_index_button_has_both_svgs(self):
+        tpl = _read("templates/hymns/hymnbook_detail.html")
+        idx = tpl.index("data-player-play-hymn")
+        block = tpl[idx : idx + 800]
+        assert "data-icon-play" in block
+        assert "data-icon-pause" in block
+
+    def test_css_handles_index_button_state(self):
+        css = _read("static/css/player.css")
+        assert "[data-player-play-hymn]" in css
+        assert '[data-player-play-hymn][data-state="playing"]' in css
+
+    def test_js_renders_index_button_state(self):
+        js = _read("static/js/player.js")
+        assert "data-player-play-hymn" in js
+        # render() loop sets dataset.state on the index buttons
+        assert "isCurrent" in js

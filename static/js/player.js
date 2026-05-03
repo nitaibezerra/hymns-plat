@@ -78,14 +78,24 @@
     const subEl = $('[data-sub]', root);
     if (subEl && state.book) subEl.textContent = `${state.book.name} · ${state.book.owner || ''}`.replace(/ · $/, '');
 
-    // Play / pause icons (in both bar and expanded)
+    // Play/pause toggle via data-state (CSS swap dos SVGs). Aplica em todos
+    // os data-play (bar, expanded, e workmode quando estiver carregado).
     $$('[data-play]').forEach(btn => {
-      const playIco = $('[data-icon-play]', btn);
-      const pauseIco = $('[data-icon-pause]', btn);
-      if (playIco) playIco.hidden = state.playing;
-      if (pauseIco) pauseIco.hidden = !state.playing;
+      btn.dataset.state = state.playing ? 'playing' : 'paused';
       btn.setAttribute('aria-pressed', String(state.playing));
       btn.setAttribute('aria-label', state.playing ? 'Pausar' : 'Tocar');
+    });
+    // Mesma lógica nos botões ▶ do índice — só o hino ATUAL e tocando vira ⏸.
+    const trackN = t.n;
+    const trackSlug = state.book && state.book.slug;
+    $$('[data-player-play-hymn]').forEach(btn => {
+      const isCurrent = state.visible
+        && trackSlug
+        && btn.dataset.slug === trackSlug
+        && parseInt(btn.dataset.n, 10) === trackN;
+      btn.dataset.state = (isCurrent && state.playing) ? 'playing' : 'paused';
+      btn.setAttribute('aria-label',
+        isCurrent && state.playing ? `Pausar hino ${btn.dataset.n}` : `Tocar hino ${btn.dataset.n}`);
     });
 
     // Time + seek
@@ -267,15 +277,32 @@
         e.preventDefault();
         const slug = playHymnBtn.dataset.slug;
         const n = parseInt(playHymnBtn.dataset.n, 10);
-        startBook(slug, n);
+        const t = currentTrack();
+        const isCurrent = state.visible && t && state.book && state.book.slug === slug && t.n === n;
+        if (isCurrent) togglePlay();
+        else startBook(slug, n);
       }
     });
 
-    // Atalhos: Esc fecha expanded
+    // Atalhos globais.
+    // Esc fecha expanded (cascata maior é tratada em PR #22 com workmode/queue).
+    // Espaço alterna play/pause em qualquer página (ignora se foco em
+    // input/textarea/contenteditable, ou se sem player ativo).
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && state.expanded) {
         e.preventDefault();
         collapse();
+        return;
+      }
+      if (e.code === 'Space' || e.key === ' ') {
+        const tgt = e.target;
+        const isFormField = tgt && (
+          tgt.matches('input, textarea, select, [contenteditable], [contenteditable="true"]')
+        );
+        if (isFormField) return;
+        if (!state.visible) return;
+        e.preventDefault();
+        togglePlay();
       }
     });
   }

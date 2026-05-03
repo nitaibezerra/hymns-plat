@@ -5,6 +5,16 @@
 
 .player-root.hidden { display: none; }
 
+/* Toggle ícones play/pause via [data-state] no botão. SVGElement não herda
+   de HTMLElement, então el.hidden=true é no-op — usamos CSS pra ser robusto.
+   Default: pause oculto. Com data-state="playing": play oculto, pause vis. */
+[data-play] [data-icon-pause],
+[data-player-play-hymn] [data-icon-pause] { display: none; }
+[data-play][data-state="playing"] [data-icon-play],
+[data-player-play-hymn][data-state="playing"] [data-icon-play] { display: none; }
+[data-play][data-state="playing"] [data-icon-pause],
+[data-player-play-hymn][data-state="playing"] [data-icon-pause] { display: block; }
+
 #player-bar {
   position: fixed;
   inset-inline: 0;

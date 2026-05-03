@@ -76,7 +76,8 @@
                   data-n="{{ h.number }}"
                   class="shrink-0 w-7 h-7 grid place-items-center rounded-full border border-firmament/30 text-firmament hover:bg-firmament hover:text-cream transition"
                   aria-label="Tocar hino {{ h.number }}">
-            <svg width="9" height="9" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1 L12 7 L3 13 Z"/></svg>
+            <svg data-icon-play width="9" height="9" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1 L12 7 L3 13 Z"/></svg>
+            <svg data-icon-pause width="9" height="9" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><rect x="2" y="2" width="3" height="10"/><rect x="9" y="2" width="3" height="10"/></svg>
           </button>
         {% else %}
           <span class="shrink-0 w-7 h-7 grid place-items-center text-ink-mute opacity-40" aria-label="Sem gravação" title="Sem gravação ainda">⊘</span>
