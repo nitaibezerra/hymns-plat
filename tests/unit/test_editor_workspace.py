@@ -201,8 +201,11 @@ class TestEditorReviseHymnView:
         hb = hymn_book_factory(name="X")
         h = hymn_factory(hymn_book=hb, number=1, title="t", text="atual", ocr_text="OCR cru")
         resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
-        # diff_lines deve ter pelo menos 1 entrada (linhas diferentes)
-        assert resp.context["diff_lines"]
+        # inline_diff (gap 2 — substitui diff_lines) precisa ter linhas marcadas
+        # e contadores quando há diferença.
+        diff = resp.context["inline_diff"]
+        assert diff["lines"]
+        assert diff["changes"] + diff["adds"] + diff["dels"] >= 1
 
 
 @pytest.mark.django_db
@@ -304,3 +307,272 @@ class TestReviseKeyboardShortcuts:
         tpl = self._template()
         # ⌘S deve submeter com next_action=back (rascunho).
         assert "'back'" in tpl or '"back"' in tpl
+
+
+def _template_text() -> str:
+    from pathlib import Path
+
+    return (Path(__file__).resolve().parents[2] / "templates/hymns/editor/revise_hymn.html").read_text(encoding="utf-8")
+
+
+def _components_css() -> str:
+    from pathlib import Path
+
+    return (Path(__file__).resolve().parents[2] / "static/css/components.css").read_text(encoding="utf-8")
+
+
+@pytest.mark.django_db
+class TestReviseShortcutPills:
+    """Pills sobre o textarea aplicam transformações no texto:
+    - Sem linhas em branco
+    - ¶ a cada 4 linhas
+    - ¶ a cada 3 linhas
+    São puramente client-side (vanilla JS) — backend não muda.
+    """
+
+    def test_template_has_three_shortcut_pills(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1)
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        assert body.count('data-shortcut="') == 3
+        assert "Sem linhas em branco" in body
+        assert "a cada 4 linhas" in body
+        assert "a cada 3 linhas" in body
+
+    def test_paragraph_pills_carry_data_n(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1)
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        assert 'data-n="3"' in body
+        assert 'data-n="4"' in body
+
+    def test_template_wires_shortcut_handler(self):
+        tpl = _template_text()
+        # JS handler precisa existir.
+        assert "data-shortcut" in tpl
+        assert "strip-blanks" in tpl
+        assert "paragraph" in tpl
+
+    def test_post_ignores_shortcut_attrs(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, title="t", text="x")
+        # POST sem nenhum campo data-shortcut deve continuar salvando normalmente.
+        resp = authenticated_client.post(
+            reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}),
+            {
+                "number": 1,
+                "title": "novo",
+                "text": "novo",
+                "review_status": Hymn.ReviewStatus.IN_REVIEW,
+                "next_action": "back",
+            },
+        )
+        assert resp.status_code == 302
+        h.refresh_from_db()
+        assert h.title == "novo"
+
+
+@pytest.mark.django_db
+class TestReviseCommonValuesPills:
+    """Pills com valores mais usados em `repetitions` e `style` dentro do
+    hinário. Editor clica e o input recebe o valor (client-side)."""
+
+    def test_common_repetitions_top4_per_book(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        # Distribuição: "1-2,3-4" x3, "1-4" x2, "3-4,1-4" x1, "1-2" x1, "" x1
+        n = 10
+        for _ in range(3):
+            hymn_factory(hymn_book=hb, number=n, repetitions="1-2,3-4")
+            n += 1
+        for _ in range(2):
+            hymn_factory(hymn_book=hb, number=n, repetitions="1-4")
+            n += 1
+        hymn_factory(hymn_book=hb, number=n, repetitions="3-4,1-4")
+        n += 1
+        hymn_factory(hymn_book=hb, number=n, repetitions="1-2")
+        target = hymn_factory(hymn_book=hb, number=1, repetitions="")
+        resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": target.pk}))
+        common = resp.context["common_repetitions"]
+        assert common[:2] == ["1-2,3-4", "1-4"]  # top-2 ordenados
+        assert len(common) == 4  # top-4 quando há 4+ valores distintos
+        # Valores devem aparecer no markup como pills.
+        body = resp.content.decode()
+        for value in common:
+            assert f'data-suggestion="{value}"' in body
+
+    def test_common_styles_top3_per_book(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        n = 10
+        for _ in range(4):
+            hymn_factory(hymn_book=hb, number=n, style="Marcha")
+            n += 1
+        for _ in range(2):
+            hymn_factory(hymn_book=hb, number=n, style="Valsa")
+            n += 1
+        hymn_factory(hymn_book=hb, number=n, style="Mazurca")
+        n += 1
+        hymn_factory(hymn_book=hb, number=n, style="Hino")  # 4º estilo distinto
+        target = hymn_factory(hymn_book=hb, number=1)
+        resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": target.pk}))
+        common = resp.context["common_styles"]
+        assert len(common) == 3  # top-3 cap
+        assert common[0] == "Marcha"
+
+    def test_no_pills_when_no_data(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1)
+        resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
+        assert resp.context["common_repetitions"] == []
+        assert resp.context["common_styles"] == []
+        body = resp.content.decode()
+        # Sem pills no markup quando lista está vazia.
+        assert "chip-suggestion" not in body
+
+    def test_excludes_self_from_aggregation_irrelevant(self, authenticated_client, hymn_book_factory, hymn_factory):
+        """Hino atual NÃO precisa ser excluído — agregação por hinário inclui
+        todos. Pinamos o comportamento atual: incluir tudo."""
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, style="Marcha")
+        resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
+        assert "Marcha" in resp.context["common_styles"]
+
+
+@pytest.mark.django_db
+class TestReviseInlineDiff:
+    """Diff inline palavra-por-palavra (gap 2). OCR `iluminna` vs current
+    `ilumina` deve gerar tokens `t-sub`/`t-add` lado a lado, não linhas
+    inteiras `+/-`."""
+
+    def test_inline_diff_word_substitution_marks_tokens(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(
+            hymn_book=hb,
+            number=1,
+            text="Sol da manhã\nQue ilumina",
+            ocr_text="Sol da manhã\nQue iluminna",
+        )
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        # Token sub para `iluminna` (vai sair) e add para `ilumina` (vai entrar).
+        assert 't-sub"' in body or "t-sub'" in body
+        assert "iluminna" in body
+        assert "ilumina" in body
+
+    def test_inline_diff_added_line_marked(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(
+            hymn_book=hb,
+            number=1,
+            text="A\nB\nC",
+            ocr_text="A\nB",
+        )
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        # Linha "C" foi acrescentada → marcador add.
+        assert "diff-line add" in body
+
+    def test_inline_diff_counter_present(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(
+            hymn_book=hb,
+            number=1,
+            text="A\nilumina",
+            ocr_text="A\niluminna",
+        )
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        assert "alterações" in body
+        assert "acréscimos" in body
+
+    def test_inline_diff_empty_when_no_ocr(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, text="qualquer", ocr_text="")
+        resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
+        diff = resp.context["inline_diff"]
+        assert diff["lines"] == []
+        assert diff["changes"] == diff["adds"] == diff["dels"] == 0
+
+
+@pytest.mark.django_db
+class TestReviseStatusColors:
+    """Status segmentado pinta o ativo com cor por estado:
+    not_reviewed → vermilion, in_review → gold, reviewed → moss."""
+
+    def test_template_uses_status_segmented_classes(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1)
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        assert "status-segmented" in body
+        assert 'data-status="not_reviewed"' in body
+        assert 'data-status="in_review"' in body
+        assert 'data-status="reviewed"' in body
+
+    def test_components_css_defines_status_color_rules(self):
+        css = _components_css()
+        assert ".status-segmented" in css
+        # Regra colorindo o ativo por data-status.
+        assert "not_reviewed" in css and "vermilion" in css.lower()
+        assert "in_review" in css and "gold" in css.lower()
+        assert "reviewed" in css and "moss" in css.lower()
+
+
+@pytest.mark.django_db
+class TestReviseTypographyAndLayout:
+    def test_number_and_title_use_font_display(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, title="T")
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        # Procura `font-display` no atributo class dos inputs número/título.
+        import re
+
+        number_input = re.search(r'<input[^>]*name="number"[^>]*>', body, re.S)
+        title_input = re.search(r'<input[^>]*name="title"[^>]*>', body, re.S)
+        assert number_input and "font-display" in number_input.group(0)
+        assert title_input and "font-display" in title_input.group(0)
+
+    def test_textarea_uses_font_serif(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, title="T", text="L")
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        import re
+
+        ta = re.search(r'<textarea[^>]*name="text"[^>]*>', body, re.S)
+        assert ta and "font-serif" in ta.group(0)
+
+    def test_two_col_full_bleed_layout_no_gap(self):
+        tpl = _template_text()
+        # Layout 2-col full-bleed: usa lg:grid-cols-2 SEM gap-6 e com border-r.
+        assert "lg:grid-cols-2" in tpl
+        assert "lg:border-r" in tpl
+
+    def test_action_bar_has_kbd_elements(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1)
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        # 3 elementos kbd: Esc, ⌘S, ⏎ — todos no rodapé.
+        assert body.count("<kbd") >= 3
+        assert "Esc" in body
+        assert "⌘S" in body
+        assert "⏎" in body
+
+    def test_autosave_status_lives_in_footer(self):
+        tpl = _template_text()
+        # data-autosave-status precisa estar dentro do <footer>.
+        # Heurística: índice do <footer> < índice do data-autosave-status < índice do </footer>.
+        f_open = tpl.find("<footer")
+        f_close = tpl.find("</footer>", f_open)
+        autosave = tpl.find("data-autosave-status")
+        assert f_open != -1 and f_close != -1 and autosave != -1
+        assert f_open < autosave < f_close

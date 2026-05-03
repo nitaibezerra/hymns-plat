@@ -242,28 +242,98 @@ def editor_revise_hymn(request, pk):
             "position": position,
             "total": total,
             "remaining": remaining,
-            "diff_lines": _compute_diff_lines(hymn.ocr_text, hymn.text),
+            "inline_diff": _compute_inline_diff(hymn.ocr_text, hymn.text),
             "ocr_line_confidences": _compute_ocr_line_confidences(hymn.ocr_text, hymn.text),
+            "common_repetitions": _common_field_values(hymn.hymn_book, "repetitions", top=4),
+            "common_styles": _common_field_values(hymn.hymn_book, "style", top=3),
         },
     )
 
 
-def _compute_diff_lines(ocr: str, current: str) -> list[dict]:
-    """Diff palavra-por-palavra simples para a coluna esquerda do revisor."""
+def _common_field_values(book, field: str, top: int) -> list[str]:
+    """Top-N valores não-vazios mais usados em `field` dentro do hinário.
+
+    Sugestões editoriais por hinário ajudam a manter consistência interna
+    (cada livro tem vocabulário próprio: estilos, padrões de repetição).
+    """
+    from django.db.models import Count
+
+    rows = book.hymns.exclude(**{field: ""}).values(field).annotate(c=Count("id")).order_by("-c", field)[:top]
+    return [row[field] for row in rows]
+
+
+def _compute_inline_diff(ocr: str, current: str) -> dict:
+    """Diff entre OCR e texto revisado em duas camadas (linha → palavra).
+
+    Estratégia:
+    1. SequenceMatcher no nível de **linhas** alinha pares OCR↔current.
+    2. Para opcodes `replace` 1-para-1, segundo SequenceMatcher no nível de
+       **palavras** gera tokens `eq`/`sub`/`add`/`del`.
+    3. `replace` n-para-m (n≠m), `insert`, `delete` → linhas inteiras
+       marcadas como `add` ou `del`.
+
+    Retorna `{lines: [{kind, tokens}], changes, adds, dels}` onde:
+    - `changes` = nº de substituições intra-linha (palavras trocadas)
+    - `adds`    = nº de linhas acrescentadas
+    - `dels`    = nº de linhas removidas
+    """
     import difflib
+    import re
 
     if not ocr:
-        return []
-    return [
-        {"sign": line[0], "text": line[2:]}
-        for line in difflib.unified_diff(
-            ocr.splitlines(),
-            current.splitlines(),
-            lineterm="",
-            n=99,
-        )
-        if line and line[0] in {"+", "-", " "} and not line.startswith("+++") and not line.startswith("---")
-    ]
+        return {"lines": [], "changes": 0, "adds": 0, "dels": 0}
+
+    ocr_lines = ocr.splitlines()
+    cur_lines = current.splitlines()
+    matcher = difflib.SequenceMatcher(None, ocr_lines, cur_lines)
+
+    lines: list[dict] = []
+    changes = adds = dels = 0
+
+    def _word_diff(before: str, after: str) -> list[dict]:
+        before_tokens = re.findall(r"\S+|\s+", before)
+        after_tokens = re.findall(r"\S+|\s+", after)
+        sm = difflib.SequenceMatcher(None, before_tokens, after_tokens)
+        out: list[dict] = []
+        for op, i1, i2, j1, j2 in sm.get_opcodes():
+            if op == "equal":
+                out.append({"kind": "eq", "text": "".join(before_tokens[i1:i2])})
+            elif op == "replace":
+                out.append(
+                    {
+                        "kind": "sub",
+                        "sub": "".join(before_tokens[i1:i2]),
+                        "add": "".join(after_tokens[j1:j2]),
+                    }
+                )
+            elif op == "insert":
+                out.append({"kind": "add", "text": "".join(after_tokens[j1:j2])})
+            elif op == "delete":
+                out.append({"kind": "del", "text": "".join(before_tokens[i1:i2])})
+        return out
+
+    for op, i1, i2, j1, j2 in matcher.get_opcodes():
+        if op == "equal":
+            for line in ocr_lines[i1:i2]:
+                lines.append({"kind": "eq", "tokens": [{"kind": "eq", "text": line}]})
+        elif op == "replace" and (i2 - i1) == (j2 - j1):
+            # Pares 1-para-1: word-level diff por linha.
+            for before, after in zip(ocr_lines[i1:i2], cur_lines[j1:j2], strict=True):
+                tokens = _word_diff(before, after)
+                # Linha inteira pode contar como uma substituição editorial.
+                if any(t["kind"] in ("sub", "add", "del") for t in tokens):
+                    changes += 1
+                lines.append({"kind": "replace", "tokens": tokens})
+        else:
+            # n-para-m, insert, delete → linhas inteiras marcadas.
+            for line in ocr_lines[i1:i2]:
+                lines.append({"kind": "del", "tokens": [{"kind": "del", "text": line}]})
+                dels += 1
+            for line in cur_lines[j1:j2]:
+                lines.append({"kind": "add", "tokens": [{"kind": "add", "text": line}]})
+                adds += 1
+
+    return {"lines": lines, "changes": changes, "adds": adds, "dels": dels}
 
 
 def _compute_ocr_line_confidences(ocr: str, current: str) -> list[int]:
