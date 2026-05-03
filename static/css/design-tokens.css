@@ -13,8 +13,11 @@
   --color-rust: #8C3A2E;
   --color-shadow: rgba(20, 33, 58, 0.08);
 
-  --font-serif: 'Cormorant Garamond', Georgia, serif;
-  --font-sans: Inter, system-ui, sans-serif;
+  /* Display = decorative serif for titles. Body serif = legible serif for hymn
+     verses and reading. Mirrors `_design/fase2-bundle/project/styles/tokens.css`. */
+  --font-display: 'Cormorant Garamond', 'EB Garamond', 'DejaVu Serif', Georgia, serif;
+  --font-serif: 'Source Serif 4', 'DejaVu Serif', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter Tight', 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
   --space-frame: 1.5rem;

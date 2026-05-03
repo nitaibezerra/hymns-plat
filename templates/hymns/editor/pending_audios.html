@@ -11,7 +11,7 @@
   <header class="flex items-end justify-between gap-6 flex-wrap mb-8">
     <div>
       <p class="label-mono">Workspace editorial</p>
-      <h1 class="font-serif text-3xl md:text-4xl mt-2">Áudios pendentes</h1>
+      <h1 class="font-display text-3xl md:text-4xl mt-2">Áudios pendentes</h1>
       <p class="text-ink-soft mt-2">Gravações enviadas aguardando aprovação. Ouça antes de aprovar.</p>
     </div>
     <p class="label-mono">{{ audios|length }} pendente{{ audios|length|pluralize }}</p>
@@ -28,7 +28,7 @@
                   HINO {{ a.hymn.number|stringformat:"02d" }} · {{ a.hymn.hymn_book.name|upper }}
                 </a>
               </p>
-              <p class="font-serif text-2xl mt-1">{{ a.hymn.title }}</p>
+              <p class="font-display text-2xl mt-1">{{ a.hymn.title }}</p>
               {% if a.title %}<p class="font-serif italic text-ink-soft mt-1">"{{ a.title }}"</p>{% endif %}
               <p class="text-xs label-mono mt-3">
                 Enviado por
@@ -62,7 +62,7 @@
     </ul>
   {% else %}
     <div class="card-soft p-10 text-center text-ink-soft">
-      <p class="font-serif text-2xl">Nenhum áudio pendente.</p>
+      <p class="font-display text-2xl">Nenhum áudio pendente.</p>
       <p class="mt-2">Quando alguém enviar uma gravação, ela aparece aqui para aprovação.</p>
     </div>
   {% endif %}

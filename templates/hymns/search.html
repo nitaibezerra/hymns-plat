@@ -45,10 +45,10 @@
           <a href="{% url 'hymns:hymn_detail' r.obj.pk %}" class="card-soft p-5 flex gap-6 hover:border-gold/40 transition-colors">
             <div class="flex flex-col items-center w-16 shrink-0">
               <p class="label-mono">HINO</p>
-              <p class="font-serif text-2xl">{{ r.obj.number|stringformat:"02d" }}</p>
+              <p class="font-display text-2xl">{{ r.obj.number|stringformat:"02d" }}</p>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="font-serif text-xl">{{ r.obj.title }}</p>
+              <p class="font-display text-xl">{{ r.obj.title }}</p>
               <p class="font-serif italic text-ink-soft text-sm">{{ r.obj.hymn_book.name }}</p>
               <p class="text-sm mt-2 line-clamp-2">{% if r.headline %}…{{ r.headline|safe }}…{% else %}{{ r.obj.text|truncatewords:20 }}{% endif %}</p>
             </div>
@@ -58,10 +58,10 @@
           <a href="{% url 'hymns:hymnbook_detail' r.obj.slug %}" class="card-soft p-5 flex gap-6 hover:border-gold/40 transition-colors" style="border-left: 4px solid {{ r.obj.display_accent }};">
             <div class="flex flex-col items-center w-16 shrink-0">
               <p class="label-mono">HINÁRIO</p>
-              <p class="font-serif text-2xl" style="color: {{ r.obj.display_accent }};">{{ r.obj.name|first|upper }}</p>
+              <p class="font-display text-2xl" style="color: {{ r.obj.display_accent }};">{{ r.obj.name|first|upper }}</p>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="font-serif text-xl">{{ r.obj.name }}</p>
+              <p class="font-display text-xl">{{ r.obj.name }}</p>
               <p class="font-serif italic text-ink-soft text-sm">{{ r.obj.owner_name }}</p>
               <p class="text-sm mt-2 text-ink-soft line-clamp-2">{{ r.headline|truncatewords:25 }}</p>
             </div>
@@ -76,7 +76,7 @@
     </div>
   {% else %}
     <div class="mt-10 card-soft p-10 text-center">
-      <p class="font-serif text-2xl">Comece pela busca.</p>
+      <p class="font-display text-2xl">Comece pela busca.</p>
       <p class="text-ink-soft mt-2">Procure por título, trecho da letra, hinário ou autor.</p>
     </div>
   {% endif %}

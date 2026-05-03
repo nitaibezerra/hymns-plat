@@ -5,23 +5,23 @@
 
 {% block content %}
 {% with accent=hymnbook.display_accent %}
-<section class="relative overflow-hidden text-cream" style="background: linear-gradient(140deg, {{ accent }} 0%, color-mix(in srgb, {{ accent }} 55%, black) 100%);">
+<section class="relative overflow-hidden text-cream{% if mode == 'carrossel' %} hidden{% endif %}" style="background: linear-gradient(140deg, {{ accent }} 0%, color-mix(in srgb, {{ accent }} 55%, black) 100%);">
   <div class="max-w-6xl mx-auto px-6 py-12 md:py-16 grid md:grid-cols-[260px_1fr] gap-10 items-end">
     <div class="rounded-xl shadow-soft aspect-[3/4] relative overflow-hidden border border-cream/15" style="background: color-mix(in srgb, {{ accent }} 75%, black);">
       {% if hymnbook.cover_image %}
         <img src="{{ hymnbook.cover_image.url }}" alt="Capa de {{ hymnbook.name }}" class="absolute inset-0 w-full h-full object-cover">
       {% else %}
-        <span class="absolute inset-0 grid place-items-center font-serif text-[12rem] leading-none text-cream/15" aria-hidden="true">{{ hymnbook.name|first|upper }}</span>
+        <span class="absolute inset-0 grid place-items-center font-display text-[12rem] leading-none text-cream/15" aria-hidden="true">{{ hymnbook.name|first|upper }}</span>
         <div class="absolute top-4 left-4 label-mono text-cream/80">EST. {{ hymnbook.created_at|date:"Y" }}</div>
         <div class="absolute bottom-4 left-4 right-4">
-          <p class="font-serif text-xl">{{ hymnbook.name }}</p>
+          <p class="font-display text-xl">{{ hymnbook.name }}</p>
           <p class="label-mono mt-1 text-cream/80">{{ hymnbook.owner_name }}</p>
         </div>
       {% endif %}
     </div>
     <div>
       <p class="label-mono text-cream/80">Hinário {% if hymnbook.is_published %}publicado{% else %}rascunho{% endif %}</p>
-      <h1 class="font-serif text-5xl md:text-6xl mt-2 leading-tight">{{ hymnbook.name }}</h1>
+      <h1 class="font-display text-5xl md:text-6xl mt-2 leading-tight">{{ hymnbook.name }}</h1>
       {% if hymnbook.intro_name and hymnbook.intro_name != hymnbook.name %}
         <p class="font-serif italic text-2xl text-cream/80 mt-2">{{ hymnbook.intro_name }}</p>
       {% endif %}
@@ -46,18 +46,18 @@
 </section>
 {% endwith %}
 
-<section class="max-w-6xl mx-auto px-6 -mt-6 relative z-10">
-  <div class="bg-cream dark:bg-night-deep rounded-xl border border-ink/10 dark:border-cream/10 shadow-soft p-3 flex items-center gap-2 flex-wrap" data-mode-toggle data-storage-key="hymnbook-mode-{{ hymnbook.slug }}" data-initial-mode="{{ mode }}">
+<section class="max-w-6xl mx-auto px-6 -mt-6 relative z-10{% if mode == 'carrossel' %} hidden{% endif %}">
+  <div class="bg-cream dark:bg-night-deep rounded-xl border border-ink/10 dark:border-cream/10 shadow-soft p-3 flex items-center gap-2 flex-wrap">
     <span class="label-mono px-3">Modo de leitura</span>
-    <button type="button" class="btn-pill" data-mode="indice" data-active="{{ mode|yesno:'true,false,false'|stringformat:'s' }}{% if mode == 'indice' %}true{% endif %}">≡ Índice</button>
-    <button type="button" class="btn-pill" data-mode="corrido"{% if mode == 'corrido' %} data-active="true"{% endif %}>≡ Corrido</button>
-    <button type="button" class="btn-pill" data-mode="carrossel"{% if mode == 'carrossel' %} data-active="true"{% endif %}>↔ Carrossel</button>
+    <a href="?mode=indice" class="btn-pill"{% if mode == 'indice' %} data-active="true" aria-current="page"{% endif %}>≡ Índice</a>
+    <a href="?mode=corrido" class="btn-pill"{% if mode == 'corrido' %} data-active="true" aria-current="page"{% endif %}>≡ Corrido</a>
+    <a href="?mode=carrossel" class="btn-pill"{% if mode == 'carrossel' %} data-active="true" aria-current="page"{% endif %}>↔ Carrossel</a>
     <span class="ml-auto label-mono pr-3 hidden md:inline">lista clicável · acesso rápido</span>
   </div>
 </section>
 
 <section class="max-w-6xl mx-auto px-6 py-10{% if mode != 'indice' %} hidden{% endif %}" data-mode-pane="indice">
-  <ol class="grid sm:grid-cols-2 gap-x-12 gap-y-2 font-serif">
+  <ol class="grid sm:grid-cols-2 gap-x-12 gap-y-2 font-serif max-w-4xl mx-auto">
     {% for h in hymns %}
       <li>
         <a href="{% url 'hymns:hymn_detail' h.pk %}" class="dot-leader py-2 hover:text-gold">
@@ -78,9 +78,9 @@
   {% for h in hymns %}
     <article class="hymn-card py-12 border-b border-ink/10 dark:border-cream/10 last:border-b-0" id="hymn-{{ h.number }}">
       <p class="label-mono text-center">HINO {{ h.number|stringformat:"02d" }} · {{ hymnbook.name|upper }}</p>
-      <h2 class="font-serif text-3xl text-center mt-3">{{ h.title }}</h2>
+      <h2 class="font-display text-3xl text-center mt-3">{{ h.title }}</h2>
       <hr class="w-24 mx-auto border-ink/30 mt-2 mb-6">
-      <div class="font-serif text-xl leading-[1.7] max-w-prose mx-auto">
+      <div class="font-serif text-xl leading-[1.7] max-w-prose mx-auto hymn-body-centered">
         {% render_hymn_body h %}
       </div>
       <div class="mt-8 text-center text-gold text-2xl" aria-hidden="true">{% if forloop.counter|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
@@ -88,54 +88,49 @@
   {% endfor %}
 </section>
 
-<section class="{% if mode != 'carrossel' %}hidden{% endif %}" data-mode-pane="carrossel" aria-roledescription="carousel">
-  <div class="overflow-x-auto snap-x snap-mandatory flex" data-carousel>
+<section class="relative{% if mode != 'carrossel' %} hidden{% endif %}" data-mode-pane="carrossel" aria-roledescription="carousel">
+  <div class="fixed top-16 left-0 right-0 h-px bg-ink/10 z-20" aria-hidden="true">
+    <div class="h-full bg-gold transition-[width] duration-300" data-carousel-progress style="width: 0%"></div>
+  </div>
+
+  <div class="fixed left-0 right-0 z-20 bg-cream/85 dark:bg-night/85 backdrop-blur-sm border-b border-ink/5" style="top: calc(4rem + 1px);">
+    <div class="max-w-6xl mx-auto px-4 md:px-6 py-2 flex items-center justify-between gap-3 label-mono">
+      <a href="?mode=indice" class="hover:text-gold whitespace-nowrap">← Índice</a>
+      <span data-carousel-counter class="text-center">HINO 01 · DE {{ hymns|length }}</span>
+      <span class="hidden sm:inline whitespace-nowrap">← → · Esc</span>
+    </div>
+  </div>
+
+  <div class="overflow-x-auto snap-x snap-mandatory flex items-stretch h-[calc(100vh-4rem)]" data-carousel>
     {% for h in hymns %}
-      <article class="hymn-card snap-center shrink-0 w-screen max-w-screen-md mx-auto px-6 py-12">
-        <p class="label-mono text-center">HINO {{ h.number|stringformat:"02d" }} · {{ hymnbook.name|upper }}</p>
-        <h2 class="font-serif text-3xl text-center mt-3">{{ h.title }}</h2>
-        <hr class="w-24 mx-auto border-ink/30 mt-2 mb-6">
-        <div class="font-serif text-xl leading-[1.7] max-w-prose mx-auto">{% render_hymn_body h %}</div>
-        <div class="mt-8 text-center text-gold text-2xl" aria-hidden="true">{% if forloop.counter|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
+      <article class="hymn-card snap-start shrink-0 w-screen h-full overflow-y-auto" id="hymn-slide-{{ h.number }}">
+        <div class="min-h-full flex items-center justify-center px-6 pt-24 pb-24">
+          <div class="max-w-prose w-full text-center">
+            <p class="label-mono">HINO {{ h.number|stringformat:"02d" }} · {{ hymnbook.name|upper }}</p>
+            <h2 class="font-display text-3xl sm:text-4xl mt-3 leading-tight text-balance">{{ h.title }}</h2>
+            <hr class="w-24 mx-auto border-ink/30 mt-4 mb-8">
+            <div class="font-serif text-xl leading-[1.7] mx-auto carousel-body">{% render_hymn_body h %}</div>
+            <div class="mt-10 text-gold text-2xl" aria-hidden="true">{% if forloop.counter|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
+          </div>
+        </div>
       </article>
     {% endfor %}
   </div>
-  <div class="flex justify-center gap-2 py-4 label-mono">use ← → para navegar</div>
+
+  <button type="button" data-carousel-prev class="hidden md:grid place-items-center fixed left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full border border-ink/15 bg-cream/90 dark:bg-night/90 backdrop-blur hover:border-gold hover:text-gold transition" aria-label="Hino anterior">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+  </button>
+  <button type="button" data-carousel-next class="hidden md:grid place-items-center fixed right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full border border-ink/15 bg-cream/90 dark:bg-night/90 backdrop-blur hover:border-gold hover:text-gold transition" aria-label="Próximo hino">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+
+  <div class="fixed bottom-0 left-0 right-0 z-20 bg-cream/85 dark:bg-night/85 backdrop-blur-sm border-t border-ink/5">
+    <div class="max-w-6xl mx-auto px-4 md:px-6 py-3 flex items-center justify-center gap-1.5 overflow-x-auto" data-carousel-dots>
+      {% for h in hymns %}
+        <button type="button" data-carousel-dot data-index="{{ forloop.counter0 }}" class="shrink-0 w-2 h-2 rounded-full bg-ink/20 hover:bg-gold transition" aria-label="Ir para hino {{ h.number }}"></button>
+      {% endfor %}
+    </div>
+  </div>
 </section>
 
-<script>
-(function () {
-  var toggle = document.querySelector('[data-mode-toggle]');
-  if (!toggle) return;
-  var key = toggle.dataset.storageKey;
-  // URL (data-initial-mode set from request.GET.mode) takes precedence over localStorage.
-  // Server already rendered the right pane visible; we only re-sync if user navigated by JS.
-  var saved = toggle.dataset.initialMode || localStorage.getItem(key) || 'indice';
-
-  function activate(mode) {
-    toggle.querySelectorAll('[data-mode]').forEach(function (b) {
-      b.setAttribute('data-active', String(b.dataset.mode === mode));
-    });
-    document.querySelectorAll('[data-mode-pane]').forEach(function (p) {
-      p.classList.toggle('hidden', p.dataset.modePane !== mode);
-    });
-    localStorage.setItem(key, mode);
-  }
-
-  toggle.querySelectorAll('[data-mode]').forEach(function (btn) {
-    btn.addEventListener('click', function () { activate(btn.dataset.mode); });
-  });
-  activate(saved);
-
-  // Tap esquerda/direita no carrossel
-  document.querySelectorAll('[data-carousel]').forEach(function (c) {
-    c.addEventListener('click', function (e) {
-      var rect = c.getBoundingClientRect();
-      var x = e.clientX - rect.left;
-      var step = rect.width;
-      c.scrollBy({ left: x < rect.width / 2 ? -step : step, behavior: 'smooth' });
-    });
-  });
-})();
-</script>
 {% endblock %}

@@ -29,7 +29,7 @@ Espera: variável `audio` (HymnAudio aprovado).
     </button>
 
     <div class="min-w-0 flex-1">
-      <h3 class="font-serif text-xl md:text-2xl leading-tight truncate">{{ audio.title|default:audio.hymn.title }}</h3>
+      <h3 class="font-display text-xl md:text-2xl leading-tight truncate">{{ audio.title|default:audio.hymn.title }}</h3>
       <p class="label-mono mt-1">
         <time data-audio-total>{{ audio.duration|format_duration|default:"--:--" }}</time>
         {% if audio.uploaded_by %}· gravado por {{ audio.uploaded_by.username }}{% elif audio.credits %}· {{ audio.credits|truncatechars:40 }}{% endif %}

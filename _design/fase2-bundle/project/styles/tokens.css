@@ -1,0 +1,60 @@
+/* Hymns Platform — Phase 2 design tokens
+   "Luz do Firmamento" palette: liturgical, celestial, paper-warm.
+   Inspired by the PDF generator (DejaVuSans serif feel, repetition bars,
+   end-of-hymn glyphs). Original — no branded references. */
+
+:root {
+  /* Paper / surfaces */
+  --paper:        #f6efe2;       /* aged hymnal paper */
+  --paper-soft:   #efe6d2;
+  --paper-deep:   #e6dcc4;
+  --ink:          #1a1d2e;       /* deep night-blue ink */
+  --ink-soft:     #3a3f57;
+  --ink-mute:     #6b6f85;
+  --rule:         #c8bda1;       /* hairline rule color */
+  --rule-soft:    #d9cfb6;
+
+  /* Firmament accents */
+  --firmament:    #1d3b6a;       /* deep firmament blue */
+  --firmament-2:  #2c5a92;       /* daytime sky */
+  --firmament-3:  #6f8fb8;       /* hazy horizon */
+  --gold:         #b8893a;       /* candle gold */
+  --gold-soft:    #d9b06a;
+  --vermilion:    #b13e2e;       /* rare alert */
+  --moss:         #4a6a3a;       /* reviewed/ok */
+
+  /* Status (review) */
+  --status-not:   #b13e2e;
+  --status-mid:   #b8893a;
+  --status-ok:    #4a6a3a;
+
+  /* Geometry */
+  --radius-sm: 4px;
+  --radius:    8px;
+  --radius-lg: 14px;
+  --shadow-1:  0 1px 0 rgba(26, 29, 46, 0.04), 0 1px 3px rgba(26, 29, 46, 0.06);
+  --shadow-2:  0 2px 6px rgba(26, 29, 46, 0.08), 0 12px 28px rgba(26, 29, 46, 0.10);
+
+  /* Type */
+  --font-display: "Cormorant Garamond", "EB Garamond", "DejaVu Serif", Georgia, serif;
+  --font-serif:   "Source Serif 4", "DejaVu Serif", Georgia, "Times New Roman", serif;
+  --font-sans:    "Inter Tight", "DejaVu Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono:    "JetBrains Mono", "DejaVu Sans Mono", ui-monospace, Menlo, monospace;
+}
+
+/* Dark mode (noite) — for reading during trabalhos */
+[data-theme="noite"] {
+  --paper:        #0e1320;
+  --paper-soft:   #141a2a;
+  --paper-deep:   #1a2236;
+  --ink:          #f0e7d2;
+  --ink-soft:     #c9c2b0;
+  --ink-mute:     #8a8a9c;
+  --rule:         #2a3450;
+  --rule-soft:    #1f2740;
+  --firmament:    #c8d4ec;
+  --firmament-2:  #95accf;
+  --firmament-3:  #6f8fb8;
+  --gold:         #e0b87a;
+  --gold-soft:    #c8975a;
+}

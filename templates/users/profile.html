@@ -17,12 +17,12 @@
         {% if profile_is_editor %}EDITOR · {% endif %}
         Membro há {{ profile_user.date_joined|timesince }}
       </p>
-      <h1 class="font-serif text-3xl md:text-5xl mt-2">{{ profile_user.get_full_name|default:profile_user.username }}</h1>
+      <h1 class="font-display text-3xl md:text-5xl mt-2">{{ profile_user.get_full_name|default:profile_user.username }}</h1>
       {% if profile_user.bio %}<p class="font-serif italic text-xl text-ink-soft mt-2">"{{ profile_user.bio }}"</p>{% endif %}
       <dl class="mt-5 flex flex-wrap gap-x-10 gap-y-2">
-        <div><dt class="label-mono">Hinos revisados</dt><dd class="font-serif text-2xl">{{ reviews_count }}</dd></div>
-        <div><dt class="label-mono">Hinários</dt><dd class="font-serif text-2xl">{{ hymnbooks|length }}</dd></div>
-        <div><dt class="label-mono">Seguidores</dt><dd class="font-serif text-2xl text-gold">{{ followers_count }}</dd></div>
+        <div><dt class="label-mono">Hinos revisados</dt><dd class="font-display text-2xl">{{ reviews_count }}</dd></div>
+        <div><dt class="label-mono">Hinários</dt><dd class="font-display text-2xl">{{ hymnbooks|length }}</dd></div>
+        <div><dt class="label-mono">Seguidores</dt><dd class="font-display text-2xl text-gold">{{ followers_count }}</dd></div>
       </dl>
     </div>
     <div class="flex gap-2 self-start mt-2">
@@ -42,7 +42,7 @@
   <div class="grid lg:grid-cols-[1.3fr_1fr] gap-8">
     <section class="card-soft p-6">
       <header class="flex justify-between items-end mb-4">
-        <h2 class="font-serif text-2xl">Trabalho editorial</h2>
+        <h2 class="font-display text-2xl">Trabalho editorial</h2>
         <span class="label-mono">Último ano</span>
       </header>
       <div data-heatmap data-username="{{ profile_user.username }}" class="grid grid-flow-col grid-rows-7 gap-1 overflow-x-auto pb-2">
@@ -56,7 +56,7 @@
 
     <section class="card-soft p-6">
       <header class="flex justify-between items-end mb-4 gap-3">
-        <h2 class="font-serif text-2xl flex items-center gap-2">
+        <h2 class="font-display text-2xl flex items-center gap-2">
           Notificações
           {% if unread_notifications_count %}
             <span class="text-xs label-mono inline-flex items-center gap-1 border border-rust/40 bg-rust/10 text-rust rounded-full px-2 py-0.5">● {{ unread_notifications_count }} NOVA{{ unread_notifications_count|pluralize:"S" }}</span>
@@ -92,12 +92,12 @@
 
   {% if recent_revisions %}
   <section class="mt-10">
-    <h2 class="font-serif text-2xl mb-4">Revisões recentes</h2>
+    <h2 class="font-display text-2xl mb-4">Revisões recentes</h2>
     <ul class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {% for r in recent_revisions %}
         <li class="card-soft p-4">
           <p class="label-mono">HINO {{ r.hymn.number|stringformat:"02d" }}</p>
-          <p class="font-serif text-xl mt-1">{{ r.hymn.title }}</p>
+          <p class="font-display text-xl mt-1">{{ r.hymn.title }}</p>
           <p class="font-serif italic text-ink-soft text-sm">{{ r.hymn.hymn_book.name }}</p>
           <p class="text-xs label-mono mt-3 flex justify-between"><span>{{ r.change_summary|default:"Edição"|truncatechars:30 }}</span><span>{{ r.revised_at|timesince }}</span></p>
         </li>
@@ -108,7 +108,7 @@
 
   {% if hymnbooks %}
   <section class="mt-12">
-    <h2 class="font-serif text-2xl mb-4">Hinários publicados por {{ profile_user.username }}</h2>
+    <h2 class="font-display text-2xl mb-4">Hinários publicados por {{ profile_user.username }}</h2>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {% for hb in hymnbooks %}{% include "_partials/_hymnbook_card.html" with hb=hb %}{% endfor %}
     </div>

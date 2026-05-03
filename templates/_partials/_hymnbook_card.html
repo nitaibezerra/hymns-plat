@@ -11,11 +11,11 @@
   {% else %}
     <article class="relative aspect-[3/4] p-6 text-cream flex flex-col">
       <span class="absolute inset-0 grid place-items-center pointer-events-none" aria-hidden="true">
-        <span class="font-serif text-[8rem] leading-none text-cream/20 group-hover:text-cream/30 transition-colors">{{ hb.name|first|upper }}</span>
+        <span class="font-display text-[8rem] leading-none text-cream/20 group-hover:text-cream/30 transition-colors">{{ hb.name|first|upper }}</span>
       </span>
       <span class="label-mono opacity-80 text-cream/80 relative">EST. {{ hb.created_at|date:"Y" }}</span>
       <div class="mt-auto relative">
-        <h3 class="font-serif text-2xl leading-tight">{{ hb.name }}</h3>
+        <h3 class="font-display text-2xl leading-tight">{{ hb.name }}</h3>
         <p class="label-mono mt-1 text-cream/80">{{ hb.owner_name }}</p>
         {% if not hb.is_published %}
           <p class="label-mono mt-2 inline-block bg-cream/15 px-2 py-0.5 rounded-full text-cream/90">RASCUNHO</p>
