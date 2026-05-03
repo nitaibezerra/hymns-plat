@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<title>Hinaria · Fase 2 · UI Editorial · Print</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+<link rel="stylesheet" href="styles/tokens.css"/>
+<link rel="stylesheet" href="styles/components.css"/>
+
+<style>
+  /* ── Print page setup ──────────────────────────────────────── */
+  @page { size: 1280px 1320px; margin: 0; }
+  @page landscape-wide { size: 1440px 1240px; margin: 0; }
+  @page mobile { size: 920px 990px; margin: 0; }
+
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  html, body {
+    margin: 0; padding: 0;
+    background: #f6efe2;
+    color: #1a1d2e;
+    font-family: "Inter Tight", sans-serif;
+  }
+
+  /* ── Page wrapper ──────────────────────────────────────────── */
+  .print-page {
+    position: relative;
+    background: var(--paper, #f6efe2);
+    color: var(--ink, #1a1d2e);
+    overflow: hidden;
+    page-break-after: always;
+    break-after: page;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .print-page:last-child { page-break-after: auto; break-after: auto; }
+
+  .print-page.landscape-wide { page: landscape-wide; }
+  .print-page.mobile { page: mobile; }
+
+  /* artboard frame container */
+  .ab {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  .ab-label {
+    position: absolute;
+    top: 18px; left: 24px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute, #6b6f85);
+    z-index: 100;
+    background: rgba(255,255,255,.6);
+    padding: 4px 8px;
+    border-radius: 3px;
+    backdrop-filter: blur(4px);
+  }
+
+  /* On-screen preview: stack pages vertically with gap */
+  @media screen {
+    body { background: #0e1320; padding: 24px; }
+    .print-page { margin: 0 auto 24px; box-shadow: 0 8px 40px rgba(0,0,0,.5); }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- shared screens -->
+<script type="text/babel" src="screens/_shared.jsx"></script>
+<script type="text/babel" src="screens/home.jsx"></script>
+<script type="text/babel" src="screens/hymn-detail.jsx"></script>
+<script type="text/babel" src="screens/hymnbook-detail.jsx"></script>
+<script type="text/babel" src="screens/editor-queue.jsx"></script>
+<script type="text/babel" src="screens/revise-hymn.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="screens/wizards.jsx"></script>
+<script type="text/babel" src="screens/extras.jsx"></script>
+
+<script type="text/babel">
+const { useEffect } = React;
+
+// Use a fixed palette + theme for print (luz-firmamento, dia)
+const PALETTE = {
+  "--paper": "#f6efe2", "--paper-soft": "#efe6d2", "--paper-deep": "#e6dcc4",
+  "--ink": "#1a1d2e", "--ink-soft": "#3a3f57", "--ink-mute": "#6b6f85",
+  "--rule": "#c8bda1", "--rule-soft": "#d9cfb6",
+  "--firmament": "#1d3b6a", "--firmament-2": "#2c5a92",
+  "--gold": "#b8893a", "--gold-soft": "#d9b06a",
+  "--font-display": '"Cormorant Garamond", "DejaVu Serif", Georgia, serif',
+};
+
+const PAGES = [
+  { id: "home",       label: "01 · Home",                                         w: 1280, h: 1100, page: "",               Comp: () => <HomeScreen/> },
+  { id: "hymnbook",   label: "02 · Hinário · Índice + tabs de modo",              w: 1280, h: 1200, page: "",               Comp: () => <HymnbookDetailScreen/> },
+  { id: "hymn",       label: "03 · Hino · paper page (PDF-fiel)",                 w: 1280, h: 1300, page: "",               Comp: () => <HymnDetailScreen/> },
+  { id: "queue",      label: "04 · Fila de Revisão",                              w: 1280, h: 1100, page: "",               Comp: () => <EditorQueueScreen/> },
+  { id: "revise",     label: "05 · Revisar Hino · diff + atalhos",                w: 1440, h: 1200, page: "landscape-wide", Comp: () => <ReviseHymnScreen/> },
+  { id: "publish",    label: "06 · Publicar (modal)",                             w: 1280, h: 800,  page: "",               Comp: () => <PublishConfirmScreen/> },
+  { id: "ocr",        label: "07 · OCR Wizard · preview",                         w: 1280, h: 1000, page: "",               Comp: () => <OcrWizardScreen/> },
+  { id: "search",     label: "08 · Busca",                                        w: 1280, h: 1000, page: "",               Comp: () => <SearchScreen/> },
+  { id: "mobile",     label: "09 · Carrossel · Dia & Noite (iPhone)",             w: 920,  h: 950,  page: "mobile",         Comp: () => <MobileCarouselScreen/> },
+  { id: "profile",    label: "10 · Perfil + Notificações",                        w: 1280, h: 1100, page: "",               Comp: () => <ProfileScreen/> },
+  { id: "history",    label: "11 · Histórico de Revisões (overlay)",              w: 1280, h: 900,  page: "",               Comp: () => <RevisionHistoryScreen/> },
+];
+
+function App() {
+  useEffect(() => {
+    const root = document.documentElement;
+    Object.entries(PALETTE).forEach(([k, v]) => root.style.setProperty(k, v));
+    root.removeAttribute("data-theme");
+  }, []);
+
+  return (
+    <>
+      {PAGES.map((p) => (
+        <div key={p.id}
+             className={"print-page " + p.page}
+             style={{ width: p.w + "px", height: p.h + "px" }}>
+          <div className="ab">
+            <div className="ab-label">{p.label}</div>
+            <p.Comp/>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+
+// ── Auto-print after fonts + babel scripts ready ────────────────
+(async () => {
+  try { await document.fonts.ready; } catch {}
+  // Wait an extra tick for React render + any layout effects
+  await new Promise((r) => setTimeout(r, 800));
+  window.print();
+})();
+</script>
+</body>
+</html>

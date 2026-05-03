@@ -1,0 +1,315 @@
+/* Deck styles — editorial italic-serif, paper-warm, gold hairlines */
+
+:root {
+  --slide-w: 1920px;
+  --slide-h: 1080px;
+}
+
+deck-stage {
+  background: #0a0d18;
+}
+
+/* ───── Slide base ───── */
+.slide {
+  position: relative;
+  width: 1920px; height: 1080px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  overflow: hidden;
+}
+
+.slide.dark {
+  --paper: #0e1320;
+  --paper-soft: #141a2a;
+  --paper-deep: #1a2236;
+  --ink: #f0e7d2;
+  --ink-soft: #c9c2b0;
+  --ink-mute: #8a8a9c;
+  --rule: #2a3450;
+  --rule-soft: #1f2740;
+  --gold: #e0b87a;
+  --gold-soft: #c8975a;
+  --firmament: #c8d4ec;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* ───── Slide chrome (margins, page number, footer) ───── */
+.slide .chrome-tl {
+  position: absolute; top: 60px; left: 90px;
+  font-family: var(--font-mono);
+  font-size: 18px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.slide .chrome-tr {
+  position: absolute; top: 56px; right: 90px;
+  font-family: var(--font-display);
+  font-style: italic; font-size: 28px;
+  color: var(--ink-mute);
+}
+.slide .chrome-br {
+  position: absolute; bottom: 52px; right: 90px;
+  font-family: var(--font-mono);
+  font-size: 17px; letter-spacing: 0.14em;
+  color: var(--ink-mute);
+}
+.slide .chrome-bl {
+  position: absolute; bottom: 50px; left: 90px;
+  font-family: var(--font-display); font-style: italic;
+  font-size: 28px; color: var(--ink-mute);
+}
+.slide .gold-rule {
+  position: absolute; left: 90px; right: 90px;
+  height: 1px; background: var(--gold-soft);
+}
+.slide .hair-rule {
+  height: 1px; background: var(--rule);
+}
+
+/* ───── Typography ───── */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 18px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--gold);
+}
+.h-display {
+  font-family: var(--font-display);
+  font-style: italic; font-weight: 500;
+  font-size: 132px; line-height: 0.96; letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.h-display.upright { font-style: normal; }
+.h-1 {
+  font-family: var(--font-display);
+  font-style: italic; font-weight: 500;
+  font-size: 88px; line-height: 1.0; letter-spacing: -0.005em;
+}
+.h-2 {
+  font-family: var(--font-display);
+  font-style: italic; font-weight: 500;
+  font-size: 60px; line-height: 1.05;
+}
+.h-3 {
+  font-family: var(--font-display);
+  font-weight: 500; font-size: 36px; line-height: 1.15;
+}
+.lede {
+  font-family: var(--font-serif);
+  font-size: 28px; line-height: 1.45; color: var(--ink-soft);
+  font-weight: 400;
+}
+.body-l {
+  font-family: var(--font-serif);
+  font-size: 22px; line-height: 1.55; color: var(--ink-soft);
+}
+.body {
+  font-family: var(--font-serif);
+  font-size: 19px; line-height: 1.55; color: var(--ink-soft);
+}
+.caption {
+  font-family: var(--font-mono);
+  font-size: 16px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-mute);
+}
+.gold-text { color: var(--gold); }
+.italic { font-style: italic; }
+
+/* ───── Layout helpers ───── */
+.center-block {
+  position: absolute; inset: 160px 90px 130px;
+}
+.cover-block {
+  position: absolute; inset: 220px 90px 220px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.split-2 {
+  position: absolute; inset: 160px 90px 130px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px;
+}
+.split-2-wide {
+  position: absolute; inset: 160px 90px 130px;
+  display: grid; grid-template-columns: 5fr 7fr; gap: 80px;
+}
+
+/* ───── Cards / chips ───── */
+.pillar-card {
+  border-top: 1px solid var(--gold-soft);
+  padding-top: 32px;
+}
+.pillar-num {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 28px; color: var(--gold);
+  margin-bottom: 18px;
+}
+
+.kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 38px; height: 38px; padding: 0 10px;
+  font-family: var(--font-mono); font-size: 15px;
+  background: var(--paper-soft);
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  color: var(--ink);
+}
+.kbd-row {
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* Phone frame placeholder for editorial composition */
+.phone-bezel {
+  border-radius: 38px;
+  background: linear-gradient(180deg, #1a1d2e, #0e1320);
+  padding: 14px;
+  box-shadow: 0 30px 80px rgba(26,29,46,.25), 0 8px 20px rgba(26,29,46,.18);
+}
+.phone-screen {
+  border-radius: 28px;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+/* Mock screen wrappers (downscale embedded artboards) */
+.mock-frame {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 30px 60px rgba(26,29,46,.18), 0 6px 14px rgba(26,29,46,.10);
+  overflow: hidden;
+  position: relative;
+}
+
+.diagram-pill {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 8px 18px;
+  border: 1px solid var(--rule);
+  background: var(--paper-soft);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 13px; letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.diagram-pill.gold { border-color: var(--gold-soft); color: var(--gold); background: transparent; }
+
+/* Status dot */
+.status-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--gold);
+  margin-right: 8px;
+}
+
+/* Numbered list (manuscript style) */
+.ms-list { list-style: none; padding: 0; margin: 0; }
+.ms-list > li {
+  display: grid; grid-template-columns: 60px 1fr; gap: 24px;
+  padding: 18px 0; border-bottom: 1px solid var(--rule-soft);
+}
+.ms-list > li:last-child { border-bottom: none; }
+.ms-list .n {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 32px; color: var(--gold);
+  line-height: 1;
+}
+.ms-list .label {
+  font-family: var(--font-display);
+  font-size: 30px; line-height: 1.2; color: var(--ink);
+}
+.ms-list .desc {
+  font-family: var(--font-serif);
+  font-size: 19px; line-height: 1.5; color: var(--ink-soft);
+  margin-top: 6px;
+}
+
+/* Drop cap (cover) */
+.dropcap::first-letter {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.6em;
+  float: left;
+  line-height: 0.85;
+  margin-right: 12px;
+  color: var(--gold);
+}
+
+/* Process flow (numbered horizontal) */
+.flow {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  gap: 0;
+  align-items: stretch;
+}
+.flow > .step {
+  position: relative;
+  padding: 32px 28px 0 0;
+  border-top: 1px solid var(--gold-soft);
+}
+.flow > .step + .step { padding-left: 28px; }
+.flow > .step .n {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 32px; color: var(--gold);
+  line-height: 1; margin-bottom: 14px;
+}
+.flow > .step h4 {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: 30px; line-height: 1.15; margin: 0 0 12px;
+  color: var(--ink);
+}
+.flow > .step p {
+  font-family: var(--font-serif); font-size: 17px; line-height: 1.5;
+  color: var(--ink-soft); margin: 0;
+}
+
+/* Quote block */
+blockquote.pull {
+  font-family: var(--font-display);
+  font-style: italic; font-weight: 500;
+  font-size: 56px; line-height: 1.15;
+  color: var(--ink);
+  border-left: 2px solid var(--gold);
+  padding-left: 36px;
+  margin: 0;
+}
+
+/* Diff viewer (mini) */
+.diff-mini {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  overflow: hidden;
+  font-family: var(--font-serif);
+  font-size: 18px; line-height: 1.55;
+  background: var(--paper);
+}
+.diff-mini .col { padding: 18px 22px; }
+.diff-mini .col + .col { border-left: 1px solid var(--rule); }
+.diff-mini .h {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 12px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-mute);
+  border-bottom: 1px solid var(--rule-soft);
+  padding-bottom: 8px; margin-bottom: 14px;
+}
+.diff-mini .add {
+  background: rgba(74,106,58,.14);
+  border-bottom: 1px solid rgba(74,106,58,.4);
+  padding: 2px 4px;
+}
+.diff-mini .del {
+  background: rgba(177,62,46,.10);
+  border-bottom: 1px solid rgba(177,62,46,.4);
+  padding: 2px 4px; text-decoration: line-through;
+  text-decoration-color: rgba(177,62,46,.55);
+}
+
+/* Big stat */
+.stat .n {
+  font-family: var(--font-display); font-style: italic; font-weight: 500;
+  font-size: 168px; line-height: 0.9; color: var(--ink);
+}
+.stat .l {
+  font-family: var(--font-mono); font-size: 14px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--ink-mute); margin-top: 8px;
+}

@@ -37,3 +37,77 @@ class TestHymnbookModeViaURL:
         hb = hymn_book_factory(name="X")
         resp = client.get(reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug}) + "?mode=evil")
         assert resp.context["mode"] == "indice"
+
+    def test_carrossel_slides_are_full_width(self, client, hymn_book_factory, hymn_factory):
+        """Each carousel slide must be w-screen (no max-w cap) so neighbors don't peek."""
+        hb = hymn_book_factory(name="X")
+        hymn_factory(hymn_book=hb, number=1)
+        resp = client.get(reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug}) + "?mode=carrossel")
+        body = resp.content.decode()
+        # The slide article must use w-screen and NOT max-w-screen-md (the old buggy cap).
+        carousel_idx = body.find('data-mode-pane="carrossel"')
+        assert carousel_idx >= 0
+        # Search the carousel section onwards for the article
+        carousel_section = body[carousel_idx : carousel_idx + 5000]
+        assert "max-w-screen-md" not in carousel_section, "carousel slides should not be capped"
+        assert "w-screen" in carousel_section
+        assert "carousel-body" in carousel_section, "body wrapper class must exist for centered text"
+
+    def test_carrossel_chrome_is_present(self, client, hymn_book_factory, hymn_factory):
+        """Chrome elements (counter, progress, dots, prev/next) must render inside the carousel pane."""
+        hb = hymn_book_factory(name="X")
+        hymn_factory(hymn_book=hb, number=1)
+        resp = client.get(reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug}) + "?mode=carrossel")
+        body = resp.content.decode()
+        for marker in (
+            "data-carousel-counter",
+            "data-carousel-progress",
+            "data-carousel-dots",
+            "data-carousel-prev",
+            "data-carousel-next",
+            "data-carousel-dot",
+        ):
+            assert marker in body, f"expected {marker} in carousel chrome"
+
+    def test_mode_toggle_buttons_link_to_distinct_urls(self, client, hymn_book_factory, hymn_factory):
+        """The mode-toggle pills must be anchor links pointing to distinct
+        ?mode=indice / ?mode=corrido / ?mode=carrossel URLs (not <button>s that
+        only swap panes via JS), so each mode is shareable, navigable with
+        browser back/forward, and easy to test."""
+        hb = hymn_book_factory(name="X")
+        hymn_factory(hymn_book=hb, number=1)
+        resp = client.get(reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug}))
+        body = resp.content.decode()
+        for mode in ("indice", "corrido", "carrossel"):
+            href = f'href="?mode={mode}"'
+            assert href in body, f"expected anchor with {href}"
+        # And ensure the legacy button-based markup is gone (no `data-mode=` on toggle pills).
+        assert 'data-mode="indice"' not in body
+        assert 'data-mode="corrido"' not in body
+        assert 'data-mode="carrossel"' not in body
+
+    def test_centered_hymn_body_block_uses_max_content_width(self):
+        """Verses without repetition columns must render as a tight block (width: max-content,
+        i.e. exactly the width of the longest line) centered inside the wrapper, with verses
+        themselves left-aligned (page-de-cantador style). The same treatment applies to both
+        the carousel pane (.carousel-body) and the per-hymn detail page (.hymn-body-centered)
+        so the title and the body share the same horizontal center.
+
+        Guards against accidental removal/regression of the CSS rules in components.css."""
+        from pathlib import Path
+
+        css = Path(__file__).resolve().parents[2] / "static" / "css" / "components.css"
+        content = css.read_text(encoding="utf-8")
+        normalized = " ".join(content.split())
+        # Both selectors must exist (carousel + per-hymn detail share the same rule).
+        assert ".carousel-body .hymn-text" in normalized
+        assert ".hymn-body-centered .hymn-text" in normalized
+        # Locate the rule body (the declarations between { and }) for the .hymn-text
+        # combined selector and assert the three required declarations are inside.
+        # We anchor on the first selector and read up to the closing brace.
+        idx = normalized.index(".carousel-body .hymn-text")
+        end = normalized.index("}", idx)
+        rule_body = normalized[idx:end]
+        assert "width: max-content" in rule_body, "body must use width: max-content for exact text width"
+        assert "margin-inline: auto" in rule_body, "body must center horizontally via margin-inline"
+        assert "text-align: left" in rule_body, "verses inside the body stay left-aligned"

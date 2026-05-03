@@ -7,15 +7,15 @@
   <header class="flex items-end justify-between gap-6 flex-wrap">
     <div>
       <p class="label-mono">Workspace editorial</p>
-      <h1 class="font-serif text-3xl md:text-4xl mt-2">Fila de revisão</h1>
+      <h1 class="font-display text-3xl md:text-4xl mt-2">Fila de revisão</h1>
       <p class="text-ink-soft dark:text-cream/70 mt-2 max-w-xl">
         Hinários aguardando revisão hino-a-hino. Comece pelo de menor progresso ou volte ao que você estava revisando.
       </p>
     </div>
     <dl class="grid grid-cols-3 gap-x-10 gap-y-1 ml-auto text-right">
-      <div><dt class="label-mono">Hinários</dt><dd class="font-serif text-2xl">{{ stats.books }}</dd></div>
-      <div><dt class="label-mono">Pendentes</dt><dd class="font-serif text-2xl text-gold">{{ stats.pending_hymns }}</dd></div>
-      <div><dt class="label-mono">Revisados · 7 dias</dt><dd class="font-serif text-2xl">{{ stats.recent_reviewed }}</dd></div>
+      <div><dt class="label-mono">Hinários</dt><dd class="font-display text-2xl">{{ stats.books }}</dd></div>
+      <div><dt class="label-mono">Pendentes</dt><dd class="font-display text-2xl text-gold">{{ stats.pending_hymns }}</dd></div>
+      <div><dt class="label-mono">Revisados · 7 dias</dt><dd class="font-display text-2xl">{{ stats.recent_reviewed }}</dd></div>
     </dl>
   </header>
 
@@ -55,9 +55,9 @@
     {% for hb in hymnbooks %}
       {% with pct=hb.review_pct|default:0 %}
       <li class="card-soft p-5 flex items-center gap-6 flex-wrap">
-        <div class="w-12 h-12 rounded-full inline-flex items-center justify-center font-serif text-xl shrink-0" style="background: color-mix(in srgb, {{ hb.display_accent }} 18%, transparent); color: {{ hb.display_accent }};">{{ forloop.counter|stringformat:"02d" }}</div>
+        <div class="w-12 h-12 rounded-full inline-flex items-center justify-center font-display text-xl shrink-0" style="background: color-mix(in srgb, {{ hb.display_accent }} 18%, transparent); color: {{ hb.display_accent }};">{{ forloop.counter|stringformat:"02d" }}</div>
         <div class="min-w-0 flex-1">
-          <p class="font-serif text-xl truncate">{{ hb.name }}</p>
+          <p class="font-display text-xl truncate">{{ hb.name }}</p>
           <p class="label-mono mt-1">
             {{ hb.owner_name }} · subido {{ hb.created_at|timesince }} atrás
           </p>

@@ -88,6 +88,32 @@ html.dark .btn-pill[data-active="true"] {
   opacity: 0.7;
 }
 
+/* No modo carrossel E na página individual do hino (hymn_detail), o BLOCO do
+   corpo do hino é centralizado horizontalmente, mas os versos ficam alinhados
+   à esquerda (estilo página de cantador). Como `text-align: center` no parent
+   afeta inline/inline-block children, transformamos o corpo em block com
+   `width: max-content` (simple text) ou inline-grid (com barras de repetição)
+   e mantemos text-align:left dentro pra preservar a régua dos versos. */
+.carousel-body,
+.hymn-body-centered { text-align: center; }
+.carousel-body .hymn-text,
+.hymn-body-centered .hymn-text {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+  text-align: left;
+}
+.carousel-body .hymn-grid,
+.hymn-body-centered .hymn-grid {
+  display: inline-grid !important;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+}
+.carousel-body .hymn-line,
+.hymn-body-centered .hymn-line { text-align: left; }
+
 /* Heatmap de confiança OCR. */
 .ocr-confidence-bar {
   display: flex;

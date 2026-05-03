@@ -7,7 +7,7 @@
   <div class="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex flex-col md:grid md:grid-cols-3 gap-2 md:items-center">
     <a href="{% url 'hymns:editor_hymnbook_detail' hymnbook.slug %}" class="font-mono text-xs uppercase tracking-widest text-ink-soft hover:text-gold order-1">← {{ hymnbook.name }}</a>
     <div class="md:text-center order-3 md:order-2">
-      <p class="font-serif text-lg md:text-xl">Revisar hino</p>
+      <p class="font-display text-lg md:text-xl">Revisar hino</p>
       <p class="label-mono mt-0.5">{{ position|stringformat:"02d" }} de {{ total }} · {{ remaining }} restante{{ remaining|pluralize }}</p>
     </div>
     <div class="flex flex-wrap items-center md:justify-end gap-2 md:gap-3 order-2 md:order-3">
