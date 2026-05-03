@@ -73,6 +73,10 @@ def test_login_template_renders_google_button_when_provider_active():
     html = render_to_string("account/login.html", request=request)
     assert "Continuar com Google" in html
     assert "/accounts/google/login/" in html
+    # base.html aplica hx-boost="true" no body — todo <a> vira XHR e o redirect
+    # 302 do allauth para accounts.google.com quebra por CORS. O link Google
+    # precisa opt-out explícito.
+    assert 'hx-boost="false"' in html
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +91,7 @@ def test_signup_template_renders_google_button_when_provider_active():
     html = render_to_string("account/signup.html", request=request)
     assert "Cadastrar com Google" in html
     assert "/accounts/google/login/" in html
+    assert 'hx-boost="false"' in html
 
 
 # ---------------------------------------------------------------------------
