@@ -382,3 +382,202 @@ html.dark .hymn-page { border-color: var(--color-rule); }
   .audio-card [data-audio-played-rect],
   .audio-play-btn { transition: none; }
 }
+
+/* ============================================================
+   Editor — tela "Revisar hino" (Fase 2 design alignment)
+   Espelhando _design/fase2-bundle/project/screens/revise-hymn.jsx
+   ============================================================ */
+
+/* eyebrow: label uppercase tracked acima de cada bloco do form. Idêntica a
+   .label-mono mas nomeada por papel (eyebrow no design). */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* Atalhos de reorganização de texto: pills sans, fundo paper. */
+.shortcut-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-rule);
+  border-radius: 999px;
+  background: var(--color-bg);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.shortcut-pill:hover {
+  background: var(--color-bg-soft);
+  color: var(--color-ink);
+  border-color: var(--color-ink-soft);
+}
+.shortcut-pill svg { flex-shrink: 0; }
+
+/* Suggestion chips: top-N valores comuns sob inputs Repetições/Estilo. */
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip-suggestion {
+  padding: 4px 10px;
+  border: 1px solid var(--color-rule);
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.chip-suggestion:hover,
+.chip-suggestion[data-active="true"] {
+  background: var(--color-ink);
+  color: var(--color-bg);
+  border-color: var(--color-ink);
+}
+
+/* Status segmentado com cor por estado (vermilion/gold/moss). */
+.status-segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 4px;
+  background: var(--color-bg-soft);
+  border: 1px solid var(--color-rule);
+  border-radius: 8px;
+}
+.status-option { display: block; cursor: pointer; }
+.status-option > span {
+  display: block;
+  text-align: center;
+  padding: 10px 0;
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink-soft);
+  transition: background 120ms, color 120ms;
+}
+.status-option > input:checked + span {
+  color: var(--color-bg);
+}
+.status-option[data-status="not_reviewed"] > input:checked + span { background: var(--color-vermilion); }
+.status-option[data-status="in_review"]    > input:checked + span { background: var(--color-gold); }
+.status-option[data-status="reviewed"]     > input:checked + span { background: var(--color-moss); }
+
+/* Diff inline word-level: tokens substituídos lado a lado, linhas inteiras
+   acrescentadas/removidas. */
+.diff-inline {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 16px;
+}
+.diff-inline .diff-line {
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: pre-wrap;
+}
+.diff-inline .diff-line.add {
+  background: rgba(74, 106, 58, 0.12);
+  color: var(--color-moss);
+}
+.diff-inline .diff-line.del {
+  background: rgba(177, 62, 46, 0.10);
+  color: var(--color-vermilion);
+  text-decoration: line-through;
+}
+.diff-inline .t-sub {
+  background: rgba(177, 62, 46, 0.15);
+  color: var(--color-vermilion);
+  padding: 0 3px;
+  border-radius: 2px;
+  text-decoration: line-through;
+}
+.diff-inline .t-add {
+  background: rgba(74, 106, 58, 0.15);
+  color: var(--color-moss);
+  padding: 0 3px;
+  border-radius: 2px;
+  margin-left: 2px;
+}
+.diff-inline .t-del {
+  background: rgba(177, 62, 46, 0.10);
+  color: var(--color-vermilion);
+  padding: 0 3px;
+  border-radius: 2px;
+  text-decoration: line-through;
+}
+.diff-inline .diff-counter {
+  margin: 14px 6px 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-rule-soft);
+  font-size: 11px;
+  color: var(--color-ink-mute);
+}
+
+/* Action bar do rodapé: full-width sticky com sombra superior. */
+.action-bar {
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-rule);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.04);
+}
+.kbd {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--color-rule);
+  border-radius: 4px;
+  background: var(--color-bg-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-ink-soft);
+}
+.kbd-primary {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--color-bg);
+}
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: 1px solid var(--color-rule);
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-ink);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 120ms;
+}
+.btn-ghost:hover { background: var(--color-bg-soft); }
+.btn-primary-firmament {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-firmament);
+  color: var(--color-bg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.btn-primary-firmament:hover { background: var(--color-firmament-2); }
