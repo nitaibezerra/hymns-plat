@@ -37,3 +37,9 @@ class TestBaseLayout:
     def test_skip_link_present_for_a11y(self, client):
         resp = client.get(reverse("hymns:home")).content.decode()
         assert "Pular para conteúdo" in resp
+
+    def test_header_authenticated_shows_logout_link(self, authenticated_client):
+        """Header deve oferecer logout no desktop E no mobile drawer."""
+        resp = authenticated_client.get(reverse("hymns:home")).content.decode()
+        # Mobile drawer já tem; o desktop precisa ter o seu próprio link → 2 ocorrências
+        assert resp.count("/accounts/logout/") >= 2, "logout deve aparecer tanto no desktop quanto no mobile drawer"
