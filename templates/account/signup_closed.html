@@ -2,13 +2,16 @@
 {% load i18n %}
 {% load socialaccount %}
 
-{% block title %}Entrar{% endblock %}
+{% block title %}Criar conta{% endblock %}
 
 {% block content %}
 <section class="max-w-md mx-auto px-6 py-16">
   <p class="label-mono">Conta</p>
-  <h1 class="font-display text-3xl md:text-4xl mt-2">Entrar</h1>
-  <p class="text-ink-soft mt-2">Acesse para contribuir e revisar hinários.</p>
+  <h1 class="font-display text-3xl md:text-4xl mt-2">Entrar com Google</h1>
+  <p class="text-ink-soft mt-2">
+    O Hinaria usa autenticação Google. Não é preciso criar uma senha — entre
+    com sua conta Google e seu perfil é criado automaticamente.
+  </p>
 
   {% get_providers as socialaccount_providers %}
   {% if socialaccount_providers %}
@@ -28,13 +31,6 @@
           </a>
         {% endif %}
       {% endfor %}
-    </div>
-    <p class="mt-6 text-sm text-center text-ink-soft">
-      Sua conta é vinculada à sua conta Google.
-    </p>
-  {% else %}
-    <div class="mt-8 rounded-md border border-rust/30 bg-rust/10 text-rust px-4 py-3 text-sm">
-      Login indisponível no momento. Tente novamente mais tarde.
     </div>
   {% endif %}
 </section>

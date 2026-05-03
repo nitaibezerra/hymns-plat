@@ -5,66 +5,38 @@ NOTE: These tests run against a live server on localhost:9000.
 Start the server before running: poetry run python manage.py runserver 9000
 """
 
-import os
-
 import pytest
 from playwright.sync_api import Page, expect
 
 
 @pytest.mark.e2e
 class TestAuthentication:
-    """Tests for user authentication."""
+    """Tests for user authentication.
 
-    def test_signup_page_loads(self, page: Page, base_url: str):
-        """Signup page loads correctly."""
-        page.goto(f"{base_url}/accounts/signup/")
+    O site público é Google-only — não há login interno (email/senha).
+    `/django-admin/` e `/admin/` (Wagtail) usam login próprio fora do allauth.
+    """
 
-        expect(page.locator('input[name="email"]')).to_be_visible()
-        expect(page.locator('input[name="password1"]')).to_be_visible()
-
-    def test_login_page_loads(self, page: Page, base_url: str):
-        """Login page loads correctly."""
-        page.goto(f"{base_url}/accounts/login/")
-
-        expect(page.locator('input[name="login"]')).to_be_visible()
-        expect(page.locator('input[name="password"]')).to_be_visible()
-
-    def test_login_page_shows_google_button_when_provider_active(self, page: Page, base_url: str):
-        """Quando GOOGLE_OAUTH_CLIENT_ID está setado, o botão Google aparece no login."""
-        if not os.environ.get("GOOGLE_OAUTH_CLIENT_ID"):
-            pytest.skip("GOOGLE_OAUTH_CLIENT_ID não setado — provider Google inativo")
+    def test_login_page_shows_google_button_only(self, page: Page, base_url: str):
+        """Login page mostra o botão Google e nenhum form de email/senha."""
         page.goto(f"{base_url}/accounts/login/")
 
         google_link = page.locator('a[href="/accounts/google/login/"]')
         expect(google_link).to_be_visible()
         expect(google_link).to_contain_text("Continuar com Google")
+        expect(page.locator('input[name="login"]')).to_have_count(0)
+        expect(page.locator('input[name="password"]')).to_have_count(0)
 
-    def test_login_with_invalid_credentials_shows_error(self, page: Page, base_url: str):
-        """Login with invalid credentials shows error."""
-        page.goto(f"{base_url}/accounts/login/")
+    def test_signup_url_renders_google_only_message(self, page: Page, base_url: str):
+        """GET /accounts/signup/ → signup_closed (sem form, com botão Google)."""
+        page.goto(f"{base_url}/accounts/signup/")
 
-        page.fill('input[name="login"]', "wrong@example.com")
-        page.fill('input[name="password"]', "wrongpass")
-        page.click('button[type="submit"]')
-
-        page.wait_for_load_state("networkidle")
-        # Should stay on login page with error message
-        # allauth shows errors in various ways
-        content = page.content().lower()
-        has_error = (
-            "errorlist" in content
-            or "incorrect" in content
-            or "inválid" in content
-            or "invalid" in content
-            or "erro" in content
-            or page.url.endswith("/accounts/login/")  # Still on login = failed
-        )
-        assert has_error, "Expected to stay on login page or show error"
+        expect(page.locator('input[name="password1"]')).to_have_count(0)
+        expect(page.locator('a[href="/accounts/google/login/"]')).to_be_visible()
 
     def test_protected_page_redirects_to_login(self, page: Page, base_url: str):
         """Accessing protected page without login redirects to login."""
         page.goto(f"{base_url}/contribuir/")
 
         page.wait_for_load_state("networkidle")
-        # Should redirect to login
         assert "/accounts/login/" in page.url

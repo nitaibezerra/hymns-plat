@@ -58,8 +58,7 @@
           {{ user.username|slice:":2"|upper }}
         </a>
       {% else %}
-        <a href="{% url 'account_login' %}" class="text-sm hover:text-firmament dark:hover:text-firmament">Entrar</a>
-        <a href="{% url 'account_signup' %}" class="text-sm bg-firmament text-cream px-3 py-1.5 rounded-full hover:bg-firmament-2">Criar conta</a>
+        <a href="{% url 'account_login' %}" class="text-sm bg-firmament text-cream px-3 py-1.5 rounded-full hover:bg-firmament-2">Entrar</a>
       {% endif %}
     </div>
   </div>
@@ -90,7 +89,6 @@
     {% else %}
       <hr class="border-ink/10 dark:border-cream/10 my-2">
       <a href="{% url 'account_login' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Entrar</a>
-      <a href="{% url 'account_signup' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Criar conta</a>
     {% endif %}
   </nav>
   <form action="{% url 'hymns:search' %}" method="get" class="p-4 border-t border-ink/10 dark:border-cream/10">

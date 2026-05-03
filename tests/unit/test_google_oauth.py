@@ -225,3 +225,65 @@ def test_signal_skips_when_picture_url_missing(user_factory):
 
     user.refresh_from_db()
     assert not user.avatar
+
+
+# ---------------------------------------------------------------------------
+# Google-only — desabilitar login interno (email/senha)
+# ---------------------------------------------------------------------------
+
+
+def test_custom_account_adapter_disables_signup():
+    """O adapter custom deve bloquear signup tradicional (Google-only)."""
+    from allauth.account.adapter import get_adapter
+
+    adapter = get_adapter()
+    assert adapter.is_open_for_signup(request=None) is False
+
+
+def test_settings_uses_custom_account_adapter():
+    assert settings.ACCOUNT_ADAPTER == "apps.users.adapters.CustomAccountAdapter"
+
+
+@pytest.mark.django_db
+@override_settings(SOCIALACCOUNT_PROVIDERS=GOOGLE_PROVIDER_OVERRIDE)
+def test_login_template_has_no_password_form():
+    """Login só com Google — sem inputs de email/senha."""
+    request = RequestFactory().get("/accounts/login/")
+    html = render_to_string("account/login.html", request=request)
+    assert 'name="login"' not in html
+    assert 'name="password"' not in html
+    assert 'type="password"' not in html
+
+
+@pytest.mark.django_db
+@override_settings(SOCIALACCOUNT_PROVIDERS=GOOGLE_PROVIDER_OVERRIDE)
+def test_login_template_has_no_signup_or_password_reset_links():
+    """Sem signup interno e sem password reset — esses fluxos não existem mais."""
+    request = RequestFactory().get("/accounts/login/")
+    html = render_to_string("account/login.html", request=request)
+    assert "/accounts/password/reset/" not in html
+    assert "/accounts/signup/" not in html
+    assert "Esqueceu" not in html
+    assert "Criar conta" not in html
+
+
+@pytest.mark.django_db
+def test_signup_url_renders_signup_closed_message(client):
+    """GET /accounts/signup/ deve renderizar signup_closed (não o form de signup)."""
+    resp = client.get("/accounts/signup/")
+    assert resp.status_code == 200
+    body = resp.content.decode()
+    # Mensagem do signup_closed.html
+    assert "Google" in body
+    # E não deve ter o form de signup tradicional
+    assert 'name="password1"' not in body
+    assert 'name="password2"' not in body
+
+
+@pytest.mark.django_db
+def test_header_anonymous_does_not_show_create_account(client):
+    """Header anonymous esconde 'Criar conta' (signup interno desativado)."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    body = resp.content.decode()
+    assert "Criar conta" not in body
