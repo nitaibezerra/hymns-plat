@@ -5,7 +5,7 @@
     {% with idx=forloop.counter %}
       <li class="flex flex-col items-center text-center">
         <span class="w-10 h-10 rounded-full inline-flex items-center justify-center font-mono text-sm
-          {% if idx < step %}bg-ink text-cream dark:bg-gold dark:text-night
+          {% if idx < step %}bg-firmament text-cream
           {% elif idx == step %}bg-gold text-night
           {% else %}bg-ink/10 text-ink-soft{% endif %}">
           {% if idx < step %}✓{% else %}{{ idx }}{% endif %}

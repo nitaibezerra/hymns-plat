@@ -30,7 +30,7 @@
         <a href="{% url 'users:profile_edit' profile_user.username %}" class="btn-pill">Editar perfil</a>
       {% else %}
         <button type="button" data-follow-toggle data-username="{{ profile_user.username }}"
-                class="bg-ink text-cream rounded-full px-4 py-2 text-sm dark:bg-gold dark:text-night">
+                class="bg-firmament text-cream rounded-full px-4 py-2 text-sm hover:bg-firmament-2">
           {% if is_following %}Seguindo{% else %}Seguir{% endif %}
         </button>
       {% endif %}

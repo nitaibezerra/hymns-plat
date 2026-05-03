@@ -1,17 +1,42 @@
-/* Design tokens da Fase 2 — light + dark.
-   Espelha os valores do <script>tailwind.config</script> e adiciona variáveis
-   CSS para componentes que precisam de cor sem classes utilitárias. */
+/* Design tokens — paleta "Luz do Firmamento".
+   Espelha `_design/fase2-bundle/project/styles/tokens.css`. Tudo que não vem
+   do Tailwind utility (componentes em CSS puro) lê estas variáveis. */
 
 :root {
-  --color-bg: #F5EDDC;
-  --color-bg-deep: #EDE3CD;
-  --color-ink: #14213A;
-  --color-ink-soft: #3F4A5F;
-  --color-gold: #B58D3E;
-  --color-gold-soft: #E8D5A8;
-  --color-moss: #6E8C3A;
-  --color-rust: #8C3A2E;
-  --color-shadow: rgba(20, 33, 58, 0.08);
+  /* Paper / surfaces — três níveis de progressão (claro → fundo). */
+  --color-bg:        #F6EFE2;       /* paper claro */
+  --color-bg-soft:   #EFE6D2;       /* hovers, fundos de cards inset */
+  --color-bg-deep:   #E6DCC4;       /* fundos rebaixados (search input, status bars) */
+
+  /* Ink — três níveis (forte → discreto). */
+  --color-ink:       #1A1D2E;       /* tinta de noite */
+  --color-ink-soft:  #3A3F57;
+  --color-ink-mute:  #6B6F85;       /* texto secundário, draft pills */
+
+  /* Filete — cor de papel-amarelado para divisores estruturais. */
+  --color-rule:      #C8BDA1;
+  --color-rule-soft: #D9CFB6;
+
+  /* Firmament — azul litúrgico, acento PRIMÁRIO (CTAs, links ativos, progress). */
+  --color-firmament:    #1D3B6A;
+  --color-firmament-2:  #2C5A92;
+  --color-firmament-3:  #6F8FB8;
+
+  /* Gold — acento secundário/decorativo (ornamentos, ☀ ☾ ★, underlines). */
+  --color-gold:      #B8893A;
+  --color-gold-soft: #D9B06A;
+
+  /* Acentos suportes. */
+  --color-vermilion: #B13E2E;       /* alertas, destrutivo */
+  --color-rust:      #B13E2E;       /* alias legado para vermilion */
+  --color-moss:      #4A6A3A;       /* status revisado */
+
+  /* Status semânticos (review). */
+  --color-status-not: #B13E2E;
+  --color-status-mid: #B8893A;
+  --color-status-ok:  #4A6A3A;
+
+  --color-shadow: rgba(26, 29, 46, 0.08);
 
   /* Display = decorative serif for titles. Body serif = legible serif for hymn
      verses and reading. Mirrors `_design/fase2-bundle/project/styles/tokens.css`. */
@@ -21,20 +46,31 @@
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
   --space-frame: 1.5rem;
+  --radius-sm:   4px;
+  --radius:      8px;
+  --radius-lg:   14px;
   --radius-card: 14px;
   --radius-pill: 9999px;
+  --shadow-1: 0 1px 0 rgba(26, 29, 46, 0.04), 0 1px 3px rgba(26, 29, 46, 0.06);
+  --shadow-2: 0 2px 6px rgba(26, 29, 46, 0.08), 0 12px 28px rgba(26, 29, 46, 0.10);
 }
 
 html.theme-dark,
 html.dark {
-  --color-bg: #0E1320;
-  --color-bg-deep: #1A2030;
-  --color-ink: #EDE3CD;
-  --color-ink-soft: #B6B0A0;
-  --color-gold: #E8D5A8;
-  --color-gold-soft: #B58D3E;
-  --color-moss: #9CB269;
-  --color-rust: #C36F62;
+  --color-bg:        #0E1320;
+  --color-bg-soft:   #141A2A;
+  --color-bg-deep:   #1A2236;
+  --color-ink:       #F0E7D2;
+  --color-ink-soft:  #C9C2B0;
+  --color-ink-mute:  #8A8A9C;
+  --color-rule:      #2A3450;
+  --color-rule-soft: #1F2740;
+  /* Noite: o firmamento clareia pra virar estrela; o ouro permanece quente. */
+  --color-firmament:    #C8D4EC;
+  --color-firmament-2:  #95ACCF;
+  --color-firmament-3:  #6F8FB8;
+  --color-gold:      #E0B87A;
+  --color-gold-soft: #C8975A;
   --color-shadow: rgba(0, 0, 0, 0.4);
 }
 
