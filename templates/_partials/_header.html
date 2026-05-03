@@ -10,12 +10,12 @@
       {% url 'hymns:home' as home_url %}
       {% url 'hymns:hymnbook_list' as books_url %}
       {% url 'hymns:search' as search_url %}
-      <a href="{{ home_url }}" class="hover:text-gold {% if request.path == home_url %}text-gold border-b border-gold pb-1{% endif %}">Início</a>
-      <a href="{{ books_url }}" class="hover:text-gold {% if books_url in request.path %}text-gold border-b border-gold pb-1{% endif %}">Hinários</a>
-      <a href="{{ search_url }}" class="hover:text-gold {% if search_url in request.path %}text-gold border-b border-gold pb-1{% endif %}">Buscar</a>
+      <a href="{{ home_url }}" class="hover:text-ink dark:hover:text-cream {% if request.path == home_url %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Início</a>
+      <a href="{{ books_url }}" class="hover:text-ink dark:hover:text-cream {% if books_url in request.path %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Hinários</a>
+      <a href="{{ search_url }}" class="hover:text-ink dark:hover:text-cream {% if search_url in request.path %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Buscar</a>
       {% if user.is_authenticated %}
-        <a href="{% url 'hymns:editor_hymnbook_list' %}" class="hover:text-gold {% if '/editor/' in request.path %}text-gold border-b border-gold pb-1{% endif %}">Editor</a>
-        <a href="{% url 'users:upload' %}" class="hover:text-gold {% if '/contribuir/' in request.path %}text-gold border-b border-gold pb-1{% endif %}">Contribuir</a>
+        <a href="{% url 'hymns:editor_hymnbook_list' %}" class="hover:text-ink dark:hover:text-cream {% if '/editor/' in request.path %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Editor</a>
+        <a href="{% url 'users:upload' %}" class="hover:text-ink dark:hover:text-cream {% if '/contribuir/' in request.path %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Contribuir</a>
       {% endif %}
     </nav>
 
@@ -58,8 +58,8 @@
           {{ user.username|slice:":2"|upper }}
         </a>
       {% else %}
-        <a href="{% url 'account_login' %}" class="text-sm hover:text-gold">Entrar</a>
-        <a href="{% url 'account_signup' %}" class="text-sm bg-ink text-cream px-3 py-1.5 rounded-full hover:bg-ink-soft">Criar conta</a>
+        <a href="{% url 'account_login' %}" class="text-sm hover:text-firmament dark:hover:text-firmament">Entrar</a>
+        <a href="{% url 'account_signup' %}" class="text-sm bg-firmament text-cream px-3 py-1.5 rounded-full hover:bg-firmament-2">Criar conta</a>
       {% endif %}
     </div>
   </div>
@@ -78,12 +78,12 @@
     </button>
   </div>
   <nav class="flex-1 overflow-y-auto py-2" aria-label="Menu mobile">
-    <a href="{% url 'hymns:home' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if request.path == '/' %}text-gold{% endif %}">Início</a>
-    <a href="{% url 'hymns:hymnbook_list' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/hinarios/' in request.path %}text-gold{% endif %}">Hinários</a>
-    <a href="{% url 'hymns:search' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/busca/' in request.path %}text-gold{% endif %}">Buscar</a>
+    <a href="{% url 'hymns:home' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if request.path == '/' %}text-firmament dark:text-firmament{% endif %}">Início</a>
+    <a href="{% url 'hymns:hymnbook_list' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/hinarios/' in request.path %}text-firmament dark:text-firmament{% endif %}">Hinários</a>
+    <a href="{% url 'hymns:search' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/busca/' in request.path %}text-firmament dark:text-firmament{% endif %}">Buscar</a>
     {% if user.is_authenticated %}
-      <a href="{% url 'hymns:editor_hymnbook_list' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/editor/' in request.path %}text-gold{% endif %}">Editor</a>
-      <a href="{% url 'users:upload' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/contribuir/' in request.path %}text-gold{% endif %}">Contribuir</a>
+      <a href="{% url 'hymns:editor_hymnbook_list' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/editor/' in request.path %}text-firmament dark:text-firmament{% endif %}">Editor</a>
+      <a href="{% url 'users:upload' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/contribuir/' in request.path %}text-firmament dark:text-firmament{% endif %}">Contribuir</a>
       <hr class="border-ink/10 dark:border-cream/10 my-2">
       <a href="{% url 'users:profile' user.username %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Meu perfil</a>
       <a href="{% url 'account_logout' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Sair</a>

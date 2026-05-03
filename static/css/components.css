@@ -2,6 +2,73 @@
    Tailwind cobre o grosso; aqui ficam só os refinos que dependem de pseudo
    elementos, dot-leader (índice de hinário) e barras de repetição. */
 
+/* ===== BOTÕES — primário usa firmament (acento de marca), secundário gold. ===== */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: var(--color-firmament);
+  color: var(--color-bg);
+  border: 1px solid var(--color-firmament);
+  cursor: pointer;
+  transition: background-color 120ms;
+}
+.btn-primary:hover {
+  background: var(--color-firmament-2);
+  border-color: var(--color-firmament-2);
+}
+.btn-gold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: var(--color-gold);
+  color: #1A1D2E;
+  border: 1px solid var(--color-gold);
+  cursor: pointer;
+  transition: background-color 120ms;
+}
+.btn-gold:hover { background: var(--color-gold-soft); }
+
+/* Pílulas semânticas (status de revisão e publicação). */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--color-rule);
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+}
+.pill::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor;
+}
+.pill-ok    { color: var(--color-status-ok); border-color: color-mix(in oklab, var(--color-status-ok) 35%, var(--color-rule)); }
+.pill-mid   { color: var(--color-status-mid); border-color: color-mix(in oklab, var(--color-status-mid) 35%, var(--color-rule)); }
+.pill-not   { color: var(--color-status-not); border-color: color-mix(in oklab, var(--color-status-not) 35%, var(--color-rule)); }
+.pill-pub   { color: var(--color-firmament); border-color: color-mix(in oklab, var(--color-firmament) 35%, var(--color-rule)); }
+.pill-draft { color: var(--color-ink-mute); }
+
+/* Hairline divisor — usa cor de papel-amarelado, não ink translúcido. */
+.hairline { height: 1px; background: var(--color-rule); border: 0; margin: 1rem 0; }
+
 /* Highlight de busca — sobrepõe o amarelo nativo do <mark> com gold-soft sutil
    da paleta editorial. box-decoration-break:clone garante o estilo correto
    quando o highlight quebra de linha. */
@@ -80,6 +147,19 @@ html.dark .btn-pill[data-active="true"] {
   border-radius: var(--radius-card);
   box-shadow: 0 1px 2px var(--color-shadow);
 }
+
+/* "Página" de hino — card que simula o papel do cantador. Usado nos modos
+   corrido (lista de cards stacked, shadow-1) e carrossel (card central
+   por slide, shadow-2). Tokens espelham `_design/fase2-bundle`. */
+.hymn-page {
+  background: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+.hymn-page-deep { box-shadow: var(--shadow-2); }
+[data-theme="dark"] .hymn-page,
+html.dark .hymn-page { border-color: var(--color-rule); }
 
 /* Refinos da grade de barras de repetição (já implementadas em
    apps/hymns/repetitions.py — apenas suaviza cor para harmonizar com tokens). */

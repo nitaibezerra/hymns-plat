@@ -26,11 +26,21 @@
         theme: {
           extend: {
             colors: {
-              cream: { DEFAULT: '#F5EDDC', deep: '#EDE3CD' },
-              ink: { DEFAULT: '#14213A', soft: '#3F4A5F' },
-              gold: { DEFAULT: '#B58D3E', soft: '#E8D5A8' },
-              moss: '#6E8C3A',
-              rust: '#8C3A2E',
+              // Paper / surfaces — three progressive tones.
+              cream: { DEFAULT: '#F6EFE2', soft: '#EFE6D2', deep: '#E6DCC4' },
+              // Ink — three progressive tones (forte → discreto).
+              ink: { DEFAULT: '#1A1D2E', soft: '#3A3F57', mute: '#6B6F85' },
+              // Hairline rule — warm paper-toned divider.
+              rule: { DEFAULT: '#C8BDA1', soft: '#D9CFB6' },
+              // Firmament — primary accent (CTAs, active links, progress).
+              firmament: { DEFAULT: '#1D3B6A', 2: '#2C5A92', 3: '#6F8FB8' },
+              // Gold — secondary/decorative (ornaments, underlines, glyphs).
+              gold: { DEFAULT: '#B8893A', soft: '#D9B06A' },
+              moss: '#4A6A3A',
+              rust: '#B13E2E',
+              vermilion: '#B13E2E',
+              // Semantic status colors (review pipeline).
+              status: { not: '#B13E2E', mid: '#B8893A', ok: '#4A6A3A' },
               night: { DEFAULT: '#0E1320', deep: '#1A2030' },
             },
             fontFamily: {

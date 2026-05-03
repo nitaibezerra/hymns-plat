@@ -64,12 +64,12 @@
         </div>
         <div class="w-72">
           <div class="flex justify-between text-xs font-mono mb-1"><span>{{ hb.reviewed_hymns }}/{{ hb.total_hymns }} revisados</span><span>{{ pct }}%</span></div>
-          <div class="h-2 bg-ink/10 rounded-full overflow-hidden"><div class="h-full bg-gold" style="width: {{ pct }}%;"></div></div>
+          <div class="h-2 bg-ink/10 rounded-full overflow-hidden"><div class="h-full bg-firmament" style="width: {{ pct }}%;"></div></div>
         </div>
         {% if hb.review_pct == 100 and not hb.is_published %}
-          <form action="{% url 'hymns:hymnbook_publish' hb.slug %}" method="post">{% csrf_token %}<button class="bg-gold text-night rounded-full px-4 py-2 text-sm font-medium hover:bg-gold-soft">Publicar hinário ✓</button></form>
+          <form action="{% url 'hymns:hymnbook_publish' hb.slug %}" method="post">{% csrf_token %}<button class="bg-firmament text-cream rounded-full px-4 py-2 text-sm font-medium hover:bg-firmament-2">Publicar hinário ✓</button></form>
         {% else %}
-          <a href="{% url 'hymns:editor_next_hymn' hb.slug %}" class="bg-ink text-cream rounded-full px-4 py-2 text-sm hover:bg-ink-soft dark:bg-cream/10 dark:hover:bg-cream/20">Revisar próximo →</a>
+          <a href="{% url 'hymns:editor_next_hymn' hb.slug %}" class="bg-firmament text-cream rounded-full px-4 py-2 text-sm hover:bg-firmament-2">Revisar próximo →</a>
         {% endif %}
       </li>
       {% endwith %}
