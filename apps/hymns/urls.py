@@ -50,4 +50,5 @@ urlpatterns = [
     path("api/editor/resume/", api_views.api_editor_resume, name="api_editor_resume"),
     path("api/hymns/<uuid:pk>/history/", api_views.api_hymn_history, name="api_hymn_history"),
     path("api/hymns/<uuid:pk>/diff/", api_views.api_hymn_diff, name="api_hymn_diff"),
+    path("api/hinarios/<slug:slug>/queue/", api_views.api_hymnbook_queue, name="hymnbook_queue_json"),
 ]
