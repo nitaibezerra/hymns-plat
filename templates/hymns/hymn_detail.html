@@ -24,11 +24,9 @@
 
 <section class="max-w-6xl mx-auto px-6 pb-16 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-8">
   <article class="hymn-page hymn-card p-6 sm:p-12 md:p-14 min-w-0 overflow-hidden">
-    <div class="hymn-num">HINO {{ hymn.number|stringformat:"02d" }} · {{ hymn.hymn_book.name|upper }}</div>
-    <h1 class="hymn-title">{{ hymn.title }}</h1>
-    <div class="title-rule"></div>
+    <h1 class="hymn-title">{{ hymn.number }} - {{ hymn.title }}</h1>
 
-    <div class="font-serif text-xl md:text-2xl leading-[1.7] max-w-prose mx-auto hymn-body-centered">
+    <div class="font-serif text-lg md:text-xl max-w-prose mx-auto hymn-body-centered">
       {% render_hymn_body hymn %}
     </div>
 

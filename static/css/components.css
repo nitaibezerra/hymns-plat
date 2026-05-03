@@ -140,6 +140,89 @@ html.dark .btn-pill[data-active="true"] {
   border-color: var(--color-gold);
 }
 
+/* ===== BARRA "MODO DE LEITURA" =====
+   Wrapper "pill" com border + paper bg, abrigando os 3 botões. Botão ativo
+   usa rust (burgundy) — espelha `_design/fase2-bundle/.../hymnbook-detail.jsx`
+   linhas 56-86. */
+.mode-toggle-group {
+  display: inline-flex;
+  padding: 4px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  gap: 0;
+}
+.mode-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--color-ink-soft);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.mode-toggle-btn:hover { color: var(--color-ink); }
+.mode-toggle-btn[data-active="true"] {
+  background: var(--color-rust);
+  color: var(--color-bg);
+}
+.mode-toggle-btn svg { flex-shrink: 0; }
+
+/* ===== CHROME DO CARROSSEL =====
+   Pílula contador "NN / total" no topo + dots no rodapé com ativo em barra
+   alongada (24×6). Espelha `_design/fase2-bundle/.../extras.jsx:174-205`. */
+.carousel-counter-pill {
+  display: inline-block;
+  background: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--color-ink-soft);
+}
+
+/* Trade-off resolvido: cada slide tem altura natural (intrínseca do conteúdo
+   = pílula + card + paddings). O carousel container ajusta dinamicamente sua
+   altura para a do slide ativo via JS (em hymn-carousel.js `update()`),
+   transicionando suavemente. Slides ao lado, com altura natural diferente,
+   ficam recortados pelo `overflow-y: hidden` do container. Resultado: card
+   sempre aparece inteiro, sem barra de rolagem interna. */
+.carousel-slide {
+  align-self: flex-start;
+}
+[data-carousel] {
+  transition: height 250ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-carousel] { transition: none; }
+}
+.carousel-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  background: var(--color-rule);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: width 200ms, background 200ms;
+}
+.carousel-dot[data-active="true"] {
+  width: 24px;
+  background: var(--color-rust);
+}
+.carousel-dot:hover:not([data-active="true"]) {
+  background: var(--color-ink-soft);
+}
+
 /* Cards */
 .card-soft {
   background: color-mix(in srgb, var(--color-bg) 92%, var(--color-ink) 0%);
@@ -175,14 +258,20 @@ html.dark .hymn-page { border-color: var(--color-rule); }
   margin: 0 0 14px;
 }
 .hymn-page .hymn-title {
-  font-family: var(--font-display);
+  /* Mesma família do corpo do hino (Source Serif 4) — espelha página de
+     cantador impresso, onde título e versos vêm na mesma face. Peso 500
+     espelha `_design/fase2-bundle/.../components.css` (.hymn-page .hymn-title
+     font-weight: 500). */
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 28px;
   text-align: center;
-  letter-spacing: 0.005em;
+  letter-spacing: 0;
   color: var(--color-ink);
-  margin: 0 0 6px;
-  line-height: 1.15;
+  /* Sem eyebrow ou régua abaixo: o título sozinho vira o cabeçalho.
+     Espaço inferior maior para separar do corpo do hino. */
+  margin: 0 0 28px;
+  line-height: 1.2;
   text-wrap: balance;
   overflow-wrap: break-word;
 }

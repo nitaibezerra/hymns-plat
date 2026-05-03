@@ -111,7 +111,8 @@ class TestTemplateUsage:
 
     def test_hymn_body_wrapper_keeps_serif_face(self):
         # Body wrappers must keep `font-serif` (now Source Serif 4) — not be flipped to display.
+        # Line-height vem do `LINE_HEIGHT_EM` em hymn_extras.py (1.55, alinhado
+        # ao design), não mais via Tailwind `leading-[1.7]`.
         html = _read("templates/hymns/hymnbook_detail.html")
-        # The carousel-body wrapper line is the canonical body container.
-        assert "font-serif text-xl leading-[1.7] mx-auto carousel-body" in html
-        assert "font-serif text-xl leading-[1.7] max-w-prose mx-auto hymn-body-centered" in html
+        assert "font-serif text-lg mx-auto carousel-body" in html
+        assert "font-serif text-lg max-w-prose mx-auto hymn-body-centered" in html

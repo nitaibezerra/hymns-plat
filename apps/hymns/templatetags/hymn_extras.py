@@ -31,7 +31,10 @@ BAR_COLOR = "#000000"
 BAR_COLUMN_WIDTH_PX = 9
 TEXT_GUTTER_PX = 13.5  # coluna adjacente ao texto: 50% mais larga que as internas
 BAR_THICKNESS_PX = 2.4
-LINE_HEIGHT_EM = 1.8
+# Line-height espelha `_design/fase2-bundle/.../components.css` (`.hymn-body`
+# = 1.55). Antes estava em 1.8 — espaçamento entre versos ficava esparso
+# demais, longe do design impresso de cantador.
+LINE_HEIGHT_EM = 1.55
 
 
 @register.simple_tag
