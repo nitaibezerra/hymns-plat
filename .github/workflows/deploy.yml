@@ -1,22 +1,19 @@
 name: Deploy
 
-# Auto-deploys main to Railway after CI passes.
-# Trigger chain:
-#   1. PR merged → push to main → CI workflow runs
-#   2. CI completes successfully on main → workflow_run triggers this file
-#   3. We re-check the conclusion (workflow_run also fires on failure) and only
-#      deploy when CI passed.
-#
-# Manual trigger via the Actions UI is also supported (workflow_dispatch).
+# Auto-deploys main to Railway as soon as a PR is merged.
+# Trigger:
+#   - push to main (= the squash commit produced by merging a PR; branch
+#     protection guarantees the PR ran the full CI suite before merge, so we
+#     don't re-run CI here — direct push to main is otherwise blocked).
+#   - workflow_dispatch (manual redeploy from the Actions UI when Railway has
+#     a hiccup unrelated to the code).
 #
 # Required GitHub Actions secret:
 #   RAILWAY_API_TOKEN — account-scoped Railway token (same one used locally,
 #   stored at /Users/nitai/dev/copa-dos-reis/dev/portal/.env.railway).
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -30,8 +27,6 @@ jobs:
   deploy:
     name: Deploy to Railway
     runs-on: ubuntu-latest
-    # On workflow_run, only proceed when CI succeeded; on workflow_dispatch, always run.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
