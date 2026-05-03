@@ -340,20 +340,28 @@ html.dark .hymn-page { border-color: var(--color-rule); }
 .carousel-body .hymn-line,
 .hymn-body-centered .hymn-line { text-align: left; }
 
-/* Heatmap de confiança OCR. */
-.ocr-confidence-bar {
+/* Sparkline de confiança OCR — uma barra por linha do OCR, altura proporcional
+   ao score de fidelidade (similaridade entre OCR e texto revisado). Espelha o
+   design `_design/fase2-bundle/.../revise-hymn.jsx` 82-97. */
+.ocr-confidence-sparkline {
   display: flex;
+  align-items: flex-end;
   gap: 4px;
-  align-items: stretch;
+  height: 36px;
+  padding: 0;
 }
-.ocr-confidence-bar .seg {
+.ocr-confidence-sparkline .bar {
   flex: 1;
-  height: 16px;
-  border-radius: 3px;
+  min-width: 4px;
+  min-height: 4px;
+  border-radius: 2px 2px 0 0;
+  opacity: 0.85;
+  transition: opacity 120ms;
 }
-.ocr-confidence-bar .seg.low { background: var(--color-rust); opacity: 0.85; }
-.ocr-confidence-bar .seg.mid { background: var(--color-gold); opacity: 0.85; }
-.ocr-confidence-bar .seg.high { background: var(--color-moss); opacity: 0.85; }
+.ocr-confidence-sparkline .bar:hover { opacity: 1; }
+.ocr-confidence-sparkline .bar.low  { background: var(--color-rust); }
+.ocr-confidence-sparkline .bar.mid  { background: var(--color-gold); }
+.ocr-confidence-sparkline .bar.high { background: var(--color-moss); }
 
 /* Print: detalhe de hino em PDF-like. */
 @media print {
