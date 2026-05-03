@@ -44,6 +44,17 @@ CI on every PR runs three jobs (`.github/workflows/ci.yml`):
 
 Before pushing, always run lint + unit suite locally; otherwise CI catches it. **Never skip git hooks** (`--no-verify` etc.) — see `.gitignore`/CI config.
 
+### Branch protection on `main`
+
+`main` is protected (configured via `gh api /repos/.../branches/main/protection`):
+- **Required status checks**: `Lint & Format Check`, `Unit Tests`, `E2E Tests` — must all pass before merge.
+- **strict: true** — branch must be up to date with `main` before merging (rebase/update if behind).
+- **enforce_admins: true** — even the repo owner cannot push directly to `main` or merge a failing PR. Always go through PR.
+- **No PR review required** (solo maintainer).
+- `allow_force_pushes: false`, `allow_deletions: false`.
+
+Implication: do NOT `git push origin main`. Workflow is always: feature branch → PR → CI green → squash merge.
+
 ## Architecture (the parts that span files)
 
 Three Django apps under `apps/`:
@@ -58,6 +69,19 @@ Three Django apps under `apps/`:
 **Permissions** — see `apps/hymns/permissions.py`. `can_edit_hymnbook(user, hb)` and `can_publish_hymnbook(user, hb)` are the public helpers; everything else (views, templates) calls through them. The `editor` group is created by migration `0008_editor_group_and_perms.py` and grants the editorial workspace under `/editor/`.
 
 **Frontend** — Tailwind CSS via the Play CDN (no Node build). Design tokens in `static/css/design-tokens.css`. The audio player is a custom component (`templates/hymns/_audio_player.html` + `static/js/audio-player.js`) that renders the waveform peaks as SVG bars and animates a `clip-path`. Dark mode toggle persists in `localStorage`.
+
+**Typography has THREE roles** (defined in both `templates/base.html` Tailwind config and `static/css/design-tokens.css`):
+- `font-display` → **Cormorant Garamond** (decorative serif for titles, h1/h2, brand, stats, monograms).
+- `font-serif` → **Source Serif 4** (readable body face for hymn verses; corrido/carrossel/hymn_detail wrappers).
+- `font-sans` → **Inter Tight** (UI/nav).
+
+These are pinned by `tests/unit/test_typography_setup.py` (Google Fonts import + Tailwind config + tokens.css + template usage). If you flip a title to `font-serif` (or a body wrapper to `font-display`), tests break. The original design bundle from claude.ai/design lives at `_design/fase2-bundle/` for reference.
+
+**Reading modes for a hymnbook are URL-driven**, not JS-toggled. `?mode=indice|corrido|carrossel` on `/hinarios/<slug>/` is read by `HymnBookDetailView.get_context_data` (validated against a whitelist) and the matching `<section data-mode-pane>` renders without `hidden`. The toggle pills are `<a href="?mode=...">` anchors — modes are shareable, deep-linkable, and back/forward navigable.
+
+**Carousel is "Reader Focus"** — `templates/hymns/hymnbook_detail.html` carousel pane + `static/js/hymn-carousel.js`. One slide per viewport (`w-screen`), hero+toggle hidden, fixed chrome (top progress bar + counter + prev/next arrows + bottom dot pagination), ← → keys navigate, Esc returns to `?mode=indice`, respects `prefers-reduced-motion`.
+
+**Hymn body horizontal centering** uses a `width: max-content` block (CSS in `static/css/components.css` under `.carousel-body` / `.hymn-body-centered`). The block is exactly the width of the longest verse, centered inside the wrapper, with verses kept left-aligned (page-de-cantador look). This treatment is shared by carrossel, corrido and the per-hymn detail page.
 
 **Storage** — Django 5.x uses the `STORAGES` dict (legacy `DEFAULT_FILE_STORAGE` is a no-op). Production switches `STORAGES["default"]` to `S3Boto3Storage` only when `AWS_ACCESS_KEY_ID` is set; otherwise media goes to local `/media`. `populate_waveform_for_audio` falls back to a tempfile copy when the storage backend doesn't expose `.path` (i.e. R2/S3).
 
@@ -94,12 +118,27 @@ SERVICE_NAME_DB=Postgres
 
 URL temporária do Railway: `https://hinaria-production.up.railway.app`. Sempre verde, mesmo quando o domínio público está sendo mexido — útil para smoke tests.
 
-### Comandos Railway que usamos
+### Auto-deploy (default flow)
+
+`.github/workflows/deploy.yml` deploys `main` to Railway automatically:
+1. PR merged → push to `main` → `CI` workflow runs.
+2. `CI` succeeds on `main` → `Deploy` workflow fires via `workflow_run` trigger.
+3. Deploy job installs the Railway CLI (npm `@railway/cli@4`), runs `railway up --ci --service <SERVICE_ID>` with project/env/service IDs hardcoded in the workflow (no stateful `railway link` needed), then probes `https://hinaria.com.br/health/` until it returns 200 (up to 90s).
+
+`workflow_dispatch` is also enabled — manual redeploy from the Actions UI when needed (e.g., re-run after a Railway-side hiccup that wasn't a code issue).
+
+`concurrency: deploy-railway` cancels an in-flight deploy if a newer one starts.
+
+The `RAILWAY_API_TOKEN` GitHub secret authenticates the CLI in CI (account-scoped Railway token, same one in `/Users/nitai/dev/copa-dos-reis/dev/portal/.env.railway`).
+
+### Manual Railway commands (rarely needed)
+
+For local debugging, env-var changes, log inspection, or hotfixing when CI is broken. **Don't use `railway up` to deploy normal feature work** — let CI do it so the `main` HEAD always equals what's running in prod.
 
 ```bash
 railway link --project b840e96a-933f-49c5-bd01-d3531031a375 -e production -s hinaria
 railway status
-railway up -s hinaria --ci              # build + deploy from local working tree
+railway up -s hinaria --ci              # build + deploy from local working tree (emergency only)
 railway logs --build --lines 100 <DEPLOYMENT_ID>
 railway deployment list -s hinaria --limit 5
 railway variables -s hinaria --kv       # list (kv format hides Railway-injected ones)
@@ -204,3 +243,4 @@ When adding new ops capabilities, prefer Cloudflare API + Railway GraphQL over d
 - All CLI prompts and user-facing strings are in **PT-BR**.
 - Wagtail admin lives at `/admin/`; Django admin at `/django-admin/`.
 - Plans live in `_plan/` (markdown docs); each substantial change has one before code.
+- Original design bundle from claude.ai/design (HTML/CSS/JSX prototype + chat transcripts) is committed at `_design/fase2-bundle/` — re-import there when the design evolves so we stay traceable.
