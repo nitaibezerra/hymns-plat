@@ -1,0 +1,74 @@
+name: Deploy
+
+# Auto-deploys main to Railway after CI passes.
+# Trigger chain:
+#   1. PR merged → push to main → CI workflow runs
+#   2. CI completes successfully on main → workflow_run triggers this file
+#   3. We re-check the conclusion (workflow_run also fires on failure) and only
+#      deploy when CI passed.
+#
+# Manual trigger via the Actions UI is also supported (workflow_dispatch).
+#
+# Required GitHub Actions secret:
+#   RAILWAY_API_TOKEN — account-scoped Railway token (same one used locally,
+#   stored at /Users/nitai/dev/copa-dos-reis/dev/portal/.env.railway).
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Avoid two deploys overlapping if main is updated quickly twice in a row;
+# the older one is cancelled in favour of the newer.
+concurrency:
+  group: deploy-railway
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    # On workflow_run, only proceed when CI succeeded; on workflow_dispatch, always run.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node (for Railway CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli@4
+
+      - name: Deploy
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+          # Project + environment + service IDs pinned in CLAUDE.md so this
+          # never depends on stateful `railway link` from a developer machine.
+          RAILWAY_PROJECT_ID: b840e96a-933f-49c5-bd01-d3531031a375
+          RAILWAY_ENVIRONMENT_ID: 985e62de-1a1c-4334-ad0d-477ac47b430e
+          RAILWAY_SERVICE_ID: feace17d-3883-41e7-b741-881674decdba
+        run: railway up --ci --service "$RAILWAY_SERVICE_ID"
+
+      - name: Smoke test (external probe)
+        # Healthcheck inside Railway is disabled because the internal probe is
+        # blocked by ALLOWED_HOSTS — see CLAUDE.md. We probe the public URL
+        # via Cloudflare instead. Allow up to ~90s for the new container to
+        # become reachable end-to-end.
+        run: |
+          set -e
+          for i in $(seq 1 18); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "https://hinaria.com.br/health/" || true)
+            if [ "$code" = "200" ]; then
+              echo "Health OK on attempt $i"
+              exit 0
+            fi
+            echo "Attempt $i: got $code, retrying in 5s"
+            sleep 5
+          done
+          echo "Health check never returned 200" >&2
+          exit 1
