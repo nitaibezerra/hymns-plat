@@ -61,10 +61,16 @@
     </script>
     <link rel="stylesheet" href="{% static 'css/design-tokens.css' %}">
     <link rel="stylesheet" href="{% static 'css/components.css' %}">
+    <link rel="stylesheet" href="{% static 'css/player.css' %}">
 
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
     {% block extra_css %}{% endblock %}
 </head>
-<body class="bg-cream text-ink antialiased font-sans dark:bg-night dark:text-cream transition-colors">
+<body class="bg-cream text-ink antialiased font-sans dark:bg-night dark:text-cream transition-colors"
+      hx-boost="true"
+      hx-target="#main"
+      hx-select="#main"
+      hx-swap="outerHTML show:window:top">
 
 <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 bg-ink text-cream px-3 py-2 rounded">Pular para conteúdo</a>
 
@@ -84,12 +90,15 @@
 
 {% include "_partials/_footer.html" %}
 
+{% include "hymns/_player_global.html" %}
+
 <script src="{% static 'js/social.js' %}"></script>
 <script src="{% static 'js/dark-mode.js' %}"></script>
 <script src="{% static 'js/keyboard-shortcuts.js' %}"></script>
 <script src="{% static 'js/audio-player.js' %}"></script>
 <script src="{% static 'js/mobile-menu.js' %}"></script>
 <script src="{% static 'js/hymn-carousel.js' %}"></script>
+<script src="{% static 'js/player.js' %}"></script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>
