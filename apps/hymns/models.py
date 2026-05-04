@@ -151,6 +151,15 @@ class Hymn(models.Model):
         OCR = "ocr", "OCR"
         YAML = "yaml", "YAML"
 
+    # Estilos canônicos do Santo Daime — sempre oferecidos como sugestão no editor.
+    # `style` segue como CharField livre (alguns hinários têm variações ou estilos
+    # específicos), mas a UI mostra esses 3 como pílulas fixas.
+    CANONICAL_STYLES = ("Marcha", "Valsa", "Mazurca")
+
+    # Padrões de repetição mais frequentes — pílulas fixas no editor (idem aos
+    # estilos: campo segue livre, UI sugere os comuns).
+    CANONICAL_REPETITIONS = ("1-2,3-4", "1-2,3-4,1-4", "1-4", "3-4,1-4", "1-2,1-4")
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     hymn_book = models.ForeignKey(HymnBook, on_delete=models.CASCADE, related_name="hymns", verbose_name="Hinário")
     number = models.PositiveIntegerField("Número", help_text="Número sequencial do hino no hinário")

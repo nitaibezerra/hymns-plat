@@ -380,68 +380,52 @@ class TestReviseCommonValuesPills:
     """Pills com valores mais usados em `repetitions` e `style` dentro do
     hinário. Editor clica e o input recebe o valor (client-side)."""
 
-    def test_common_repetitions_top4_per_book(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_common_repetitions_are_canonical_five(self, authenticated_client, hymn_book_factory, hymn_factory):
+        """Repetições vêm da constante canônica do Hymn — 5 padrões fixos,
+        independente do que o hinário já tenha cadastrado."""
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
-        # Distribuição: "1-2,3-4" x3, "1-4" x2, "3-4,1-4" x1, "1-2" x1, "" x1
-        n = 10
-        for _ in range(3):
-            hymn_factory(hymn_book=hb, number=n, repetitions="1-2,3-4")
-            n += 1
-        for _ in range(2):
-            hymn_factory(hymn_book=hb, number=n, repetitions="1-4")
-            n += 1
-        hymn_factory(hymn_book=hb, number=n, repetitions="3-4,1-4")
-        n += 1
-        hymn_factory(hymn_book=hb, number=n, repetitions="1-2")
+        # Mesmo com padrões "exóticos" cadastrados, as 5 pílulas fixas continuam.
+        for n in range(10, 14):
+            hymn_factory(hymn_book=hb, number=n, repetitions="1-2,3-4,5-6")
         target = hymn_factory(hymn_book=hb, number=1, repetitions="")
         resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": target.pk}))
         common = resp.context["common_repetitions"]
-        assert common[:2] == ["1-2,3-4", "1-4"]  # top-2 ordenados
-        assert len(common) == 4  # top-4 quando há 4+ valores distintos
+        assert list(common) == ["1-2,3-4", "1-2,3-4,1-4", "1-4", "3-4,1-4", "1-2,1-4"]
         # Valores devem aparecer no markup como pills.
         body = resp.content.decode()
         for value in common:
             assert f'data-suggestion="{value}"' in body
 
-    def test_common_styles_top3_per_book(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_common_styles_are_canonical_three(self, authenticated_client, hymn_book_factory, hymn_factory):
+        """Estilos vêm da constante canônica do Hymn — sempre Marcha/Valsa/Mazurca,
+        independente do que o hinário já tenha cadastrado."""
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
-        n = 10
-        for _ in range(4):
-            hymn_factory(hymn_book=hb, number=n, style="Marcha")
-            n += 1
-        for _ in range(2):
-            hymn_factory(hymn_book=hb, number=n, style="Valsa")
-            n += 1
-        hymn_factory(hymn_book=hb, number=n, style="Mazurca")
-        n += 1
-        hymn_factory(hymn_book=hb, number=n, style="Hino")  # 4º estilo distinto
+        # Mesmo com vários "Hino" cadastrados, as pílulas continuam sendo as 3 fixas.
+        for n in range(10, 14):
+            hymn_factory(hymn_book=hb, number=n, style="Hino")
         target = hymn_factory(hymn_book=hb, number=1)
         resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": target.pk}))
-        common = resp.context["common_styles"]
-        assert len(common) == 3  # top-3 cap
-        assert common[0] == "Marcha"
+        assert list(resp.context["common_styles"]) == ["Marcha", "Valsa", "Mazurca"]
 
-    def test_no_pills_when_no_data(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_canonical_pills_always_present_even_for_empty_book(
+        self, authenticated_client, hymn_book_factory, hymn_factory
+    ):
+        """Tanto repetições quanto estilos vêm de constantes canônicas — não dependem
+        do conteúdo do hinário."""
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
         h = hymn_factory(hymn_book=hb, number=1)
         resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
-        assert resp.context["common_repetitions"] == []
-        assert resp.context["common_styles"] == []
-        body = resp.content.decode()
-        # Sem pills no markup quando lista está vazia.
-        assert "chip-suggestion" not in body
-
-    def test_excludes_self_from_aggregation_irrelevant(self, authenticated_client, hymn_book_factory, hymn_factory):
-        """Hino atual NÃO precisa ser excluído — agregação por hinário inclui
-        todos. Pinamos o comportamento atual: incluir tudo."""
-        _make_editor(authenticated_client.user)
-        hb = hymn_book_factory(name="X")
-        h = hymn_factory(hymn_book=hb, number=1, style="Marcha")
-        resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
-        assert "Marcha" in resp.context["common_styles"]
+        assert list(resp.context["common_repetitions"]) == [
+            "1-2,3-4",
+            "1-2,3-4,1-4",
+            "1-4",
+            "3-4,1-4",
+            "1-2,1-4",
+        ]
+        assert list(resp.context["common_styles"]) == ["Marcha", "Valsa", "Mazurca"]
 
 
 @pytest.mark.django_db
