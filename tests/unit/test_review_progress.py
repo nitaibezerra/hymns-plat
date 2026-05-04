@@ -117,20 +117,22 @@ class TestPublishBlockedUntilFullyReviewed:
         hb.refresh_from_db()
         assert hb.is_published is False
 
-    def test_publish_allowed_when_fully_reviewed(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_publish_allowed_when_fully_reviewed(self, editor_client, hymn_book_factory, hymn_factory):
+        # Política "editor-only": somente Editores/Admins publicam.
+        # `publish_readiness` exige `owner_user` definido — apontamos para o próprio editor.
         from apps.hymns.models import HymnRevision
 
         hb = hymn_book_factory(
             name="Pronto",
-            owner_user=authenticated_client.user,
+            owner_user=editor_client.user,
             is_published=False,
             description="d",
         )
         for i in range(1, 3):
             h = hymn_factory(hymn_book=hb, number=i, title=f"t{i}")
             _set_status(h, Hymn.ReviewStatus.REVIEWED)
-            HymnRevision.objects.create(hymn=h, revised_by=authenticated_client.user)
+            HymnRevision.objects.create(hymn=h, revised_by=editor_client.user)
         url = reverse("hymns:hymnbook_publish", kwargs={"slug": hb.slug})
-        authenticated_client.post(url)
+        editor_client.post(url)
         hb.refresh_from_db()
         assert hb.is_published is True

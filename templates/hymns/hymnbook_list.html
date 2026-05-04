@@ -10,7 +10,7 @@
       <h1 class="font-display text-3xl md:text-4xl mt-2">Hinários</h1>
       <p class="text-ink-soft dark:text-cream/70 mt-2">Coleções recebidas pelos padrinhos e madrinhas, com revisão editorial.</p>
     </div>
-    {% if user.is_authenticated %}
+    {% if perms.hymns.can_review_any_hymnbook %}
       <a href="{% url 'hymns:hymnbook_create' %}" class="bg-firmament text-cream rounded-full px-5 py-2.5 text-sm hover:bg-firmament-2">+ Novo hinário</a>
     {% endif %}
   </header>

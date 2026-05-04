@@ -63,19 +63,14 @@ class TestPendingAudiosListView:
         assert str(a2.id) in ids
         assert len(ids) == 2
 
-    def test_owner_sees_only_own_hymnbooks_pending(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_owner_who_is_not_editor_is_blocked(self, authenticated_client, hymn_book_factory, hymn_factory):
+        # Política nova: ser dono não dá acesso ao workspace de áudios pendentes.
         own = hymn_book_factory(name="Mine", owner_user=authenticated_client.user)
-        alheio = hymn_book_factory(name="Other")
         h_own = hymn_factory(hymn_book=own, number=1)
-        h_other = hymn_factory(hymn_book=alheio, number=1)
-        own_audio = _audio(h_own)
-        _audio(h_other)
+        _audio(h_own)
 
         resp = authenticated_client.get(reverse("hymns:editor_pending_audios"))
-        assert resp.status_code == 200
-        ids = {str(a.id) for a in resp.context["audios"]}
-        assert str(own_audio.id) in ids
-        assert len(ids) == 1
+        assert resp.status_code == 302
 
 
 @pytest.mark.django_db
@@ -98,15 +93,15 @@ class TestEditorListShowsPendingBadge:
 
 @pytest.mark.django_db
 class TestApproveAudioView:
-    def test_owner_can_approve(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_owner_who_is_not_editor_cannot_approve(self, authenticated_client, hymn_book_factory, hymn_factory):
+        # Política nova: ser dono não habilita aprovar áudios.
         hb = hymn_book_factory(name="X", owner_user=authenticated_client.user)
         h = hymn_factory(hymn_book=hb, number=1)
         a = _audio(h)
         url = reverse("hymns:editor_approve_audio", kwargs={"pk": a.pk})
-        resp = authenticated_client.post(url)
-        assert resp.status_code == 302
+        authenticated_client.post(url)
         a.refresh_from_db()
-        assert a.is_approved is True
+        assert a.is_approved is False
 
     def test_editor_can_approve_any(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
@@ -130,14 +125,14 @@ class TestApproveAudioView:
 
 @pytest.mark.django_db
 class TestRejectAudioView:
-    def test_owner_can_reject_deletes(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_owner_who_is_not_editor_cannot_reject(self, authenticated_client, hymn_book_factory, hymn_factory):
+        # Política nova: ser dono não habilita rejeitar áudios.
         hb = hymn_book_factory(name="X", owner_user=authenticated_client.user)
         h = hymn_factory(hymn_book=hb, number=1)
         a = _audio(h)
         url = reverse("hymns:editor_reject_audio", kwargs={"pk": a.pk})
-        resp = authenticated_client.post(url)
-        assert resp.status_code == 302
-        assert not HymnAudio.objects.filter(pk=a.pk).exists()
+        authenticated_client.post(url)
+        assert HymnAudio.objects.filter(pk=a.pk).exists()
 
     def test_random_user_forbidden(self, authenticated_client, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="Foreign")

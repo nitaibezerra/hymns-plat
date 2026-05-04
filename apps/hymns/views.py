@@ -9,7 +9,7 @@ from django.views.generic import DetailView, ListView
 
 from .forms import HymnBookForm, HymnForm
 from .models import Hymn, HymnBook
-from .permissions import can_edit_hymnbook, can_publish_hymnbook
+from .permissions import can_create_hymnbook, can_edit_hymnbook, can_publish_hymnbook
 
 
 class UnaccentFunc(Func):
@@ -243,7 +243,11 @@ def home_view(request):
 
 @login_required
 def hymnbook_create_view(request):
-    """Cria um HymnBook via web (sem YAML)."""
+    """Cria um HymnBook via web (sem YAML). Restrito a Editores/Admins."""
+    if not can_create_hymnbook(request.user):
+        messages.error(request, "Você não tem permissão para cadastrar hinários.")
+        return redirect("hymns:hymnbook_list")
+
     if request.method == "POST":
         form = HymnBookForm(request.POST, request.FILES)
         if form.is_valid():

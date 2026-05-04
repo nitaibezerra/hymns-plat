@@ -45,14 +45,11 @@ class TestEditorHymnbookListView:
         assert a.slug in slugs
         assert b.slug in slugs
 
-    def test_owner_sees_own_hymnbooks(self, authenticated_client, hymn_book_factory):
-        own = hymn_book_factory(name="Meu", owner_user=authenticated_client.user)
-        hymn_book_factory(name="Alheio")
+    def test_owner_who_is_not_editor_is_blocked(self, authenticated_client, hymn_book_factory):
+        # Política nova: ser dono não dá acesso ao workspace editorial.
+        hymn_book_factory(name="Meu", owner_user=authenticated_client.user)
         resp = authenticated_client.get(reverse("hymns:editor_hymnbook_list"))
-        # Sem grupo editor mas dono de pelo menos um hinário → tem acesso.
-        assert resp.status_code == 200
-        slugs = {hb.slug for hb in resp.context["hymnbooks"]}
-        assert own.slug in slugs
+        assert resp.status_code == 302
 
     def test_default_sort_least_reviewed_first(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)

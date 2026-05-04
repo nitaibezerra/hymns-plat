@@ -27,16 +27,15 @@ from .permissions import can_edit_hymnbook
 
 def _has_editor_access(user) -> bool:
     """
-    Editor (papel global) tem acesso ao workspace; donos de hinários também
-    podem usar a fila para os próprios hinários — view filtra o queryset.
+    Editor (papel global) ou superuser têm acesso ao workspace. Donos comuns
+    não — toda edição editorial agora exige o papel formal (mesma regra de
+    `can_edit_hymnbook`).
     """
     if not getattr(user, "is_authenticated", False):
         return False
     if user.is_superuser:
         return True
-    if user.has_perm("hymns.can_review_any_hymnbook"):
-        return True
-    return HymnBook.objects.filter(owner_user=user).exists()
+    return user.has_perm("hymns.can_review_any_hymnbook")
 
 
 def _editor_visible_books(user):

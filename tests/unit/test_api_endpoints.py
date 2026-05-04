@@ -100,25 +100,26 @@ class TestUserHeatmapEndpoint:
 
 @pytest.mark.django_db
 class TestHymnHistoryEndpoint:
-    def test_returns_revisions_in_descending_order(self, authenticated_client, hymn_book_factory, hymn_factory):
-        hb = hymn_book_factory(name="H", owner_user=authenticated_client.user)
+    def test_returns_revisions_in_descending_order(self, editor_client, hymn_book_factory, hymn_factory):
+        # Endpoint exige permissão editorial (igual a `can_edit_hymnbook`).
+        hb = hymn_book_factory(name="H")
         h = hymn_factory(hymn_book=hb, number=1, source=Hymn.Source.OCR)
         # source=OCR já cria 1 revisão inicial
         h.text = "novo"
-        h.last_reviewed_by = authenticated_client.user
+        h.last_reviewed_by = editor_client.user
         h.save()
 
-        resp = authenticated_client.get(reverse("hymns:api_hymn_history", kwargs={"pk": h.pk}))
+        resp = editor_client.get(reverse("hymns:api_hymn_history", kwargs={"pk": h.pk}))
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["revisions"]) >= 2
         # Mais recente vem primeiro
         assert data["revisions"][0]["revised_at"] >= data["revisions"][1]["revised_at"]
 
-    def test_includes_creation_event_for_ocr_hymn(self, authenticated_client, hymn_book_factory, hymn_factory):
-        hb = hymn_book_factory(name="H", owner_user=authenticated_client.user)
+    def test_includes_creation_event_for_ocr_hymn(self, editor_client, hymn_book_factory, hymn_factory):
+        hb = hymn_book_factory(name="H")
         h = hymn_factory(hymn_book=hb, number=1, source=Hymn.Source.OCR)
-        resp = authenticated_client.get(reverse("hymns:api_hymn_history", kwargs={"pk": h.pk}))
+        resp = editor_client.get(reverse("hymns:api_hymn_history", kwargs={"pk": h.pk}))
         summaries = [r["change_summary"] for r in resp.json()["revisions"]]
         assert any("OCR" in s for s in summaries)
 
@@ -153,8 +154,9 @@ class TestHymnHistoryDrawer:
 
 @pytest.mark.django_db
 class TestHymnDiffEndpoint:
-    def test_returns_ocr_text_and_current_text(self, authenticated_client, hymn_book_factory, hymn_factory):
-        hb = hymn_book_factory(name="H", owner_user=authenticated_client.user)
+    def test_returns_ocr_text_and_current_text(self, editor_client, hymn_book_factory, hymn_factory):
+        # Endpoint exige permissão editorial.
+        hb = hymn_book_factory(name="H")
         h = hymn_factory(
             hymn_book=hb,
             number=1,
@@ -162,7 +164,7 @@ class TestHymnDiffEndpoint:
             ocr_text="OCR cru",
             ocr_avg_confidence=88.0,
         )
-        resp = authenticated_client.get(reverse("hymns:api_hymn_diff", kwargs={"pk": h.pk}))
+        resp = editor_client.get(reverse("hymns:api_hymn_diff", kwargs={"pk": h.pk}))
         assert resp.status_code == 200
         data = resp.json()
         assert data["ocr_text"] == "OCR cru"
