@@ -72,7 +72,7 @@ def _create_session_for(email: str) -> str:
         "print(s.session_key)"
     )
     result = subprocess.run(
-        ["poetry", "run", "python", "manage.py", "shell", "-c", code],
+        ["uv", "run", "python", "manage.py", "shell", "-c", code],
         env={**os.environ, "DJANGO_SETTINGS_MODULE": "config.settings.local"},
         cwd=PROJECT_ROOT,
         capture_output=True,

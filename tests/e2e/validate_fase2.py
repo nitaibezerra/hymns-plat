@@ -4,7 +4,7 @@ Validação visual da Fase 2 com Playwright.
 Roda contra o servidor de dev em http://localhost:8000.
 
 Uso:
-    poetry run python tests/e2e/validate_fase2.py
+    uv run python tests/e2e/validate_fase2.py
 
 O script:
 1. Visita cada uma das 11 telas-chave da Fase 2 (anônimo + logado).

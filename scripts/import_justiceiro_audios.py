@@ -15,7 +15,7 @@ Metadados (copiados do áudio aprovado do hino 5):
 - uploaded_by: nitai
 
 Uso:
-    DJANGO_SETTINGS_MODULE=config.settings.local poetry run python scripts/import_justiceiro_audios.py
+    DJANGO_SETTINGS_MODULE=config.settings.local uv run python scripts/import_justiceiro_audios.py
 """
 
 from __future__ import annotations
