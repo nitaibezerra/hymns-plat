@@ -15,7 +15,7 @@ Portal para pesquisa e acesso a hinários do Santo Daime.
 ### Pré-requisitos
 
 - Python 3.11+
-- Poetry
+- [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - Docker & Docker Compose
 
 ### Instalação
@@ -28,7 +28,7 @@ cd hymns-plat
 
 2. Instale as dependências:
 ```bash
-poetry install
+uv sync
 ```
 
 3. Copie o arquivo de ambiente:
@@ -43,17 +43,17 @@ docker-compose up -d
 
 5. Execute as migrações:
 ```bash
-poetry run python manage.py migrate
+uv run python manage.py migrate
 ```
 
 6. Crie um superusuário:
 ```bash
-poetry run python manage.py createsuperuser
+uv run python manage.py createsuperuser
 ```
 
 7. Inicie o servidor de desenvolvimento:
 ```bash
-poetry run python manage.py runserver
+uv run python manage.py runserver
 ```
 
 Acesse:
@@ -65,12 +65,12 @@ Acesse:
 
 Execute os testes:
 ```bash
-poetry run pytest
+uv run pytest
 ```
 
 Com cobertura:
 ```bash
-poetry run pytest --cov=apps --cov-report=html
+uv run pytest --cov=apps --cov-report=html
 ```
 
 ## Estrutura do Projeto
@@ -96,15 +96,15 @@ hymns-plat/
 
 Instale os hooks:
 ```bash
-poetry run pre-commit install
+uv run pre-commit install
 ```
 
 ### Linting e Formatação
 
 ```bash
-poetry run black .
-poetry run isort .
-poetry run ruff check .
+uv run black .
+uv run isort .
+uv run ruff check .
 ```
 
 ## Deploy

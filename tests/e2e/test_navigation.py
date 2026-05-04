@@ -2,7 +2,7 @@
 E2E tests for public navigation.
 
 NOTE: These tests run against a live server on localhost:9000.
-Start the server before running: poetry run python manage.py runserver 9000
+Start the server before running: uv run python manage.py runserver 9000
 """
 
 import pytest

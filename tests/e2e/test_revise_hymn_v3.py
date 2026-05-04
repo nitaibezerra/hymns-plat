@@ -1,7 +1,7 @@
 """E2E para a tela 07 · Revisar Hino (Fase 2 v3 — layout invertido).
 
 Pré-requisitos:
-- `poetry run python manage.py runserver 9000` rodando
+- `uv run python manage.py runserver 9000` rodando
 - DB local com seed (User teste2e@example.com, HymnBook 'e2e-test-book' com 3 hinos)
   Ver `tests/e2e/test_revise_hymn_v3.py::_ensure_seed`.
 
@@ -26,7 +26,7 @@ SEED_BOOK = "e2e-test-book"
 def _shell(code: str) -> str:
     """Executa código no Django shell do servidor live (DB local)."""
     result = subprocess.run(
-        ["poetry", "run", "python", "manage.py", "shell", "-c", code],
+        ["uv", "run", "python", "manage.py", "shell", "-c", code],
         env={**os.environ, "DJANGO_SETTINGS_MODULE": "config.settings.local"},
         cwd=PROJECT_ROOT,
         capture_output=True,
