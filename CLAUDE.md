@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This project (`hinaria.com.br` · "Portal de Hinários do Santo Daime") is operated as a **sister project** of `copa-dos-reis` (`/Users/nitai/dev/copa-dos-reis/dev/portal/`, `copadosreis.com.br`). Both are Django+Wagtail apps deployed to Railway with Cloudflare in front; we deliberately keep their infrastructure, deploy workflow, and ops conventions aligned so that any change to the playbook applies to both. **When evolving deploy/ops here, mirror the change in `copa-dos-reis`** (and vice-versa) — its CLAUDE.md cross-references this one.
 
 Differences worth knowing:
-- hinaria uses Poetry; copa-dos-reis uses pip + `requirements/*.txt`.
+- hinaria uses uv (single `pyproject.toml` + `uv.lock`); copa-dos-reis uses pip + `requirements/*.txt`.
 - hinaria env vars use the `DJANGO_*` prefix (`DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`); copa-dos-reis uses unprefixed names (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`).
 - hinaria needs system binaries that copa doesn't (`ffmpeg`, `tesseract-ocr-por`, `poppler-utils`, `libmagic1`).
 - hinaria sits behind a Cloudflare Worker (`hinaria-proxy`) that overrides the `Host` header; copa points DNS straight to Railway. See "Cloudflare Worker" below.
@@ -15,12 +15,12 @@ Differences worth knowing:
 ## Local development
 
 ```bash
-poetry install
+uv sync
 cp .env.example .env                    # then fill DJANGO_SECRET_KEY etc.
 docker compose up -d                    # Postgres 16 + Redis 7
-poetry run python manage.py migrate
-poetry run python manage.py createsuperuser
-poetry run python manage.py runserver
+uv run python manage.py migrate
+uv run python manage.py createsuperuser
+uv run python manage.py runserver
 
 # Admin login (dev): username `nitai`, password `admin123`
 # Wagtail admin: /admin/   ·   Django admin: /django-admin/
@@ -31,10 +31,10 @@ poetry run python manage.py runserver
 ## Tests
 
 ```bash
-DJANGO_SETTINGS_MODULE=config.settings.test poetry run pytest tests/unit/ -q
-DJANGO_SETTINGS_MODULE=config.settings.test poetry run pytest tests/unit/test_audio_waveform.py::TestComputeWaveformPeaks -v   # single test
-poetry run pytest tests/e2e/ -v         # E2E (requires a live server on :9000)
-poetry run python tests/e2e/validate_fase2.py     # screenshot-driven Phase 2 visual validation
+DJANGO_SETTINGS_MODULE=config.settings.test uv run pytest tests/unit/ -q
+DJANGO_SETTINGS_MODULE=config.settings.test uv run pytest tests/unit/test_audio_waveform.py::TestComputeWaveformPeaks -v   # single test
+uv run pytest tests/e2e/ -v         # E2E (requires a live server on :9000)
+uv run python tests/e2e/validate_fase2.py     # screenshot-driven Phase 2 visual validation
 ```
 
 CI on every PR runs three jobs (`.github/workflows/ci.yml`):
@@ -161,7 +161,7 @@ AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... \
 AWS_STORAGE_BUCKET_NAME=hinaria-media \
 AWS_S3_ENDPOINT_URL=https://30e42ee3dd44243e67f0824fb1477351.r2.cloudflarestorage.com \
 AWS_S3_CUSTOM_DOMAIN=media.hinaria.com.br \
-poetry run python manage.py <command>
+uv run python manage.py <command>
 ```
 
 Tokens for these env vars live in `.env` (gitignored) — see "Tokens & secrets" below.
@@ -216,9 +216,9 @@ S3 API token stored in `.env` (key id `93bf29226108263dda92e44190309661`). Objec
 
 ```bash
 # Run from /Users/nitai/dev/hyms-platform/hymns-plat with the env wrapper above
-poetry run python manage.py import_yaml /Users/nitai/dev/hyms-platform/o-justiceiro-import.yaml
-poetry run python manage.py import_justiceiro_audios       # downloads ~250 MB to R2
-poetry run python manage.py backfill_audio_waveforms       # signal usually got most via post_save
+uv run python manage.py import_yaml /Users/nitai/dev/hyms-platform/o-justiceiro-import.yaml
+uv run python manage.py import_justiceiro_audios       # downloads ~250 MB to R2
+uv run python manage.py backfill_audio_waveforms       # signal usually got most via post_save
 ```
 
 After `import_yaml`, the hymnbook is `is_published=False`. Publish via shell with `owner_user`, `published_at=timezone.now()`, `published_by`. After `import_justiceiro_audios`, the audios are `is_approved=False` — bulk-approve with `HymnAudio.objects.filter(is_approved=False).update(is_approved=True)` if intentional.
@@ -238,7 +238,7 @@ When adding new ops capabilities, prefer Cloudflare API + Railway GraphQL over d
 
 ## Conventions
 
-- Black, isort, ruff (configured in `pyproject.toml`). Run `poetry run black . && poetry run isort . && poetry run ruff check .` before pushing.
+- Black, isort, ruff (configured in `pyproject.toml`). Run `uv run black . && uv run isort . && uv run ruff check .` before pushing.
 - TDD-first when adding model/manager/signal logic — `tests/unit/test_<feature>.py` then implementation.
 - All CLI prompts and user-facing strings are in **PT-BR**.
 - Wagtail admin lives at `/admin/`; Django admin at `/django-admin/`.

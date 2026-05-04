@@ -1,50 +1,57 @@
-[tool.poetry]
+[project]
 name = "hymns-plat"
 version = "0.1.0"
 description = "Portal de Hinários do Santo Daime"
-authors = ["Nitai Bezerra"]
+authors = [{ name = "Nitai Bezerra" }]
 readme = "README.md"
-package-mode = false
+requires-python = ">=3.11,<4.0"
+dependencies = [
+    "django>=5.1,<6.0",
+    "wagtail>=6.4,<7.0",
+    "psycopg2-binary>=2.9,<3.0",
+    "django-allauth>=65.3,<66.0",
+    "celery>=5.4,<6.0",
+    "redis>=5.2,<6.0",
+    "weasyprint>=63,<64",
+    "pillow>=11.1,<12.0",
+    "python-magic>=0.4,<0.5",
+    "pyyaml>=6.0,<7.0",
+    "gunicorn>=23.0,<24.0",
+    "whitenoise>=6.8,<7.0",
+    "django-environ>=0.11,<0.12",
+    "django-storages[s3]>=1.14,<2.0",
+    "boto3>=1.35,<2.0",
+    # Pinned to a specific commit so CI is reproducible. Para trabalhar num
+    # checkout local, rode: uv pip install -e ../hymn-ocr
+    "hymn-ocr",
+    "cryptography>=47.0.0,<48.0.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-django = "^5.1"
-wagtail = "^6.4"
-psycopg2-binary = "^2.9"
-django-allauth = "^65.3"
-celery = "^5.4"
-redis = "^5.2"
-weasyprint = "^63"
-pillow = "^11.1"
-python-magic = "^0.4"
-pyyaml = "^6.0"
-gunicorn = "^23.0"
-whitenoise = "^6.8"
-django-environ = "^0.11"
-django-storages = {extras = ["s3"], version = "^1.14"}
-boto3 = "^1.35"
-# Pinned to a specific commit so CI is reproducible. To work on a local
-# checkout instead, run: pip install -e ../hymn-ocr (in this venv).
+[dependency-groups]
+dev = [
+    "pytest>=8.3,<9.0",
+    "pytest-django>=4.9,<5.0",
+    "pytest-cov>=6.0,<7.0",
+    "factory-boy>=3.3,<4.0",
+    "playwright>=1.49,<2.0",
+    "black>=24.10,<25.0",
+    "isort>=5.13,<6.0",
+    "ruff>=0.8,<0.9",
+    "pre-commit>=4.0,<5.0",
+    "django-debug-toolbar>=5.0,<6.0",
+    "mkdocs-material>=9.5,<10.0",
+    "mkdocs-mermaid2-plugin>=1.1,<2.0",
+]
+
+[tool.uv]
+# Projeto não é uma biblioteca empacotável — é um app Django. uv não deve
+# tentar buildar/instalar como package.
+package = false
+
+[tool.uv.sources]
+# `hymn-ocr` é um pacote externo nosso — pin no commit `main`. Não publica em
+# PyPI; uv resolve direto do GitHub.
 hymn-ocr = { git = "https://github.com/nitaibezerra/hymn-ocr.git", branch = "main" }
-cryptography = "^47.0.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.3"
-pytest-django = "^4.9"
-pytest-cov = "^6.0"
-factory-boy = "^3.3"
-playwright = "^1.49"
-black = "^24.10"
-isort = "^5.13"
-ruff = "^0.8"
-pre-commit = "^4.0"
-django-debug-toolbar = "^5.0"
-mkdocs-material = "^9.5"
-mkdocs-mermaid2-plugin = "^1.1"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 120

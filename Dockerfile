@@ -1,13 +1,12 @@
 # Dockerfile for Hinaria — Railway deploy
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PIP_NO_CACHE_DIR=1
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1
-ENV POETRY_VERSION=1.8.4
-ENV POETRY_VIRTUALENVS_CREATE=false
-ENV POETRY_NO_INTERACTION=1
+# uv: instala no system Python (não cria venv) e usa .venv local quando presente.
+ENV UV_LINK_MODE=copy
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
 WORKDIR /app
 
@@ -26,14 +25,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-por \
     poppler-utils \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry
-RUN pip install "poetry==${POETRY_VERSION}"
+# Install uv (binário standalone, sem dependências Python).
+COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
 
-# Install Python deps (production only)
-COPY pyproject.toml poetry.lock ./
-RUN poetry install --without dev --no-root
+# Install Python deps (production only). `--no-dev` exclui o group dev.
+# `--frozen` falha se o lock estiver fora de sync com pyproject.toml.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy project
 COPY . .
