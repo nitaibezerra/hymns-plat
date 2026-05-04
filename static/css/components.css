@@ -637,7 +637,11 @@ html.dark .hymn-page { border-color: var(--color-rule); }
   background: rgba(217, 176, 106, 0.22);
   border-left-color: var(--color-gold);
 }
-.repetition-bar {
+/* Barras da prévia ao vivo do editor (Fase 2 v3). Escopadas a
+   `.preview-stanza` para NÃO colidirem com o sistema antigo de barras
+   das telas públicas (`.hymn-grid .repetition-bar` em corrido/carrossel/
+   hymn_detail), que usa CSS Grid e depende do flow normal do grid item. */
+.preview-stanza .repetition-bar {
   position: absolute;
   left: 4px;
   width: 2px;
