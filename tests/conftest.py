@@ -34,6 +34,21 @@ def authenticated_client(client, user_factory):
 
 
 @pytest.fixture
+def editor_client(client, user_factory):
+    """
+    Client com usuário autenticado pertencente ao grupo `editor`.
+    Atalho para fluxos de cadastro/edição que exigem o papel.
+    """
+    from django.contrib.auth.models import Group
+
+    user = user_factory(email="editor@example.com")
+    user.groups.add(Group.objects.get(name="editor"))
+    client.force_login(user)
+    client.user = user
+    return client
+
+
+@pytest.fixture
 def admin_client(client, user_factory):
     """
     Client with admin user authenticated.

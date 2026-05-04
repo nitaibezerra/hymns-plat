@@ -140,7 +140,8 @@ class TestPublishView:
         assert resp.status_code == 302
         assert "/accounts/login" in resp.url
 
-    def test_owner_can_publish(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_owner_who_is_not_editor_cannot_publish(self, authenticated_client, hymn_book_factory, hymn_factory):
+        # Política nova: ser dono não habilita publicação.
         from apps.hymns.models import Hymn, HymnRevision
 
         hb = hymn_book_factory(
@@ -153,12 +154,9 @@ class TestPublishView:
         Hymn.objects.filter(pk=h.pk).update(review_status=Hymn.ReviewStatus.REVIEWED)
         HymnRevision.objects.create(hymn=h, revised_by=authenticated_client.user)
         url = reverse("hymns:hymnbook_publish", kwargs={"slug": hb.slug})
-        resp = authenticated_client.post(url)
-        assert resp.status_code == 302
+        authenticated_client.post(url)
         hb.refresh_from_db()
-        assert hb.is_published is True
-        assert hb.published_at is not None
-        assert hb.published_by == authenticated_client.user
+        assert hb.is_published is False
 
     def test_editor_can_publish_others_book(self, authenticated_client, hymn_book_factory, hymn_factory, user_factory):
         from apps.hymns.models import Hymn, HymnRevision
@@ -186,13 +184,13 @@ class TestPublishView:
 
 @pytest.mark.django_db
 class TestUnpublishView:
-    def test_owner_can_unpublish(self, authenticated_client, hymn_book_factory):
+    def test_owner_who_is_not_editor_cannot_unpublish(self, authenticated_client, hymn_book_factory):
+        # Política nova: ser dono não habilita despublicar.
         hb = hymn_book_factory(name="Unpub", owner_user=authenticated_client.user, is_published=True)
         url = reverse("hymns:hymnbook_unpublish", kwargs={"slug": hb.slug})
-        resp = authenticated_client.post(url)
-        assert resp.status_code == 302
+        authenticated_client.post(url)
         hb.refresh_from_db()
-        assert hb.is_published is False
+        assert hb.is_published is True
 
     def test_editor_can_unpublish_others_book(self, authenticated_client, hymn_book_factory):
         _make_editor(authenticated_client.user)

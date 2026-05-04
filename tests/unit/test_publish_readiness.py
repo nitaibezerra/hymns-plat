@@ -74,10 +74,11 @@ class TestPublishReadinessFunction:
 
 @pytest.mark.django_db
 class TestPublishCheckEndpoint:
-    def test_returns_json_with_checks(self, authenticated_client, hymn_book_factory):
-        hb = hymn_book_factory(name="Z", owner_user=authenticated_client.user, is_published=False)
+    def test_returns_json_with_checks(self, editor_client, hymn_book_factory):
+        # Endpoint exige permissão de publicar — usa fixture de editor.
+        hb = hymn_book_factory(name="Z", is_published=False)
         url = reverse("hymns:hymnbook_publish_check", kwargs={"slug": hb.slug})
-        resp = authenticated_client.get(url)
+        resp = editor_client.get(url)
         assert resp.status_code == 200
         data = resp.json()
         assert "checks" in data

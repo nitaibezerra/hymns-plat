@@ -10,7 +10,7 @@ Marco 1.1 — papel `editor` + permissões.
 import pytest
 from django.contrib.auth.models import Group, Permission
 
-from apps.hymns.permissions import can_edit_hymnbook, can_publish_hymnbook
+from apps.hymns.permissions import can_create_hymnbook, can_edit_hymnbook, can_publish_hymnbook
 
 
 @pytest.mark.django_db
@@ -53,10 +53,12 @@ class TestCanEditHymnbook:
         user = user_factory(email="random@example.com")
         assert can_edit_hymnbook(user, hymn_book) is False
 
-    def test_owner_can_edit(self, user_factory, hymn_book_factory):
+    def test_owner_who_is_not_editor_cannot_edit(self, user_factory, hymn_book_factory):
+        # Política nova (cadastro/edição restrito a Editores e Admins): ser dono,
+        # por si só, não dá direito de edição.
         owner = user_factory(email="owner@example.com")
         hb = hymn_book_factory(name="Owned", owner_user=owner)
-        assert can_edit_hymnbook(owner, hb) is True
+        assert can_edit_hymnbook(owner, hb) is False
 
     def test_superuser_can_edit_any(self, user_factory, hymn_book):
         admin = user_factory(email="root@example.com")
@@ -76,6 +78,28 @@ class TestCanEditHymnbook:
 
 
 @pytest.mark.django_db
+class TestCanCreateHymnbook:
+    def test_anonymous_cannot_create(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        assert can_create_hymnbook(AnonymousUser()) is False
+
+    def test_common_user_cannot_create(self, user_factory):
+        user = user_factory(email="common@example.com")
+        assert can_create_hymnbook(user) is False
+
+    def test_editor_can_create(self, user_factory):
+        editor = _make_editor(user_factory(email="ed@example.com"))
+        assert can_create_hymnbook(editor) is True
+
+    def test_superuser_can_create(self, user_factory):
+        admin = user_factory(email="root@example.com")
+        admin.is_superuser = True
+        admin.save()
+        assert can_create_hymnbook(admin) is True
+
+
+@pytest.mark.django_db
 class TestCanPublishHymnbook:
     def test_anonymous_cannot_publish(self, hymn_book):
         from django.contrib.auth.models import AnonymousUser
@@ -86,10 +110,11 @@ class TestCanPublishHymnbook:
         user = user_factory(email="rand@example.com")
         assert can_publish_hymnbook(user, hymn_book) is False
 
-    def test_owner_can_publish(self, user_factory, hymn_book_factory):
+    def test_owner_who_is_not_editor_cannot_publish(self, user_factory, hymn_book_factory):
+        # Política nova: ser dono não habilita publicação.
         owner = user_factory(email="ownerp@example.com")
         hb = hymn_book_factory(name="OwnedP", owner_user=owner)
-        assert can_publish_hymnbook(owner, hb) is True
+        assert can_publish_hymnbook(owner, hb) is False
 
     def test_editor_can_publish_any(self, user_factory, hymn_book):
         editor = _make_editor(user_factory(email="edp@example.com"))

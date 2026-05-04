@@ -121,11 +121,12 @@ class TestReviseHymnView:
         hymn.refresh_from_db()
         assert hymn.review_status == Hymn.ReviewStatus.NOT_REVIEWED
 
-    def test_owner_can_revise(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_owner_who_is_not_editor_cannot_revise(self, authenticated_client, hymn_book_factory, hymn_factory):
+        # Política nova: ser dono não habilita revisar/editar.
         hb = hymn_book_factory(name="Meu", owner_user=authenticated_client.user)
         h = hymn_factory(hymn_book=hb, number=1, title="orig", text="orig")
         url = reverse("hymns:hymn_revise", kwargs={"pk": h.pk})
-        resp = authenticated_client.post(
+        authenticated_client.post(
             url,
             {
                 "number": 1,
@@ -134,12 +135,9 @@ class TestReviseHymnView:
                 "review_status": Hymn.ReviewStatus.REVIEWED,
             },
         )
-        assert resp.status_code == 302
         h.refresh_from_db()
-        assert h.title == "novo"
-        assert h.review_status == Hymn.ReviewStatus.REVIEWED
-        assert h.last_reviewed_by == authenticated_client.user
-        assert h.last_reviewed_at is not None
+        assert h.title == "orig"
+        assert h.review_status == Hymn.ReviewStatus.NOT_REVIEWED
 
     def test_editor_can_revise_any(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)

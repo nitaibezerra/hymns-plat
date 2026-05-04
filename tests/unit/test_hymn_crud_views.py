@@ -1,5 +1,8 @@
 """
 Testes de views CRUD para Hymn (create, edit, delete via web).
+
+Política (Marco "editor-only"): apenas Editores/Admins podem cadastrar/editar/
+deletar hinos. Donos comuns são bloqueados.
 """
 
 import pytest
@@ -15,22 +18,29 @@ class TestHymnCreateView:
         resp = client.get(url)
         assert resp.status_code == 302
 
-    def test_forbidden_for_non_owner(self, authenticated_client, hymn_book):
+    def test_forbidden_for_common_user(self, authenticated_client, hymn_book):
         url = reverse("hymns:hymn_create", kwargs={"slug": hymn_book.slug})
         resp = authenticated_client.get(url)
         assert resp.status_code == 302
         assert resp.url == reverse("hymns:hymnbook_detail", kwargs={"slug": hymn_book.slug})
 
-    def test_get_renders_form_for_owner(self, authenticated_client, hymn_book_factory):
+    def test_forbidden_for_owner_who_is_not_editor(self, authenticated_client, hymn_book_factory):
         hb = hymn_book_factory(name="Meu", owner_user=authenticated_client.user)
         url = reverse("hymns:hymn_create", kwargs={"slug": hb.slug})
         resp = authenticated_client.get(url)
+        assert resp.status_code == 302
+        assert resp.url == reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug})
+
+    def test_get_renders_form_for_editor(self, editor_client, hymn_book_factory):
+        hb = hymn_book_factory(name="Ed")
+        url = reverse("hymns:hymn_create", kwargs={"slug": hb.slug})
+        resp = editor_client.get(url)
         assert resp.status_code == 200
 
-    def test_post_creates_hymn(self, authenticated_client, hymn_book_factory):
-        hb = hymn_book_factory(name="Para Hino", owner_user=authenticated_client.user)
+    def test_post_creates_hymn_for_editor(self, editor_client, hymn_book_factory):
+        hb = hymn_book_factory(name="Para Hino")
         url = reverse("hymns:hymn_create", kwargs={"slug": hb.slug})
-        resp = authenticated_client.post(
+        resp = editor_client.post(
             url,
             {"number": 1, "title": "Hino Novo", "text": "Letra do hino"},
         )
@@ -39,11 +49,11 @@ class TestHymnCreateView:
         assert hymn.title == "Hino Novo"
         assert resp.url == reverse("hymns:hymn_detail", kwargs={"pk": hymn.pk})
 
-    def test_post_rejects_duplicate_number(self, authenticated_client, hymn_book_factory, hymn_factory):
-        hb = hymn_book_factory(name="With Existing", owner_user=authenticated_client.user)
+    def test_post_rejects_duplicate_number(self, editor_client, hymn_book_factory, hymn_factory):
+        hb = hymn_book_factory(name="With Existing")
         hymn_factory(hymn_book=hb, number=5)
         url = reverse("hymns:hymn_create", kwargs={"slug": hb.slug})
-        resp = authenticated_client.post(
+        resp = editor_client.post(
             url,
             {"number": 5, "title": "Dup", "text": "x"},
         )
@@ -58,38 +68,35 @@ class TestHymnEditView:
         resp = client.get(url)
         assert resp.status_code == 302
 
-    def test_forbidden_for_non_owner(self, authenticated_client, hymn):
+    def test_forbidden_for_common_user(self, authenticated_client, hymn):
         url = reverse("hymns:hymn_edit", kwargs={"pk": hymn.pk})
         resp = authenticated_client.get(url)
         assert resp.status_code == 302
         assert resp.url == reverse("hymns:hymn_detail", kwargs={"pk": hymn.pk})
 
-    def test_allowed_for_owner(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_forbidden_for_owner_who_is_not_editor(self, authenticated_client, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="Mine", owner_user=authenticated_client.user)
         h = hymn_factory(hymn_book=hb)
         url = reverse("hymns:hymn_edit", kwargs={"pk": h.pk})
         resp = authenticated_client.get(url)
-        assert resp.status_code == 200
+        assert resp.status_code == 302
+        assert resp.url == reverse("hymns:hymn_detail", kwargs={"pk": h.pk})
 
     def test_allowed_for_superuser(self, admin_client, hymn):
         url = reverse("hymns:hymn_edit", kwargs={"pk": hymn.pk})
         resp = admin_client.get(url)
         assert resp.status_code == 200
 
-    def test_allowed_for_editor_group(self, authenticated_client, hymn):
-        from django.contrib.auth.models import Group
-
-        editor_group = Group.objects.get(name="editor")
-        authenticated_client.user.groups.add(editor_group)
+    def test_allowed_for_editor(self, editor_client, hymn):
         url = reverse("hymns:hymn_edit", kwargs={"pk": hymn.pk})
-        resp = authenticated_client.get(url)
+        resp = editor_client.get(url)
         assert resp.status_code == 200
 
-    def test_post_updates_hymn(self, authenticated_client, hymn_book_factory, hymn_factory):
-        hb = hymn_book_factory(name="Mine2", owner_user=authenticated_client.user)
+    def test_post_updates_hymn(self, editor_client, hymn_book_factory, hymn_factory):
+        hb = hymn_book_factory(name="Mine2")
         h = hymn_factory(hymn_book=hb, number=3, title="Old", text="old")
         url = reverse("hymns:hymn_edit", kwargs={"pk": h.pk})
-        resp = authenticated_client.post(
+        resp = editor_client.post(
             url,
             {"number": 3, "title": "New Title", "text": "new text"},
         )
@@ -106,24 +113,32 @@ class TestHymnDeleteView:
         resp = client.get(url)
         assert resp.status_code == 302
 
-    def test_forbidden_for_non_owner(self, authenticated_client, hymn):
+    def test_forbidden_for_common_user(self, authenticated_client, hymn):
         url = reverse("hymns:hymn_delete", kwargs={"pk": hymn.pk})
         resp = authenticated_client.post(url)
         assert resp.status_code == 302
         assert Hymn.objects.filter(pk=hymn.pk).exists()
 
-    def test_get_shows_confirmation(self, authenticated_client, hymn_book_factory, hymn_factory):
-        hb = hymn_book_factory(name="X", owner_user=authenticated_client.user)
+    def test_forbidden_for_owner_who_is_not_editor(self, authenticated_client, hymn_book_factory, hymn_factory):
+        hb = hymn_book_factory(name="Mine", owner_user=authenticated_client.user)
         h = hymn_factory(hymn_book=hb)
         url = reverse("hymns:hymn_delete", kwargs={"pk": h.pk})
-        resp = authenticated_client.get(url)
+        resp = authenticated_client.post(url)
+        assert resp.status_code == 302
+        assert Hymn.objects.filter(pk=h.pk).exists()
+
+    def test_get_shows_confirmation_for_editor(self, editor_client, hymn_book_factory, hymn_factory):
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb)
+        url = reverse("hymns:hymn_delete", kwargs={"pk": h.pk})
+        resp = editor_client.get(url)
         assert resp.status_code == 200
 
-    def test_post_deletes_hymn_and_redirects(self, authenticated_client, hymn_book_factory, hymn_factory):
-        hb = hymn_book_factory(name="Y", owner_user=authenticated_client.user)
+    def test_post_deletes_hymn_and_redirects(self, editor_client, hymn_book_factory, hymn_factory):
+        hb = hymn_book_factory(name="Y")
         h = hymn_factory(hymn_book=hb, number=1)
         url = reverse("hymns:hymn_delete", kwargs={"pk": h.pk})
-        resp = authenticated_client.post(url)
+        resp = editor_client.post(url)
         assert resp.status_code == 302
         assert resp.url == reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug})
         assert not Hymn.objects.filter(pk=h.pk).exists()
