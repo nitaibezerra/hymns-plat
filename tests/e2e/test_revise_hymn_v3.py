@@ -45,15 +45,36 @@ def _hymn_pk(number: int) -> str:
     )
 
 
-def _reset_hymns():
-    """Volta os 3 hinos seed para o estado inicial entre testes."""
-    _shell(
-        "from apps.hymns.models import Hymn, HymnAudio;"
-        f"Hymn.objects.filter(hymn_book__slug={SEED_BOOK!r})"
-        ".update(review_status='not_reviewed', text='Lua branca\\nClareando\\n\\nMeu coracao\\nEsta cantando');"
+SEED_TEXT = "Lua branca\\nClareando\\n\\nMeu coracao\\nEsta cantando"
+
+
+def _ensure_seed():
+    """Cria/restaura HymnBook + 3 hinos + grupo editor + user-in-group.
+
+    Idempotente: pode ser chamado várias vezes sem efeitos colaterais. Não
+    depende de seed pré-existente em CI/dev — o teste se auto-bootstrap.
+    """
+    code = (
+        "from django.contrib.auth.models import Group;"
+        "from apps.hymns.models import Hymn, HymnAudio, HymnBook;"
+        "from apps.users.models import User;"
+        f"hb, _ = HymnBook.objects.get_or_create(slug={SEED_BOOK!r}, defaults={{'name': 'E2E Test Book', 'owner_name': 'E2E', 'is_published': False}});"
+        "Hymn.objects.update_or_create("
+        "  hymn_book=hb, number=1,"
+        f"  defaults={{'title': 'Lua Branca', 'text': '{SEED_TEXT}', 'repetitions': '1-2,3-4', 'ocr_text': 'Lua branca\\nClareiando', 'review_status': 'not_reviewed'}});"
+        "Hymn.objects.update_or_create("
+        "  hymn_book=hb, number=2,"
+        "  defaults={'title': 'Sol da Manha', 'text': 'Sol da manha\\nQue ilumina', 'repetitions': '', 'review_status': 'not_reviewed'});"
+        "Hymn.objects.update_or_create("
+        "  hymn_book=hb, number=3,"
+        "  defaults={'title': 'Estrela', 'text': 'Estrela brilhante\\nNo ceu', 'repetitions': '', 'review_status': 'not_reviewed'});"
         f"HymnAudio.objects.filter(hymn__hymn_book__slug={SEED_BOOK!r}).delete();"
-        "print('reset')"
+        "ed, _ = Group.objects.get_or_create(name='editor');"
+        "u, _ = User.objects.get_or_create(email='teste2e@example.com', defaults={'username': 'teste2e', 'is_active': True});"
+        "u.groups.add(ed);"
+        "print('seeded')"
     )
+    _shell(code)
 
 
 def _hymn_state(number: int) -> str:
@@ -66,9 +87,9 @@ def _hymn_state(number: int) -> str:
 
 @pytest.fixture(autouse=True)
 def reset_seed():
-    _reset_hymns()
+    _ensure_seed()
     yield
-    _reset_hymns()
+    _ensure_seed()
 
 
 @pytest.fixture
