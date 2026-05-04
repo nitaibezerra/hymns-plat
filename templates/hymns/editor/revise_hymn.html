@@ -158,26 +158,18 @@
       </label>
     </section>
 
-    {# === DIREITA: Prévia + Audio Review === #}
+    {% comment %}
+      DIREITA: Prévia + Audio Review.
+      Reusa `render_hymn_body` (mesmo markup do carrossel/corrido). JS faz
+      re-render via fetch ao endpoint `editor_preview_render` quando o
+      textarea ou o input de repetições mudam.
+    {% endcomment %}
     <section class="px-6 lg:px-10 py-8 space-y-6 bg-cream-soft" data-preview-root>
       <p class="eyebrow">Prévia · como o leitor vai ver</p>
       <article class="preview-card">
         <h2 class="preview-title font-serif" data-preview-title>{{ hymn.number }} - {{ hymn.title }}</h2>
-        <div class="preview-body" data-preview-body data-line-height="26">
-          {% for stanza in preview.stanzas %}
-            <div class="preview-stanza">
-              {% for ln in stanza.lines %}
-                <div class="preview-line" data-line="{{ ln.global_idx }}">{{ ln.text }}</div>
-              {% endfor %}
-              {% for bar in stanza.repetition_bars %}
-                <div class="repetition-bar" style="top: {{ bar.top_px }}px; height: {{ bar.height_px }}px"></div>
-              {% endfor %}
-            </div>
-          {% empty %}
-            <p class="preview-empty">— sem texto ainda —</p>
-          {% endfor %}
-        </div>
-        {% if preview.stanzas %}<div class="preview-glyph">✡</div>{% endif %}
+        <div class="preview-body hymn-body-centered" data-preview-body data-render-url="{% url 'hymns:editor_preview_render' %}">{% render_hymn_body hymn %}</div>
+        {% if hymn.text %}<div class="preview-glyph">✡</div>{% endif %}
       </article>
 
       {% if audio %}
@@ -205,28 +197,7 @@
   var form = document.querySelector('[data-revise-form]');
   if (!form) return;
 
-  // ===== View toggle (Escrever / OCR cru / Diff vs OCR) =====
-  var viewToggle = form.querySelector('[data-view-toggle]');
-  var editorPane = form.querySelector('[data-editor-pane]');
-  var confidenceBlock = form.querySelector('[data-confidence-block]');
-  if (viewToggle && editorPane) {
-    viewToggle.addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-view]');
-      if (!btn) return;
-      var view = btn.dataset.view;
-      editorPane.dataset.activeView = view;
-      viewToggle.querySelectorAll('[data-view]').forEach(function (b) {
-        b.dataset.active = String(b === btn);
-      });
-      editorPane.querySelectorAll('[data-view-pane]').forEach(function (p) {
-        p.classList.toggle('hidden', p.dataset.viewPane !== view);
-      });
-      // Sparkline de confiança só faz sentido em ocr/diff.
-      if (confidenceBlock) {
-        confidenceBlock.classList.toggle('hidden', view === 'write');
-      }
-    });
-  }
+  // View toggle, live preview e caret highlight: ver `editor-preview.js`.
 
   // ===== Autosave debounced =====
   var status = form.querySelector('[data-autosave-status]');

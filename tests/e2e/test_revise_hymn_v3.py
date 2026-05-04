@@ -159,7 +159,9 @@ class TestReviseScreenWorkflows:
               ta.dispatchEvent(new Event('keyup', { bubbles: true }));
             }"""
         )
-        active = authenticated_page.locator(".preview-line.is-active")
+        # Markup compartilhado com carrossel/corrido: linhas são `.hymn-line`
+        # com `data-line="N"`. Editor pinta `.is-active` na linha do caret.
+        active = authenticated_page.locator(".preview-body .hymn-line.is-active")
         expect(active).to_have_count(1)
         expect(active).to_contain_text("Clareando")
 

@@ -612,41 +612,19 @@ html.dark .hymn-page { border-color: var(--color-rule); }
   letter-spacing: 0.005em;
   color: var(--color-ink);
 }
-.preview-body {
-  width: max-content;
-  max-width: 100%;
-  margin: 0 auto;
-  font-family: var(--font-serif);
-  font-size: 17px;
-  line-height: 1.55;
-  color: var(--color-ink);
-}
-.preview-stanza {
-  position: relative;
-  padding-left: 18px;
-  margin-bottom: 22px;
-}
-.preview-stanza:last-child { margin-bottom: 0; }
-.preview-line {
+/* O corpo da prévia reusa `render_hymn_body` (mesmo `.hymn-grid` /
+   `.hymn-line` do carrossel/corrido). Tipografia e centralização do bloco
+   vêm de `.hymn-body-centered` (CSS já existente). Aqui só estilizamos o
+   destaque da linha ativa (caret↔prévia, exclusivo do editor). */
+.preview-body .hymn-line {
   padding: 1px 8px;
   border-left: 2px solid transparent;
   border-radius: 2px;
   transition: background 120ms, border-color 120ms;
 }
-.preview-line.is-active {
+.preview-body .hymn-line.is-active {
   background: rgba(217, 176, 106, 0.22);
   border-left-color: var(--color-gold);
-}
-/* Barras da prévia ao vivo do editor (Fase 2 v3). Escopadas a
-   `.preview-stanza` para NÃO colidirem com o sistema antigo de barras
-   das telas públicas (`.hymn-grid .repetition-bar` em corrido/carrossel/
-   hymn_detail), que usa CSS Grid e depende do flow normal do grid item. */
-.preview-stanza .repetition-bar {
-  position: absolute;
-  left: 4px;
-  width: 2px;
-  background: var(--color-ink-soft);
-  border-radius: 1px;
 }
 .preview-glyph {
   text-align: center;
@@ -655,12 +633,6 @@ html.dark .hymn-page { border-color: var(--color-rule); }
   font-size: 18px;
   font-style: italic;
   font-family: var(--font-display);
-}
-.preview-empty {
-  text-align: center;
-  font-style: italic;
-  color: var(--color-ink-mute);
-  padding: 24px 0;
 }
 
 /* Estado vazio (sem áudio) */

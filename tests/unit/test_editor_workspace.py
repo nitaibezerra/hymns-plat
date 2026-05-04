@@ -721,8 +721,22 @@ class TestReviseLivePreview:
             repetitions="1-2,3-4",
         )
         body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
-        # 2 barras de repetição renderizadas
+        # 2 barras de repetição renderizadas (markup compartilhado com carrossel/corrido)
         assert body.count('class="repetition-bar"') == 2
+
+    def test_preview_uses_shared_hymn_grid_markup(self, authenticated_client, hymn_book_factory, hymn_factory):
+        """A prévia do editor reusa `render_hymn_body` (mesmo markup do carrossel/
+        corrido) — `<div class="hymn-grid">` com barras grid-positioned, não o
+        antigo `.preview-stanza` com bars absolute."""
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, title="t", text="a\nb", repetitions="1-2")
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        # Markup compartilhado: hymn-grid wrapper.
+        assert "hymn-grid" in body
+        # NÃO usa mais o markup obsoleto da v3 inicial.
+        assert "preview-stanza" not in body
+        assert "preview-line" not in body
 
     def test_preview_title_uses_font_serif_not_display(self, authenticated_client, hymn_book_factory, hymn_factory):
         """User reclamou em chat2.md de font-display nos títulos do hino — usar font-serif."""
@@ -909,3 +923,62 @@ class TestEditorHymnAudioReviewView:
         hymn, audio = self._make_setup(authenticated_client)
         resp = authenticated_client.get(self._url(hymn, audio))
         assert resp.status_code == 405
+
+
+@pytest.mark.django_db
+class TestEditorPreviewRenderEndpoint:
+    """Endpoint que devolve o HTML da prévia de um hino para `text` + `repetitions`
+    arbitrários (live preview do editor). Reusa `render_hymn_body_for_text`,
+    portanto produz o mesmo markup das telas públicas (corrido/carrossel)."""
+
+    def _post(self, client, payload):
+        import json
+
+        return client.post(
+            reverse("hymns:editor_preview_render"),
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def test_renders_hymn_grid_with_bars(self, authenticated_client):
+        _make_editor(authenticated_client.user)
+        resp = self._post(authenticated_client, {"text": "V1\nV2\nV3\nV4", "repetitions": "1-2,3-4"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "hymn-grid" in data["html"]
+        assert data["html"].count("repetition-bar") == 2
+        # Lines têm data-line para caret tracking.
+        assert 'data-line="0"' in data["html"]
+
+    def test_fallback_for_empty_repetitions(self, authenticated_client):
+        _make_editor(authenticated_client.user)
+        resp = self._post(authenticated_client, {"text": "a\nb", "repetitions": ""})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "hymn-grid" not in data["html"]
+        assert 'data-line="0"' in data["html"]
+
+    def test_anon_redirects(self, client):
+        import json
+
+        resp = client.post(
+            reverse("hymns:editor_preview_render"),
+            data=json.dumps({"text": "x", "repetitions": ""}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 302
+        assert "/accounts/login" in resp.url
+
+    def test_get_method_not_allowed(self, authenticated_client):
+        _make_editor(authenticated_client.user)
+        resp = authenticated_client.get(reverse("hymns:editor_preview_render"))
+        assert resp.status_code == 405
+
+    def test_invalid_json_400(self, authenticated_client):
+        _make_editor(authenticated_client.user)
+        resp = authenticated_client.post(
+            reverse("hymns:editor_preview_render"),
+            data="not-json",
+            content_type="application/json",
+        )
+        assert resp.status_code == 400

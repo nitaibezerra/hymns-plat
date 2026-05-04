@@ -267,8 +267,6 @@ def editor_revise_hymn(request, pk):
     if hymn.review_status != Hymn.ReviewStatus.REVIEWED:
         remaining = max(remaining - 1, 0)
 
-    from .services.preview import build_preview_stanzas
-
     audio = hymn.audios.filter(is_approved=True).first() or hymn.audios.first()
 
     return render(
@@ -284,7 +282,6 @@ def editor_revise_hymn(request, pk):
             "ocr_line_confidences": _compute_ocr_line_confidences(hymn.ocr_text, hymn.text),
             "common_repetitions": list(Hymn.CANONICAL_REPETITIONS),
             "common_styles": list(Hymn.CANONICAL_STYLES),
-            "preview": build_preview_stanzas(hymn.text, hymn.repetitions),
             "audio": audio,
             "audio_observations": list(HymnAudio.QUALITY_OBSERVATIONS),
             "audio_mismatch_reasons": HymnAudio.MismatchReason.choices,
@@ -456,3 +453,31 @@ def editor_hymn_audio_review(request, hymn_pk, audio_pk):
             "is_approved": audio.is_approved,
         }
     )
+
+
+@login_required
+@require_POST
+def editor_preview_render(request):
+    """Renderiza o corpo do hino para um par `{text, repetitions}` arbitrário.
+
+    Permite que o editor (live preview na tela 07 · Revisar Hino) reuse exatamente
+    o `render_hymn_body` que renderiza as telas públicas (corrido/carrossel/
+    hymn_detail) — single source of truth para o markup das barras de repetição.
+
+    A view é leve (não toca DB), mas exige login + acesso ao workspace do
+    editor (mesma política de `_has_editor_access`).
+    """
+    if not _has_editor_access(request.user):
+        return HttpResponseForbidden("Sem acesso ao workspace do editor.")
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "JSON inválido"}, status=400)
+    if not isinstance(payload, dict):
+        return JsonResponse({"error": "Payload deve ser objeto"}, status=400)
+
+    from .templatetags.hymn_extras import render_hymn_body_for_text
+
+    text = str(payload.get("text") or "")
+    repetitions = str(payload.get("repetitions") or "")
+    return JsonResponse({"html": render_hymn_body_for_text(text, repetitions)})

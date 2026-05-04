@@ -29,6 +29,11 @@ urlpatterns = [
         editor_views.editor_hymn_audio_review,
         name="editor_hymn_audio_review",
     ),
+    path(
+        "editor/preview/render/",
+        editor_views.editor_preview_render,
+        name="editor_preview_render",
+    ),
     path("", views.home_view, name="home"),
     path("hinarios/", views.HymnBookListView.as_view(), name="hymnbook_list"),
     # Create rota antes de <slug> para evitar conflito

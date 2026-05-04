@@ -29,14 +29,10 @@ class TestRepetitionBarsCssScope:
             "corrido/carrossel)."
         )
 
-    def test_preview_stanza_repetition_bar_rule_present(self):
-        """Confirma que a versão escopada existe — caso contrário, a prévia
-        ao vivo da tela de revisão perde a posição absoluta das barras."""
-        css = _components_css()
-        assert ".preview-stanza .repetition-bar" in css
-
     def test_hymn_grid_scoped_rule_still_present(self):
-        """Sanidade: o tweak antigo de cor/opacidade das barras continua
-        escopado a `.hymn-grid` (não foi acidentalmente removido)."""
+        """Sanidade: o tweak de cor/opacidade das barras continua escopado a
+        `.hymn-grid` (não foi acidentalmente removido). Esse é o ÚNICO lugar
+        onde o app estiliza `.repetition-bar` agora — a prévia do editor
+        reusa o mesmo markup do `render_hymn_body`."""
         css = _components_css()
         assert ".hymn-grid .repetition-bar" in css
