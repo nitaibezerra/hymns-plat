@@ -1,12 +1,14 @@
 /**
- * Tela 07 · Revisar Hino — preview ao vivo + caret highlight.
+ * Tela 07 · Revisar Hino — preview ao vivo + caret highlight + view toggle.
  *
- * Re-renderiza a coluna direita (prévia carrossel-style) sempre que o
- * textarea ou o campo `repetitions` mudam. Sincroniza a linha ativa
- * (cursor no textarea ↔ destaque dourado na prévia).
+ * A prévia (coluna direita) reusa o template tag `render_hymn_body` (via
+ * endpoint `editor_preview_render`) — exatamente o mesmo markup das telas
+ * públicas (corrido/carrossel/hymn_detail). Ao mudar o textarea ou o input
+ * de repetições, JS faz fetch debounced ao endpoint e troca o innerHTML.
  *
- * Mantém em sync com `apps/hymns/services/preview.py::build_preview_stanzas`
- * (mesma lógica de stanzas + repetition bars). Se mudar um, mude o outro.
+ * Caret highlight: cada `.hymn-line` carrega `data-line="N"` (índice da row
+ * no texto). JS escuta keyup/click/select no textarea, calcula a linha do
+ * cursor e aplica `.is-active` no match.
  */
 (function () {
   var form = document.querySelector('[data-revise-form]');
@@ -21,93 +23,73 @@
   var caretLineEl = document.querySelector('[data-caret-line]');
   var caretTotalEl = document.querySelector('[data-caret-total]');
 
+  // ===== View toggle (Escrever / OCR cru / Diff vs OCR) =====
+  var viewToggle = form.querySelector('[data-view-toggle]');
+  var editorPane = form.querySelector('[data-editor-pane]');
+  var confidenceBlock = form.querySelector('[data-confidence-block]');
+  if (viewToggle && editorPane) {
+    viewToggle.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-view]');
+      if (!btn) return;
+      var view = btn.dataset.view;
+      editorPane.dataset.activeView = view;
+      viewToggle.querySelectorAll('[data-view]').forEach(function (b) {
+        b.dataset.active = String(b === btn);
+      });
+      editorPane.querySelectorAll('[data-view-pane]').forEach(function (p) {
+        p.classList.toggle('hidden', p.dataset.viewPane !== view);
+      });
+      if (confidenceBlock) {
+        confidenceBlock.classList.toggle('hidden', view === 'write');
+      }
+    });
+  }
+
   if (!textarea || !previewBody) return;
 
-  var lineHeightPx = parseInt(previewBody.dataset.lineHeight || '26', 10);
-
-  function parseReps(value) {
-    if (!value) return [];
-    var out = [];
-    value.split(',').forEach(function (segment) {
-      var m = segment.match(/^\s*(\d+)\s*-\s*(\d+)\s*$/);
-      if (!m) return;
-      var a = parseInt(m[1], 10);
-      var b = parseInt(m[2], 10);
-      if (a > 0 && b >= a) out.push([a, b]);
-    });
-    return out;
+  function getCookie(name) {
+    var match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    return match ? decodeURIComponent(match[2]) : '';
   }
 
-  function buildStanzas(text) {
-    var stanzas = [];
-    var current = [];
-    var globalIdx = 0;
-    (text || '').split('\n').forEach(function (raw) {
-      if (raw.trim() === '') {
-        if (current.length) { stanzas.push(current); current = []; }
-        globalIdx += 1;
-        return;
-      }
-      current.push({ text: raw, globalIdx: globalIdx });
-      globalIdx += 1;
-    });
-    if (current.length) stanzas.push(current);
-    return stanzas;
+  var renderUrl = previewBody.dataset.renderUrl;
+
+  // ===== Live preview via server render =====
+  var renderTimer;
+  function scheduleRerender() {
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(rerender, 250);
   }
 
-  function escapeHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  function renderPreview() {
-    var text = textarea.value;
-    var stanzas = buildStanzas(text);
-    var ranges = parseReps(repsInput ? repsInput.value : '');
-
-    // flatPositions: idx (1-based) → [stanzaIdx, lineInStanza]
-    var flat = [];
-    stanzas.forEach(function (st, si) {
-      st.forEach(function (_ln, li) { flat.push([si, li]); });
-    });
-
-    if (stanzas.length === 0) {
-      previewBody.innerHTML = '<p class="preview-empty">— sem texto ainda —</p>';
-      return;
+  async function rerender() {
+    if (!renderUrl) return;
+    try {
+      var res = await fetch(renderUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken'),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({
+          text: textarea.value,
+          repetitions: repsInput ? repsInput.value : '',
+        }),
+      });
+      if (!res.ok) return;
+      var data = await res.json();
+      previewBody.innerHTML = data.html || '';
+      updateActiveLine();
+    } catch (_) {
+      // Falha silenciosa — a prévia volta ao último estado renderizado.
     }
-
-    var html = '';
-    stanzas.forEach(function (stanza, si) {
-      html += '<div class="preview-stanza">';
-      stanza.forEach(function (ln) {
-        html += '<div class="preview-line" data-line="' + ln.globalIdx + '">' + escapeHtml(ln.text) + '</div>';
-      });
-      ranges.forEach(function (r) {
-        if (r[0] - 1 >= flat.length || r[1] - 1 >= flat.length) return;
-        var startPos = flat[r[0] - 1];
-        var endPos = flat[r[1] - 1];
-        if (startPos[0] !== si || endPos[0] !== si) return;
-        var fromLine = startPos[1];
-        var toLine = endPos[1];
-        var top = fromLine * lineHeightPx + 4;
-        var height = (toLine - fromLine + 1) * lineHeightPx - 8;
-        html += '<div class="repetition-bar" style="top: ' + top + 'px; height: ' + height + 'px"></div>';
-      });
-      html += '</div>';
-    });
-    previewBody.innerHTML = html;
   }
 
   function updateActiveLine() {
-    if (!textarea) return;
     var pos = textarea.selectionStart || 0;
     var idx = textarea.value.slice(0, pos).split('\n').length - 1;
     var total = textarea.value.split('\n').length;
-
-    previewBody.querySelectorAll('.preview-line.is-active').forEach(function (el) {
+    previewBody.querySelectorAll('.hymn-line.is-active').forEach(function (el) {
       el.classList.remove('is-active');
     });
     var target = previewBody.querySelector('[data-line="' + idx + '"]');
@@ -123,19 +105,14 @@
     previewTitle.textContent = (n ? n + ' - ' : '') + t;
   }
 
-  // Listeners
-  textarea.addEventListener('input', function () {
-    renderPreview();
-    updateActiveLine();
-  });
+  textarea.addEventListener('input', scheduleRerender);
   textarea.addEventListener('keyup', updateActiveLine);
   textarea.addEventListener('click', updateActiveLine);
   textarea.addEventListener('select', updateActiveLine);
-  if (repsInput) repsInput.addEventListener('input', renderPreview);
+  if (repsInput) repsInput.addEventListener('input', scheduleRerender);
   if (titleInput) titleInput.addEventListener('input', updateTitle);
   if (numberInput) numberInput.addEventListener('input', updateTitle);
 
-  // Inicial: render já vem do server, mas updateActiveLine para alinhar caret
-  // (caso o cursor já esteja em algum lugar específico).
+  // Initial caret state — preview já vem do server.
   updateActiveLine();
 })();

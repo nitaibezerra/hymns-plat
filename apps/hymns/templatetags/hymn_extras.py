@@ -1,7 +1,7 @@
 """Template tags do app hymns."""
 
 from django import template
-from django.utils.html import conditional_escape, format_html_join
+from django.utils.html import format_html_join
 from django.utils.safestring import mark_safe
 
 from apps.hymns.repetitions import parse_and_layout
@@ -37,27 +37,46 @@ BAR_THICKNESS_PX = 2.4
 LINE_HEIGHT_EM = 1.55
 
 
-@register.simple_tag
-def render_hymn_body(hymn):
+def render_hymn_body_for_text(text: str, repetitions: str) -> str:
     """
     Renderiza a letra do hino com barras de repetição à esquerda.
 
-    Fallback: se `hymn.repetitions` está vazio ou inválido, renderiza texto
-    simples sem grid. Saída em HTML compacto (sem whitespace entre tags)
-    para evitar que o CSS Grid crie anonymous items por cada text node.
+    Função de baixo nível que opera com strings cruas (sem instância de Hymn) —
+    usada pelo template tag `render_hymn_body` e pelo endpoint live-preview do
+    editor (`editor_preview_render`). Garante que a tela pública (carrossel/
+    corrido) e a prévia do editor produzam markup idêntico (uma fonte só).
+
+    Fallback: se `repetitions` está vazio ou inválido, renderiza linha-por-linha
+    sem grid (mas ainda com `data-line` para caret tracking do editor).
+    Saída em HTML compacto (sem whitespace entre tags) para evitar que o CSS
+    Grid crie anonymous items por cada text node.
     """
-    text = hymn.text or ""
-    data = parse_and_layout(text, hymn.repetitions or "")
+    text = text or ""
+    data = parse_and_layout(text, repetitions or "")
     n = data["n_columns"]
 
+    line_style = (
+        f"white-space:pre-wrap;"
+        f"overflow-wrap:break-word;"
+        f"min-height:{LINE_HEIGHT_EM}em;"
+        f"line-height:{LINE_HEIGHT_EM};"
+    )
+
     if n == 0:
-        # `white-space: pre-line` preserva os `\n` do texto sem depender de CSS
-        # externo. Sem isso, o navegador colapsa todas as quebras para espaço
-        # simples e o hino vira uma única linha (regressão do redesign Fase 2).
-        return mark_safe(
-            '<div class="hymn-text" style="white-space:pre-line;'
-            f'line-height:{LINE_HEIGHT_EM};">{conditional_escape(text)}</div>'
-        )
+        # Fallback sem barras: ainda emite linhas individuais com data-line para
+        # que o caret tracking do editor funcione mesmo em hinos sem repetições.
+        # Visualmente equivale ao antigo `<div class="hymn-text" white-space:pre-line>`
+        # — divs em block fluem como linhas com a mesma altura.
+        rows = data["rows"]
+        if rows:
+            lines_html = format_html_join(
+                "",
+                '<div class="hymn-line" data-line="{}" style="{}">{}</div>',
+                ((i, mark_safe(line_style), row["text"]) for i, row in enumerate(rows)),
+            )
+        else:
+            lines_html = ""
+        return f'<div class="hymn-text">{lines_html}</div>'
 
     text_col = n + 1
     # col adjacente ao texto (última coluna de barras, grid-column = n) fica
@@ -68,17 +87,10 @@ def render_hymn_body(hymn):
         tracks = f"repeat({n - 1},{BAR_COLUMN_WIDTH_PX}px) {TEXT_GUTTER_PX}px"
     grid_style = f"display:grid;grid-template-columns:{tracks} minmax(0,1fr);gap:0;"
 
-    line_style = (
-        f"white-space:pre-wrap;"
-        f"overflow-wrap:break-word;"
-        f"min-height:{LINE_HEIGHT_EM}em;"
-        f"line-height:{LINE_HEIGHT_EM};"
-    )
-
     lines_html = format_html_join(
         "",
-        '<div class="hymn-line" style="grid-column:{};grid-row:{};{}">{}</div>',
-        ((text_col, i + 1, mark_safe(line_style), row["text"]) for i, row in enumerate(data["rows"])),
+        '<div class="hymn-line" data-line="{}" style="grid-column:{};grid-row:{};{}">{}</div>',
+        ((i, text_col, i + 1, mark_safe(line_style), row["text"]) for i, row in enumerate(data["rows"])),
     )
 
     # col 0 é adjacente ao texto → última coluna de barras no grid.
@@ -102,7 +114,13 @@ def render_hymn_body(hymn):
         ),
     )
 
-    return mark_safe(f'<div class="hymn-grid" style="{grid_style}">{lines_html}{bars_html}</div>')
+    return f'<div class="hymn-grid" style="{grid_style}">{lines_html}{bars_html}</div>'
+
+
+@register.simple_tag
+def render_hymn_body(hymn):
+    """Template tag: renderiza o corpo do hino com barras à esquerda."""
+    return mark_safe(render_hymn_body_for_text(hymn.text or "", hymn.repetitions or ""))
 
 
 @register.filter
