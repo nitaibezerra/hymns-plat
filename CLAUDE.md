@@ -94,7 +94,7 @@ Browser
   │ HTTPS (Let's Encrypt cert via Cloudflare)
   ▼
 Cloudflare (proxy ON, SSL Full) → Worker `hinaria-proxy`
-  │ HTTPS, Host: hinaria-production.up.railway.app, X-Forwarded-Host: hinaria.com.br
+  │ HTTPS, Host: hinaria-production.up.railway.app, X-Original-Host: hinaria.com.br
   ▼
 Railway (Dockerfile build → gunicorn 2w × 4t)
   │
@@ -183,7 +183,7 @@ export default {
     const target = new URL(url.pathname + url.search, "https://hinaria-production.up.railway.app");
     const headers = new Headers(request.headers);
     headers.set("Host", "hinaria-production.up.railway.app");
-    headers.set("X-Forwarded-Host", url.host);
+    headers.set("X-Original-Host", url.host);
     headers.set("X-Forwarded-Proto", "https");
     return fetch(new Request(target.toString(), { method: request.method, headers, body: request.body, redirect: "manual" }));
   }
@@ -192,9 +192,9 @@ export default {
 
 Routes: `hinaria.com.br/*` and `www.hinaria.com.br/*` → script `hinaria-proxy` (zone `52478c632c59cd33a3447a13fd548bad`).
 
-Because the Worker overrides `Host`, Django needs `USE_X_FORWARDED_HOST = True` (already set in `config/settings/production.py`) to read the original visitor host from `X-Forwarded-Host` for absolute URL generation and `ALLOWED_HOSTS` matching.
+Because the Worker overrides `Host`, Django needs the visitor's original host to build absolute URLs (OAuth callbacks, password-reset emails, sitemaps). The standard `X-Forwarded-Host` is overwritten by Railway's edge proxy, so the Worker uses a custom header `X-Original-Host` and `apps.core.middleware.original_host_middleware` (registered first in `config/settings/production.py:MIDDLEWARE`) copies it into `HTTP_HOST` after validating against `ALLOWED_HOSTS`.
 
-If Railway eventually issues the cert later and you want to drop the Worker: delete the two routes (zone `workers/routes`), turn `proxied: false` back on the CNAMEs, and keep `USE_X_FORWARDED_HOST` since Railway also forwards a similar header.
+If Railway eventually issues the cert later and you want to drop the Worker: delete the two routes (zone `workers/routes`), turn `proxied: false` back on the CNAMEs, and you can also drop the custom middleware (Railway's own headers will work without it).
 
 ### Cloudflare DNS / SSL state (current)
 
