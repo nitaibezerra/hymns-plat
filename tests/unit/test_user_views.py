@@ -64,6 +64,24 @@ class TestProfileView:
 
         assert response.context["is_own_profile"] is True
 
+    def test_own_profile_shows_logout_link(self, client, django_user_model):
+        """No próprio perfil, deve aparecer link de logout (substitui o que estava no header)."""
+        user = django_user_model.objects.create_user(username="alice", email="alice@example.com", password="pass")
+        client.force_login(user)
+
+        resp = client.get(reverse("users:profile", kwargs={"username": "alice"})).content.decode()
+        assert "/accounts/logout/" in resp
+        assert "Sair" in resp
+
+    def test_other_users_profile_hides_logout_link(self, client, django_user_model):
+        """Logout só aparece quando is_own_profile — não no perfil de terceiros."""
+        owner = django_user_model.objects.create_user(username="bob", email="bob@example.com", password="pass")
+        viewer = django_user_model.objects.create_user(username="carol", email="carol@example.com", password="pass")
+        client.force_login(viewer)
+
+        resp = client.get(reverse("users:profile", kwargs={"username": owner.username})).content.decode()
+        assert "/accounts/logout/" not in resp
+
 
 @pytest.mark.django_db
 class TestProfileEditView:
