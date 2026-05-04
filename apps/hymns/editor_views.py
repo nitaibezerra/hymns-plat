@@ -244,8 +244,8 @@ def editor_revise_hymn(request, pk):
             "remaining": remaining,
             "inline_diff": _compute_inline_diff(hymn.ocr_text, hymn.text),
             "ocr_line_confidences": _compute_ocr_line_confidences(hymn.ocr_text, hymn.text),
-            "common_repetitions": _common_field_values(hymn.hymn_book, "repetitions", top=4),
-            "common_styles": _common_field_values(hymn.hymn_book, "style", top=3),
+            "common_repetitions": list(Hymn.CANONICAL_REPETITIONS),
+            "common_styles": list(Hymn.CANONICAL_STYLES),
         },
     )
 
