@@ -27,9 +27,7 @@ const HymnDetailScreen = () => {
       <div style={{display: "grid", gridTemplateColumns: "1fr 320px", gap: 40, padding: "48px 64px", maxWidth: 1280, margin: "0 auto"}}>
         {/* Left: paper page */}
         <article className="hymn-page">
-          <div className="hymn-num">HINO 07 · O CRUZEIRO</div>
-          <h1 className="hymn-title">{SAMPLE_HYMN.title}</h1>
-          <div className="title-rule" />
+          <h1 className="hymn-title">{SAMPLE_HYMN.number} - {SAMPLE_HYMN.title}</h1>
 
           <div className="hymn-body">
             {SAMPLE_HYMN.body.map((s, i) => (

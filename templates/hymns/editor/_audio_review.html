@@ -1,0 +1,79 @@
+{% load hymn_extras %}
+{# Bloco de revisão de áudio na coluna direita do Revisar Hino. #}
+{# Espera no contexto: hymn, audio, audio_observations, audio_mismatch_reasons. #}
+<section class="audio-review"
+         data-audio-review-root
+         data-hymn-id="{{ hymn.pk }}"
+         data-audio-id="{{ audio.pk }}"
+         data-review-url="{% url 'hymns:editor_hymn_audio_review' hymn_pk=hymn.pk audio_pk=audio.pk %}">
+  <header class="flex justify-between items-center mb-4">
+    <p class="eyebrow">Revisão de áudio</p>
+    <span class="label-mono text-xs">arquivo · {{ audio.title|default:audio.audio_file.name }}{% if audio.duration %} · {{ audio.duration|format_duration }}{% endif %}</span>
+  </header>
+
+  <div class="audio-player-row" data-audio-player>
+    <button type="button" class="audio-play-btn" data-audio-toggle aria-label="Tocar áudio">
+      <svg data-icon-play width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 1 L12 7 L3 13 Z"/></svg>
+      <svg data-icon-pause width="14" height="14" viewBox="0 0 14 14" fill="currentColor" class="hidden"><rect x="3" y="2" width="3" height="10"/><rect x="8" y="2" width="3" height="10"/></svg>
+    </button>
+    <div class="audio-player-track" data-audio-track>
+      <div class="audio-waveform" data-audio-waveform aria-hidden="true">
+        {# Bars renderizadas pelo audio-review.js a partir de data-peaks. #}
+      </div>
+      <div class="audio-time-row">
+        <span data-audio-current class="label-mono text-xs">0:00</span>
+        <span data-audio-total class="label-mono text-xs">{% if audio.duration %}{{ audio.duration|format_duration }}{% else %}—{% endif %}</span>
+      </div>
+    </div>
+    <div class="audio-player-controls">
+      <button type="button" class="audio-icon-btn" data-audio-skip="-10" title="Voltar 10s">«10</button>
+      <button type="button" class="audio-icon-btn" data-audio-skip="10" title="Avançar 10s">10»</button>
+      <button type="button" class="audio-icon-btn" data-audio-speed title="Velocidade">1×</button>
+    </div>
+    <audio src="{{ audio.audio_file.url }}" preload="metadata" data-audio-source data-peaks="{{ audio.waveform_peaks|default:'[]' }}"></audio>
+  </div>
+
+  <div class="match-question">
+    <div>
+      <p class="match-q-title">É mesmo a gravação de <em>"{{ hymn.title }}"</em>?</p>
+      <p class="match-q-help">Confirma se o áudio corresponde ao hino e à letra acima.</p>
+    </div>
+    <div class="flex gap-2">
+      <button type="button" class="yesno-btn yes {% if audio.is_match is True %}is-active{% endif %}" data-audio-match="true">✓ Confere</button>
+      <button type="button" class="yesno-btn no {% if audio.is_match is False %}is-active{% endif %}" data-audio-match="false">✗ Não confere</button>
+    </div>
+  </div>
+
+  <div class="quality-block" data-quality-block {% if audio.is_match is not True %}hidden{% endif %}>
+    <p class="quality-title">Qualidade da gravação</p>
+    <p class="quality-help">Ajuda a priorizar uploads melhores no futuro.</p>
+    <div class="quality-stars" data-quality-stars>
+      {% for n in "12345" %}
+        <button type="button"
+                class="quality-star{% if audio.quality_rating and forloop.counter <= audio.quality_rating %} is-active{% endif %}"
+                data-quality-rating="{{ forloop.counter }}">{{ forloop.counter }}</button>
+      {% endfor %}
+    </div>
+    <div class="observations" data-observations-block>
+      <span class="eyebrow">Observações</span>
+      <div class="observations-chips">
+        {% for obs in audio_observations %}
+          <button type="button"
+                  class="chip-obs{% if obs in audio.quality_observations %} is-active{% endif %}"
+                  data-observation="{{ obs }}">{{ obs }}</button>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="mismatch-block" data-mismatch-block {% if audio.is_match is not False %}hidden{% endif %}>
+    <p class="mismatch-title"><strong>Áudio sinalizado.</strong> Vai para a fila de revisão de moderador. Marque o motivo:</p>
+    <div class="mismatch-chips">
+      {% for value, label in audio_mismatch_reasons %}
+        <button type="button"
+                class="chip-reason{% if audio.mismatch_reason == value %} is-active{% endif %}"
+                data-mismatch-reason="{{ value }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+  </div>
+</section>

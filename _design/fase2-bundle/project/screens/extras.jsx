@@ -42,9 +42,7 @@ const MobileCarouselInner = ({theme}) => {
 
       {/* Hymn page — fills view */}
       <div style={{flex: 1, padding: "32px 28px", display: "flex", flexDirection: "column", justifyContent: "center", overflow: "hidden"}}>
-        <div className="mono" style={{fontSize: 9, letterSpacing: ".2em", color: inkMute, textAlign: "center", marginBottom: 8}}>HINO 07 · O CRUZEIRO</div>
-        <h1 className="display" style={{fontSize: 26, textAlign: "center", color: ink, margin: "0 0 10px", lineHeight: 1.1, fontWeight: 500}}>Estrela Brilhante</h1>
-        <div style={{width: "60%", height: 1, background: rule, margin: "0 auto 24px"}}/>
+        <h1 className="serif" style={{fontSize: 26, textAlign: "center", color: ink, margin: "0 0 24px", lineHeight: 1.1, fontWeight: 500}}>7 - Estrela Brilhante</h1>
 
         {/* Body with rep bar */}
         <div style={{position: "relative", paddingLeft: 18, fontSize: 17, lineHeight: 1.6, color: ink}}>

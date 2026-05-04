@@ -581,3 +581,302 @@ html.dark .hymn-page { border-color: var(--color-rule); }
   transition: background 120ms;
 }
 .btn-primary-firmament:hover { background: var(--color-firmament-2); }
+
+/* ============================================================ */
+/* Tela 07 · Revisar Hino — Fase 2 v3                          */
+/* (Layout invertido: editor à esquerda, prévia + áudio à dir.) */
+/* ============================================================ */
+
+/* Caret status sob o textarea */
+.caret-status {
+  font-size: 11px;
+  color: var(--color-ink-mute);
+  margin-top: 2px;
+}
+
+/* Sub-views do editor: hidden quando não ativo */
+[data-view-pane].hidden { display: none; }
+
+/* Card da prévia (lado direito) */
+.preview-card {
+  background: var(--color-bg);
+  padding: 48px 56px;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+.preview-title {
+  text-align: center;
+  margin-bottom: 32px;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: var(--color-ink);
+}
+.preview-body {
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+  font-family: var(--font-serif);
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--color-ink);
+}
+.preview-stanza {
+  position: relative;
+  padding-left: 18px;
+  margin-bottom: 22px;
+}
+.preview-stanza:last-child { margin-bottom: 0; }
+.preview-line {
+  padding: 1px 8px;
+  border-left: 2px solid transparent;
+  border-radius: 2px;
+  transition: background 120ms, border-color 120ms;
+}
+.preview-line.is-active {
+  background: rgba(217, 176, 106, 0.22);
+  border-left-color: var(--color-gold);
+}
+.repetition-bar {
+  position: absolute;
+  left: 4px;
+  width: 2px;
+  background: var(--color-ink-soft);
+  border-radius: 1px;
+}
+.preview-glyph {
+  text-align: center;
+  margin-top: 28px;
+  color: var(--color-gold);
+  font-size: 18px;
+  font-style: italic;
+  font-family: var(--font-display);
+}
+.preview-empty {
+  text-align: center;
+  font-style: italic;
+  color: var(--color-ink-mute);
+  padding: 24px 0;
+}
+
+/* Estado vazio (sem áudio) */
+.audio-empty {
+  margin-top: 16px;
+  padding: 20px;
+  text-align: center;
+  background: var(--color-bg);
+  border: 1px dashed var(--color-rule);
+  border-radius: 8px;
+  color: var(--color-ink-mute);
+}
+
+/* Bloco de revisão de áudio */
+.audio-review {
+  margin-top: 16px;
+  padding: 20px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: 8px;
+}
+.audio-player-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.audio-play-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--color-firmament);
+  color: var(--color-bg);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: background 120ms;
+}
+.audio-play-btn:hover { background: var(--color-firmament-2); }
+.audio-player-track { flex: 1; min-width: 0; }
+.audio-waveform {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  cursor: pointer;
+}
+.audio-waveform .bar {
+  flex: 1;
+  background: var(--color-rule);
+  border-radius: 1px;
+  transition: background 60ms;
+}
+.audio-waveform .bar.played { background: var(--color-firmament); }
+.audio-time-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.audio-player-controls {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.audio-icon-btn {
+  width: 36px;
+  height: 32px;
+  border-radius: 4px;
+  border: 1px solid var(--color-rule);
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.audio-icon-btn:hover { background: var(--color-bg-soft); }
+
+/* Pergunta de match */
+.match-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-rule-soft);
+}
+.match-q-title {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+.match-q-help {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--color-ink-mute);
+  margin-top: 2px;
+}
+.yesno-btn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--color-rule);
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.yesno-btn.yes.is-active {
+  border-color: var(--color-moss);
+  background: var(--color-moss);
+  color: var(--color-bg);
+}
+.yesno-btn.no.is-active {
+  border-color: var(--color-vermilion);
+  background: var(--color-vermilion);
+  color: var(--color-bg);
+}
+
+/* Bloco de qualidade */
+.quality-block {
+  padding: 12px 0;
+  border-top: 1px solid var(--color-rule-soft);
+}
+.quality-title {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+.quality-help {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--color-ink-mute);
+  margin-top: 2px;
+  margin-bottom: 10px;
+}
+.quality-stars {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.quality-star {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: 1px solid var(--color-rule);
+  background: var(--color-bg-soft);
+  color: var(--color-ink-mute);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.quality-star.is-active {
+  border-color: var(--color-gold);
+  background: var(--color-gold);
+  color: var(--color-bg);
+}
+.observations { margin-top: 10px; }
+.observations-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.chip-obs {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--color-rule);
+  background: var(--color-bg-soft);
+  color: var(--color-ink-soft);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.chip-obs.is-active {
+  background: var(--color-ink);
+  color: var(--color-bg);
+  border-color: var(--color-ink);
+}
+
+/* Mismatch banner */
+.mismatch-block {
+  padding: 12px 0;
+  border-top: 1px solid var(--color-rule-soft);
+}
+.mismatch-block .mismatch-title {
+  background: rgba(177, 62, 46, 0.06);
+  border: 1px solid rgba(177, 62, 46, 0.3);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--color-vermilion);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.mismatch-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip-reason {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--color-vermilion);
+  background: var(--color-bg);
+  color: var(--color-vermilion);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.chip-reason.is-active {
+  background: var(--color-vermilion);
+  color: var(--color-bg);
+}

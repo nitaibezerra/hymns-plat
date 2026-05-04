@@ -103,3 +103,11 @@ def render_hymn_body(hymn):
     )
 
     return mark_safe(f'<div class="hymn-grid" style="{grid_style}">{lines_html}{bars_html}</div>')
+
+
+@register.filter
+def line_count(value):
+    """Conta total de linhas (incluindo brancas) — usado no contador 'Linha N de M'."""
+    if not value:
+        return 1
+    return len(value.split("\n"))

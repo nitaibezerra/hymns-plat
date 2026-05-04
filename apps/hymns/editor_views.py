@@ -12,10 +12,14 @@ Os templates aqui são mínimos/provisórios — a Fase 2 reescreve a UI.
 
 from __future__ import annotations
 
+import json
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from .models import Hymn, HymnAudio, HymnBook
 from .permissions import can_edit_hymnbook
@@ -164,6 +168,23 @@ def editor_hymnbook_detail(request, slug):
     )
 
 
+def _next_pending_hymn(hymnbook, current_hymn=None):
+    """Próximo hino não-revisado dentro do hinário.
+
+    Estratégia de fila linear: prefere hinos com `number > current.number`;
+    fallback para o primeiro pendente global (wrap-around) quando estamos no
+    fim do hinário. Sempre exclui o hino atual para evitar redirect circular
+    em casos de borda (status ainda em transição etc.).
+    """
+    qs = hymnbook.hymns.exclude(review_status=Hymn.ReviewStatus.REVIEWED)
+    if current_hymn is not None:
+        qs = qs.exclude(pk=current_hymn.pk)
+        higher = qs.filter(number__gt=current_hymn.number).order_by("number").first()
+        if higher is not None:
+            return higher
+    return qs.order_by("number").first()
+
+
 @login_required
 def editor_next_hymn(request, slug):
     hymnbook = get_object_or_404(HymnBook, slug=slug)
@@ -171,7 +192,12 @@ def editor_next_hymn(request, slug):
         messages.error(request, "Você não tem permissão para revisar este hinário.")
         return redirect("hymns:home")
 
-    pending = hymnbook.hymns.exclude(review_status=Hymn.ReviewStatus.REVIEWED).order_by("number").first()
+    current = None
+    from_pk = request.GET.get("from")
+    if from_pk:
+        current = hymnbook.hymns.filter(pk=from_pk).first()
+
+    pending = _next_pending_hymn(hymnbook, current)
     if pending is None:
         messages.success(request, "Todos os hinos deste hinário estão revisados.")
         return redirect("hymns:editor_hymnbook_detail", slug=hymnbook.slug)
@@ -205,22 +231,30 @@ def editor_revise_hymn(request, pk):
         if new_status in Hymn.ReviewStatus.values:
             hymn.review_status = new_status
 
+        next_action = request.POST.get("next_action", "next")
+        # Autosave dispara via fetch() do JS com `autosave=1` no body. NÃO usar
+        # HX-Request como sinal: `<body hx-boost="true">` no base.html faz
+        # com que o HTMX adicione esse header em TODOS os submits, mascarando
+        # o submit normal como autosave e quebrando o redirect de navegação.
+        # O form da tela de revisão também declara `hx-boost="false"` para
+        # garantir que o submit faça uma navegação tradicional.
+        is_autosave = request.POST.get("autosave") == "1"
+
+        # "Marcar revisado e avançar" (next_action=next) precisa marcar o hino
+        # como REVIEWED mesmo se o radio ficou em outro estado. O autosave NÃO
+        # aplica essa regra (continua salvando o estado atual).
+        if next_action == "next" and not is_autosave:
+            hymn.review_status = Hymn.ReviewStatus.REVIEWED
+
         hymn.last_reviewed_by = request.user
         hymn.last_reviewed_at = timezone.now()
         hymn.save()
 
-        # Marco 2.1.5 — autosave HTMX devolve JSON com timestamp.
-        if request.POST.get("autosave") == "1" or request.headers.get("HX-Request"):
+        if is_autosave:
             return JsonResponse({"ok": True, "saved_at": timezone.now().isoformat()})
 
-        next_action = request.POST.get("next_action", "next")
         if next_action == "next":
-            pending = (
-                hymn.hymn_book.hymns.exclude(review_status=Hymn.ReviewStatus.REVIEWED)
-                .exclude(pk=hymn.pk)
-                .order_by("number")
-                .first()
-            )
+            pending = _next_pending_hymn(hymn.hymn_book, hymn)
             if pending is not None:
                 return redirect("hymns:editor_revise_hymn", pk=pending.pk)
         return redirect("hymns:editor_hymnbook_detail", slug=hymn.hymn_book.slug)
@@ -232,6 +266,10 @@ def editor_revise_hymn(request, pk):
     remaining = sum(1 for _pk, status in book_hymns if status != Hymn.ReviewStatus.REVIEWED)
     if hymn.review_status != Hymn.ReviewStatus.REVIEWED:
         remaining = max(remaining - 1, 0)
+
+    from .services.preview import build_preview_stanzas
+
+    audio = hymn.audios.filter(is_approved=True).first() or hymn.audios.first()
 
     return render(
         request,
@@ -246,6 +284,10 @@ def editor_revise_hymn(request, pk):
             "ocr_line_confidences": _compute_ocr_line_confidences(hymn.ocr_text, hymn.text),
             "common_repetitions": list(Hymn.CANONICAL_REPETITIONS),
             "common_styles": list(Hymn.CANONICAL_STYLES),
+            "preview": build_preview_stanzas(hymn.text, hymn.repetitions),
+            "audio": audio,
+            "audio_observations": list(HymnAudio.QUALITY_OBSERVATIONS),
+            "audio_mismatch_reasons": HymnAudio.MismatchReason.choices,
         },
     )
 
@@ -360,3 +402,57 @@ def _compute_ocr_line_confidences(ocr: str, current: str) -> list[int]:
         best = max(difflib.SequenceMatcher(None, ocr_line, candidate).ratio() for candidate in current_lines)
         out.append(round(best * 100))
     return out
+
+
+@login_required
+@require_POST
+def editor_hymn_audio_review(request, hymn_pk, audio_pk):
+    """Atualiza decisões de revisão de áudio (is_match, quality, mismatch_reason).
+
+    Aceita JSON parcial — só os campos presentes são atualizados. Qualquer
+    update marca `reviewed_by`/`reviewed_at`. Save() do model força
+    `is_approved=False` em mismatches e zera os campos da vertente oposta.
+    """
+    hymn = get_object_or_404(Hymn.objects.select_related("hymn_book"), pk=hymn_pk)
+    audio = get_object_or_404(HymnAudio, pk=audio_pk, hymn=hymn)
+    if not can_edit_hymnbook(request.user, hymn.hymn_book):
+        return HttpResponseForbidden("Sem permissão para revisar este áudio.")
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "JSON inválido"}, status=400)
+    if not isinstance(payload, dict):
+        return JsonResponse({"error": "Payload deve ser objeto"}, status=400)
+
+    if "is_match" in payload:
+        v = payload["is_match"]
+        audio.is_match = bool(v) if v is not None else None
+
+    if "quality_rating" in payload:
+        v = payload["quality_rating"]
+        audio.quality_rating = v if v in {1, 2, 3, 4, 5} else None
+
+    if "quality_observations" in payload:
+        valid = set(HymnAudio.QUALITY_OBSERVATIONS)
+        obs = payload["quality_observations"] or []
+        audio.quality_observations = [o for o in obs if o in valid]
+
+    if "mismatch_reason" in payload:
+        valid = {c[0] for c in HymnAudio.MismatchReason.choices}
+        v = payload["mismatch_reason"]
+        audio.mismatch_reason = v if v in valid else ""
+
+    audio.reviewed_by = request.user
+    audio.reviewed_at = timezone.now()
+    audio.save()
+
+    return JsonResponse(
+        {
+            "is_match": audio.is_match,
+            "quality_rating": audio.quality_rating,
+            "quality_observations": audio.quality_observations,
+            "mismatch_reason": audio.mismatch_reason,
+            "is_approved": audio.is_approved,
+        }
+    )

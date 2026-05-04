@@ -150,6 +150,90 @@ class TestEditorReviseHymnView:
         h1.refresh_from_db()
         assert h1.review_status == Hymn.ReviewStatus.REVIEWED
 
+    def test_next_action_next_forces_reviewed_even_when_radio_in_review(
+        self, authenticated_client, hymn_book_factory, hymn_factory
+    ):
+        """Bug fix: o botão 'Marcar revisado e avançar' precisa marcar o hino
+        como revisado mesmo se o user não tocou no radio (que normalmente fica
+        em 'in_review'). Caso contrário, clicar o botão avança mas nada nunca é
+        marcado como revisado — a fila volta a oferecer o mesmo hino."""
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h1 = hymn_factory(hymn_book=hb, number=1, title="t1", text="x1")
+        h2 = hymn_factory(hymn_book=hb, number=2, title="t2", text="x2")
+
+        resp = authenticated_client.post(
+            reverse("hymns:editor_revise_hymn", kwargs={"pk": h1.pk}),
+            {
+                "number": 1,
+                "title": "t1",
+                "text": "x1",
+                "review_status": Hymn.ReviewStatus.IN_REVIEW,  # radio NÃO mudado
+                "next_action": "next",
+            },
+        )
+        assert resp.status_code == 302
+        assert resp.url == reverse("hymns:editor_revise_hymn", kwargs={"pk": h2.pk})
+        h1.refresh_from_db()
+        assert h1.review_status == Hymn.ReviewStatus.REVIEWED
+
+    def test_next_action_next_prefers_higher_number(self, authenticated_client, hymn_book_factory, hymn_factory):
+        """A próxima escolha deve ser o hino com number > current quando
+        possível, evitando saltar para trás na fila."""
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        # Todos não revisados; user no hymn 2 → próximo deve ser o 3, não o 1.
+        hymn_factory(hymn_book=hb, number=1, title="t1", text="x1")
+        h2 = hymn_factory(hymn_book=hb, number=2, title="t2", text="x2")
+        h3 = hymn_factory(hymn_book=hb, number=3, title="t3", text="x3")
+
+        resp = authenticated_client.post(
+            reverse("hymns:editor_revise_hymn", kwargs={"pk": h2.pk}),
+            {
+                "number": 2,
+                "title": "t2",
+                "text": "x2",
+                "review_status": Hymn.ReviewStatus.IN_REVIEW,
+                "next_action": "next",
+            },
+        )
+        assert resp.url == reverse("hymns:editor_revise_hymn", kwargs={"pk": h3.pk})
+
+    def test_next_action_next_falls_back_to_first_pending_when_no_higher(
+        self, authenticated_client, hymn_book_factory, hymn_factory
+    ):
+        """Se não há pending com number > current (estamos no último), wrap
+        around para o primeiro pendente do livro."""
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h1 = hymn_factory(hymn_book=hb, number=1, title="t1", text="x1")
+        h2 = hymn_factory(hymn_book=hb, number=2, title="t2", text="x2")
+        h3 = hymn_factory(hymn_book=hb, number=3, title="t3", text="x3")
+        _set_status(h2, Hymn.ReviewStatus.REVIEWED)
+
+        resp = authenticated_client.post(
+            reverse("hymns:editor_revise_hymn", kwargs={"pk": h3.pk}),
+            {
+                "number": 3,
+                "title": "t3",
+                "text": "x3",
+                "review_status": Hymn.ReviewStatus.IN_REVIEW,
+                "next_action": "next",
+            },
+        )
+        assert resp.url == reverse("hymns:editor_revise_hymn", kwargs={"pk": h1.pk})
+
+    def test_editor_next_hymn_link_prefers_higher_number(self, authenticated_client, hymn_book_factory, hymn_factory):
+        """Mesma lógica de fila aplica ao link 'Pular sem salvar'
+        (`editor_next_hymn`) — passa o pk atual via querystring `from`."""
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        hymn_factory(hymn_book=hb, number=1, title="t1", text="x1")
+        h2 = hymn_factory(hymn_book=hb, number=2, title="t2", text="x2")
+        h3 = hymn_factory(hymn_book=hb, number=3, title="t3", text="x3")
+        resp = authenticated_client.get(reverse("hymns:editor_next_hymn", kwargs={"slug": hb.slug}) + f"?from={h2.pk}")
+        assert resp.url == reverse("hymns:editor_revise_hymn", kwargs={"pk": h3.pk})
+
     def test_post_save_no_next_redirects_to_book_detail(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
@@ -560,3 +644,268 @@ class TestReviseTypographyAndLayout:
         autosave = tpl.find("data-autosave-status")
         assert f_open != -1 and f_close != -1 and autosave != -1
         assert f_open < autosave < f_close
+
+
+@pytest.mark.django_db
+class TestReviseLayoutInversion:
+    """Marco Fase 2 — chat2.md: editor à esquerda, prévia à direita."""
+
+    def _render(self, authenticated_client, hymn_book_factory, hymn_factory, **hymn_kwargs):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, title="t", text="L", **hymn_kwargs)
+        return authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+
+    def test_editor_pane_appears_before_preview_pane(self, authenticated_client, hymn_book_factory, hymn_factory):
+        body = self._render(authenticated_client, hymn_book_factory, hymn_factory)
+        editor_idx = body.find("data-editor-pane")
+        preview_idx = body.find("data-preview-root")
+        assert editor_idx != -1, "editor pane (data-editor-pane) ausente"
+        assert preview_idx != -1, "preview pane (data-preview-root) ausente"
+        assert editor_idx < preview_idx, "editor deve aparecer antes da prévia no DOM"
+
+
+@pytest.mark.django_db
+class TestReviseEditorViewToggle:
+    """3 sub-views da coluna do editor: write / ocr / diff."""
+
+    def test_three_view_buttons_present(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, title="t", text="L", ocr_text="oo")
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        assert 'data-view="write"' in body
+        assert 'data-view="ocr"' in body
+        assert 'data-view="diff"' in body
+
+    def test_default_view_pane_is_write_visible(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, title="t", text="L")
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        # Container marca o view ativo
+        assert 'data-active-view="write"' in body
+        # Panes ocr/diff começam com classe `hidden`
+        import re
+
+        ocr_pane = re.search(r'<[^>]*data-view-pane="ocr"[^>]*>', body)
+        diff_pane = re.search(r'<[^>]*data-view-pane="diff"[^>]*>', body)
+        assert ocr_pane and "hidden" in ocr_pane.group(0)
+        assert diff_pane and "hidden" in diff_pane.group(0)
+
+
+@pytest.mark.django_db
+class TestReviseLivePreview:
+    """Coluna direita renderiza prévia carrossel-style com barrinhas de repetição."""
+
+    def test_each_non_blank_line_has_data_line(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, title="t", text="alfa\nbeta\n\ngama")
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        # 3 linhas não-brancas → 3 [data-line]
+        import re
+
+        lines = re.findall(r'data-line="(\d+)"', body)
+        # Idx globais: alfa=0, beta=1, gama=3 (linha em branco "ocupa" idx 2).
+        assert "0" in lines and "1" in lines and "3" in lines
+
+    def test_repetition_bars_render_for_two_ranges(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(
+            hymn_book=hb,
+            number=1,
+            title="t",
+            text="a\nb\nc\nd",
+            repetitions="1-2,3-4",
+        )
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        # 2 barras de repetição renderizadas
+        assert body.count('class="repetition-bar"') == 2
+
+    def test_preview_title_uses_font_serif_not_display(self, authenticated_client, hymn_book_factory, hymn_factory):
+        """User reclamou em chat2.md de font-display nos títulos do hino — usar font-serif."""
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=42, title="Sol da Manhã", text="L")
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        import re
+
+        title = re.search(r'<h2 class="preview-title[^"]*"[^>]*>', body)
+        assert title is not None, "preview-title ausente"
+        # NÃO deve ter font-display nele.
+        assert "font-display" not in title.group(0)
+
+
+@pytest.mark.django_db
+class TestReviseAudioReviewBlock:
+    """Bloco de revisão de áudio na coluna direita."""
+
+    def _hymn_with_audio(self, hymn_book_factory, hymn_factory):
+        from apps.hymns.models import HymnAudio
+
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, title="t", text="L")
+        audio = HymnAudio.objects.create(hymn=h, audio_file="x.mp3", is_approved=True)
+        return h, audio
+
+    def test_audio_review_root_present_when_hymn_has_audio(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        h, _ = self._hymn_with_audio(hymn_book_factory, hymn_factory)
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        assert "data-audio-review-root" in body
+        assert 'data-audio-match="true"' in body
+        assert 'data-audio-match="false"' in body
+
+    def test_quality_block_has_5_stars_and_observations(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        h, _ = self._hymn_with_audio(hymn_book_factory, hymn_factory)
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        for n in (1, 2, 3, 4, 5):
+            assert f'data-quality-rating="{n}"' in body
+        # 5 chips de observação canônicas
+        for obs in ("Ruído de fundo", "Voz baixa", "Cortes", "Excelente captação", "Mestre de cerimônias"):
+            assert obs in body
+
+    def test_mismatch_block_has_5_reasons(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        h, _ = self._hymn_with_audio(hymn_book_factory, hymn_factory)
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        for reason in ("other_hymn", "incomplete", "wrong_lyrics", "inaudible", "other"):
+            assert f'data-mismatch-reason="{reason}"' in body
+
+    def test_empty_state_when_no_audio(self, authenticated_client, hymn_book_factory, hymn_factory):
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="X")
+        h = hymn_factory(hymn_book=hb, number=1, title="t", text="L")
+        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
+        assert "data-audio-review-root" not in body
+        assert "Sem gravação para este hino" in body
+
+
+@pytest.mark.django_db
+class TestEditorHymnAudioReviewView:
+    """Marco Fase 2 — endpoint que persiste decisões da Revisão de Áudio:
+    is_match · quality_rating · quality_observations · mismatch_reason."""
+
+    def _make_setup(self, client):
+        from apps.hymns.models import HymnAudio
+
+        _make_editor(client.user)
+        from apps.hymns.models import Hymn, HymnBook
+
+        book = HymnBook.objects.create(name="B", owner_name="O")
+        hymn = Hymn.objects.create(hymn_book=book, number=1, title="t", text="x")
+        audio = HymnAudio.objects.create(hymn=hymn, audio_file="x.mp3")
+        return hymn, audio
+
+    def _url(self, hymn, audio):
+        return reverse(
+            "hymns:editor_hymn_audio_review",
+            kwargs={"hymn_pk": hymn.pk, "audio_pk": audio.pk},
+        )
+
+    def test_post_is_match_true_updates_audio(self, authenticated_client):
+        import json
+
+        hymn, audio = self._make_setup(authenticated_client)
+        resp = authenticated_client.post(
+            self._url(hymn, audio),
+            data=json.dumps({"is_match": True}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["is_match"] is True
+        audio.refresh_from_db()
+        assert audio.is_match is True
+        assert audio.reviewed_by == authenticated_client.user
+        assert audio.reviewed_at is not None
+
+    def test_post_quality_rating_persists(self, authenticated_client):
+        import json
+
+        hymn, audio = self._make_setup(authenticated_client)
+        resp = authenticated_client.post(
+            self._url(hymn, audio),
+            data=json.dumps({"is_match": True, "quality_rating": 4}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        audio.refresh_from_db()
+        assert audio.quality_rating == 4
+
+    def test_post_quality_observations_filters_invalid(self, authenticated_client):
+        import json
+
+        hymn, audio = self._make_setup(authenticated_client)
+        resp = authenticated_client.post(
+            self._url(hymn, audio),
+            data=json.dumps({"is_match": True, "quality_observations": ["Voz baixa", "INVÁLIDA"]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        audio.refresh_from_db()
+        assert audio.quality_observations == ["Voz baixa"]
+
+    def test_post_mismatch_reason_valid(self, authenticated_client):
+        import json
+
+        hymn, audio = self._make_setup(authenticated_client)
+        resp = authenticated_client.post(
+            self._url(hymn, audio),
+            data=json.dumps({"is_match": False, "mismatch_reason": "incomplete"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        audio.refresh_from_db()
+        assert audio.mismatch_reason == "incomplete"
+        assert audio.is_approved is False  # save() override
+
+    def test_post_mismatch_reason_invalid_blanked(self, authenticated_client):
+        import json
+
+        hymn, audio = self._make_setup(authenticated_client)
+        resp = authenticated_client.post(
+            self._url(hymn, audio),
+            data=json.dumps({"is_match": False, "mismatch_reason": "xxx"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        audio.refresh_from_db()
+        assert audio.mismatch_reason == ""
+
+    def test_anon_redirects(self, client):
+        from apps.hymns.models import Hymn, HymnAudio, HymnBook
+
+        book = HymnBook.objects.create(name="B", owner_name="O")
+        hymn = Hymn.objects.create(hymn_book=book, number=1, title="t", text="x")
+        audio = HymnAudio.objects.create(hymn=hymn, audio_file="x.mp3")
+        resp = client.post(
+            reverse("hymns:editor_hymn_audio_review", kwargs={"hymn_pk": hymn.pk, "audio_pk": audio.pk}),
+            data="{}",
+            content_type="application/json",
+        )
+        assert resp.status_code == 302
+        assert "/accounts/login" in resp.url
+
+    def test_non_editor_forbidden(self, authenticated_client):
+        # User autenticado mas SEM grupo editor e sem ser dono → 302 redirect (mesma
+        # política do can_edit_hymnbook).
+        from apps.hymns.models import Hymn, HymnAudio, HymnBook
+
+        book = HymnBook.objects.create(name="B", owner_name="O")
+        hymn = Hymn.objects.create(hymn_book=book, number=1, title="t", text="x")
+        audio = HymnAudio.objects.create(hymn=hymn, audio_file="x.mp3")
+        resp = authenticated_client.post(
+            reverse("hymns:editor_hymn_audio_review", kwargs={"hymn_pk": hymn.pk, "audio_pk": audio.pk}),
+            data="{}",
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+
+    def test_get_method_not_allowed(self, authenticated_client):
+        hymn, audio = self._make_setup(authenticated_client)
+        resp = authenticated_client.get(self._url(hymn, audio))
+        assert resp.status_code == 405

@@ -26,8 +26,20 @@ def browser():
 
 @pytest.fixture
 def page(browser: Browser):
-    """New page for each test."""
+    """New page for each test.
+
+    Esconde a Django Debug Toolbar (#djDebug) que aparece em local: quando
+    está visível, ela intercepta cliques em elementos posicionados embaixo,
+    quebrando os testes de E2E. A toolbar é escondida via init-script para
+    que rode antes do primeiro paint de cada navegação.
+    """
     context = browser.new_context(viewport={"width": 1280, "height": 720})
+    context.add_init_script(
+        "document.addEventListener('DOMContentLoaded', function () {"
+        "  var el = document.getElementById('djDebug');"
+        "  if (el) el.remove();"
+        "});"
+    )
     page = context.new_page()
     yield page
     page.close()

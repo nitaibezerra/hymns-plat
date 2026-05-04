@@ -4,8 +4,8 @@ const { useState: useStateB } = React;
 // =====================================================
 // Screen: Hymnbook detail with 3 reading modes
 // =====================================================
-const HymnbookDetailScreen = () => {
-  const [mode, setMode] = useStateB("index"); // index | flow | carousel
+const HymnbookDetailScreen = ({initialMode = "index"} = {}) => {
+  const [mode, setMode] = useStateB(initialMode); // index | flow | carousel
   const [carouselIdx, setCarouselIdx] = useStateB(7);
 
   return (
@@ -157,9 +157,7 @@ const FlowBody = () => (
         {n: 8, t: "Papai Paranã", body: "Papai Paranã\nMandou me chamar\nÉ na hora certa\nQue Ele está a esperar", end: 2},
       ].map((h, i) => (
         <article key={h.n} className="hymn-page" style={{padding: "40px 56px", scrollSnapAlign: "start"}}>
-          <div className="hymn-num">HINO {String(h.n).padStart(2, "0")}</div>
-          <h2 className="hymn-title" style={{fontSize: 26}}>{h.t}</h2>
-          <div className="title-rule" />
+          <h2 className="hymn-title" style={{fontSize: 26}}>{h.n} - {h.t}</h2>
           <div className="hymn-body" style={{fontSize: 16}}>
             <div className="hymn-stanza rep" data-rep="2×">{h.body}</div>
           </div>
@@ -184,9 +182,7 @@ const CarouselBody = ({idx, setIdx}) => (
 
       {/* Active card */}
       <article className="hymn-page" style={{flex: 1, maxWidth: 640, padding: "56px 64px", boxShadow: "var(--shadow-2)"}}>
-        <div className="hymn-num">HINO 07 · O CRUZEIRO</div>
-        <h2 className="hymn-title">Estrela Brilhante</h2>
-        <div className="title-rule" />
+        <h2 className="hymn-title">7 - Estrela Brilhante</h2>
         <div className="hymn-body">
           <div className="hymn-stanza rep" data-rep="2×">{`Estrela brilhante\nQue brilha no firmamento\nMe dai a Vossa luz\nNeste sagrado momento`}</div>
           <div className="hymn-stanza rep" data-rep="2×">{`Eu peço com humildade\nÀ Virgem Mãe Soberana\nQue me dê de Sua glória\nNesta hora soberana`}</div>

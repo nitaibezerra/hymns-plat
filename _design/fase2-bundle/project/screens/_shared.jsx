@@ -92,4 +92,37 @@ const QUEUE = [
   { name: "O Mensageiro", owner: "Francisco Granjeiro", total: 78, reviewed: 0, in_review: 0, source: "OCR", uploaded: "agora" },
 ];
 
-Object.assign(window, { BrandGlyph, AppBar, endGlyphFor, SAMPLE_HYMN, SAMPLE_BOOK, HYMNBOOKS, QUEUE });
+// ===== Hinário Cruzeiro: lista expandida com áudios e marcadores =====
+// Estrutura: hinos com {n, t, dur, hasAudio, style?} + marcadores entre hinos
+// Marcadores: { kind: "prayer"|"break", label, sub?, after: <hymn n> }
+const CRUZEIRO_HYMNS = [
+  {n:1, t:"Lua Branca", dur:"3:42", hasAudio:true, style:"Valsa"},
+  {n:2, t:"Tuperci", dur:"2:58", hasAudio:true, style:"Mazurca"},
+  {n:3, t:"O Sol, A Lua, A Estrela", dur:"4:12", hasAudio:true, style:"Marcha"},
+  {n:4, t:"Pisei na Pedra", dur:"3:24", hasAudio:false},
+  {n:5, t:"Cantarei", dur:"2:48", hasAudio:true, style:"Valsa"},
+  {n:6, t:"Eu Vou Cantar", dur:"3:08", hasAudio:true, style:"Mazurca"},
+  {n:7, t:"Estrela Brilhante", dur:"4:08", hasAudio:true, style:"Mazurca"},
+  {n:8, t:"O Cruzeiro", dur:"3:36", hasAudio:true, style:"Marcha"},
+  {n:9, t:"Estou Aqui", dur:"3:12", hasAudio:false},
+  {n:10, t:"Eu Pisei na Estrada", dur:"4:02", hasAudio:true, style:"Valsa"},
+  {n:11, t:"Tomei a Minha Bandeira", dur:"3:18", hasAudio:true, style:"Marcha"},
+  {n:12, t:"Sol da Vida", dur:"2:54", hasAudio:true, style:"Mazurca"},
+  {n:13, t:"Estrela do Céu", dur:"3:48", hasAudio:true, style:"Valsa"},
+  {n:14, t:"Devo Amar Aquela Luz", dur:"4:24", hasAudio:false},
+  {n:15, t:"O Sol, A Lua e o Mar", dur:"3:30", hasAudio:true, style:"Marcha"},
+  {n:16, t:"Sol e Lua", dur:"3:06", hasAudio:true, style:"Mazurca"},
+];
+// Karaokê timestamps para hino 7 (segundos)
+const HYMN_7_LYRICS = [
+  { line: "Estrela brilhante", t: 0 },
+  { line: "Que brilha no firmamento", t: 4 },
+  { line: "Me dai a Vossa luz", t: 9 },
+  { line: "Neste sagrado momento", t: 14 },
+  { line: "Eu peço com humildade", t: 22 },
+  { line: "À Virgem Mãe Soberana", t: 27 },
+  { line: "Que me dê de Sua glória", t: 32 },
+  { line: "Nesta hora soberana", t: 37 },
+];
+
+Object.assign(window, { BrandGlyph, AppBar, endGlyphFor, SAMPLE_HYMN, SAMPLE_BOOK, HYMNBOOKS, QUEUE, CRUZEIRO_HYMNS, HYMN_7_LYRICS });

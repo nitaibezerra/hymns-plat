@@ -43,12 +43,14 @@
 <script type="text/babel" src="ios-frame.jsx"></script>
 <script type="text/babel" src="screens/wizards.jsx"></script>
 <script type="text/babel" src="screens/extras.jsx"></script>
+<script type="text/babel" src="screens/player-a.jsx"></script>
+<script type="text/babel" src="screens/player-scenes.jsx"></script>
 
 <script type="text/babel">
 const { useState, useEffect } = React;
 
 const TWEAKS = /*EDITMODE-BEGIN*/{
-  "palette": "floresta",
+  "palette": "vermelhao",
   "theme": "noite",
   "fontDisplay": "cormorant",
   "showCreditos": true
@@ -108,43 +110,77 @@ function App() {
           <DCArtboard id="hymnbook" label="02 · Hinário · Índice + tabs de modo" width={1280} height={1200}>
             <HymnbookDetailScreen />
           </DCArtboard>
-          <DCArtboard id="hymn" label="03 · Hino · paper page (PDF-fiel)" width={1280} height={1300}>
+          <DCArtboard id="hymnbook-flow" label="03 · Hinário · Modo Corrido" width={1280} height={1200}>
+            <HymnbookDetailScreen initialMode="flow" />
+          </DCArtboard>
+          <DCArtboard id="hymnbook-carousel" label="04 · Hinário · Modo Carrossel" width={1280} height={1200}>
+            <HymnbookDetailScreen initialMode="carousel" />
+          </DCArtboard>
+          <DCArtboard id="hymn" label="05 · Hino · paper page (PDF-fiel)" width={1280} height={1300}>
             <HymnDetailScreen />
           </DCArtboard>
         </DCSection>
 
         <DCSection id="editorial" title="Workspace Editorial">
-          <DCArtboard id="queue" label="04 · Fila de Revisão" width={1280} height={1100}>
+          <DCArtboard id="queue" label="06 · Fila de Revisão" width={1280} height={1100}>
             <EditorQueueScreen />
           </DCArtboard>
-          <DCArtboard id="revise" label="05 · Revisar Hino · diff + atalhos" width={1440} height={1200}>
+          <DCArtboard id="revise" label="07 · Revisar Hino · diff + atalhos" width={1440} height={1200}>
             <ReviseHymnScreen />
           </DCArtboard>
-          <DCArtboard id="publish" label="06 · Publicar (modal)" width={1280} height={800}>
+          <DCArtboard id="publish" label="08 · Publicar (modal)" width={1280} height={800}>
             <PublishConfirmScreen />
           </DCArtboard>
         </DCSection>
 
         <DCSection id="contribuir" title="Contribuir & Buscar">
-          <DCArtboard id="ocr" label="07 · OCR Wizard · preview" width={1280} height={1000}>
+          <DCArtboard id="ocr" label="09 · OCR Wizard · preview" width={1280} height={1000}>
             <OcrWizardScreen />
           </DCArtboard>
-          <DCArtboard id="search" label="08 · Busca" width={1280} height={1000}>
+          <DCArtboard id="search" label="10 · Busca" width={1280} height={1000}>
             <SearchScreen />
           </DCArtboard>
         </DCSection>
 
+        <DCSection id="player" title="Player & Playback · áudio persistente">
+          <DCArtboard id="player-idle" label="Hinário com botão Tocar" width={1280} height={1100}>
+            <Scene_BookIdle/>
+          </DCArtboard>
+          <DCArtboard id="player-playing" label="Tocando · barra inferior" width={1280} height={1100}>
+            <Scene_BookPlaying/>
+          </DCArtboard>
+          <DCArtboard id="player-queue" label="Fila aberta (drawer)" width={1280} height={1000}>
+            <Scene_QueueOpen/>
+          </DCArtboard>
+          <DCArtboard id="player-expanded" label="Player expandido (capa + karaokê)" width={1280} height={900}>
+            <Scene_Expanded/>
+          </DCArtboard>
+          <DCArtboard id="player-work" label="Modo Trabalho" width={1280} height={760}>
+            <Scene_WorkMode/>
+          </DCArtboard>
+          <DCArtboard id="player-empty" label="Hinário sem áudio (desabilitado)" width={1280} height={1100}>
+            <Scene_BookNoAudio/>
+          </DCArtboard>
+
+          <DCArtboard id="player-mobile" label="Mobile · barra rodapé" width={460} height={920}>
+            <Scene_Mobile/>
+          </DCArtboard>
+          <DCArtboard id="player-mobile-expanded" label="Mobile · expandido" width={460} height={920}>
+            <Scene_Mobile expanded/>
+          </DCArtboard>
+        </DCSection>
+
         <DCSection id="mobile" title="Mobile · leitura durante trabalhos">
-          <DCArtboard id="mobile-carousel" label="09 · Carrossel · Dia & Noite (iPhone)" width={920} height={950}>
+          <DCArtboard id="mobile-carousel" label="11 · Carrossel · Dia & Noite (iPhone)" width={920} height={950}>
             <MobileCarouselScreen />
           </DCArtboard>
         </DCSection>
 
         <DCSection id="social" title="Perfil & Histórico">
-          <DCArtboard id="profile" label="10 · Perfil + Notificações" width={1280} height={1100}>
+          <DCArtboard id="profile" label="12 · Perfil + Notificações" width={1280} height={1100}>
             <ProfileScreen />
           </DCArtboard>
-          <DCArtboard id="history" label="11 · Histórico de Revisões (overlay)" width={1280} height={900}>
+          <DCArtboard id="history" label="13 · Histórico de Revisões (overlay)" width={1280} height={900}>
             <RevisionHistoryScreen />
           </DCArtboard>
         </DCSection>
