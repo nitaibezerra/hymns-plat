@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static hymn_extras %}
 
 {% block title %}Revisar hino · {{ hymnbook.name }}{% endblock %}
 
@@ -15,27 +16,59 @@
         {% if hymn.review_status == 'reviewed' %}border-moss/50 text-moss bg-moss/10
         {% elif hymn.review_status == 'in_review' %}border-gold/50 text-gold bg-gold/10
         {% else %}border-rust/50 text-rust bg-rust/10{% endif %}">● {{ hymn.get_review_status_display|upper }}</span>
-      <span class="label-mono">fonte · {{ hymn.get_source_display|upper }}</span>
     </div>
   </div>
   <div class="h-1 bg-ink/10"><div class="h-full bg-gold" style="width: {{ position|stringformat:'02d' }}%; max-width: 100%;"></div></div>
 </section>
 
-<form method="post" action="{% url 'hymns:editor_revise_hymn' hymn.pk %}" data-revise-form>
+<form method="post" action="{% url 'hymns:editor_revise_hymn' hymn.pk %}" data-revise-form hx-boost="false">
   {% csrf_token %}
 
   <div class="lg:grid lg:grid-cols-2">
-    <section class="px-6 lg:px-10 py-8 space-y-4 self-start lg:border-r lg:border-rule">
+
+    {# === ESQUERDA: Editor (foco principal) === #}
+    <section class="px-6 lg:px-10 py-8 space-y-5 self-start lg:border-r lg:border-rule" data-editor-pane data-active-view="write">
       <header class="flex items-center justify-between">
-        <p class="eyebrow">Fonte original · {{ hymn.get_source_display }}</p>
-        <div class="flex gap-1" data-source-tabs>
-          <button type="button" class="btn-pill" data-tab="ocr" data-active="false">OCR</button>
-          <button type="button" class="btn-pill" data-tab="diff" data-active="true">Diff</button>
+        <p class="eyebrow">Editor · texto</p>
+        <div class="flex gap-1" data-view-toggle role="tablist" aria-label="Modo do editor">
+          <button type="button" class="btn-pill" data-view="write" data-active="true">Escrever</button>
+          <button type="button" class="btn-pill" data-view="ocr" data-active="false">OCR cru</button>
+          <button type="button" class="btn-pill" data-view="diff" data-active="false">Diff vs OCR</button>
         </div>
       </header>
-      <pre class="font-mono text-xs leading-6 whitespace-pre-wrap bg-ink/5 dark:bg-white/5 rounded-md p-4 max-h-[480px] overflow-auto" data-tab-pane="ocr" {% if hymn.ocr_text %}{% else %}data-empty{% endif %}>{{ hymn.ocr_text|default:"— Texto OCR não disponível para este hino —" }}</pre>
 
-      <div class="diff-inline bg-ink/5 dark:bg-white/5 rounded-md max-h-[480px] overflow-auto" data-tab-pane="diff">
+      {# Número + título — sempre visível #}
+      <div class="grid grid-cols-[88px_1fr] gap-3">
+        <input type="number" name="number" value="{{ hymn.number }}" required
+               class="rounded-md border border-rule px-3 py-2 bg-cream-soft dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-gold/40 text-2xl font-display text-center">
+        <input type="text" name="title" value="{{ hymn.title }}" required
+               class="rounded-md border border-rule px-3 py-2 bg-cream-soft dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-gold/40 text-2xl font-display">
+      </div>
+
+      {# === Sub-view: Escrever === #}
+      <div data-view-pane="write" class="space-y-4">
+        <div class="space-y-2">
+          <p class="eyebrow">Atalhos</p>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="shortcut-pill" data-shortcut="strip-blanks" title="Remove linhas em branco">
+              <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor" aria-hidden="true"><rect y="0" width="14" height="2"/><rect y="4" width="14" height="2"/><rect y="8" width="14" height="2"/></svg>
+              Sem linhas em branco
+            </button>
+            <button type="button" class="shortcut-pill" data-shortcut="paragraph" data-n="4" title="Quebra em parágrafos a cada 4 linhas">¶ a cada 4 linhas</button>
+            <button type="button" class="shortcut-pill" data-shortcut="paragraph" data-n="3" title="Quebra em parágrafos a cada 3 linhas">¶ a cada 3 linhas</button>
+          </div>
+        </div>
+
+        <textarea name="text" rows="14" required data-revise-textarea
+                  class="w-full rounded-md border border-rule px-4 py-3 bg-cream-soft dark:bg-white/5 font-serif text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-gold/40">{{ hymn.text }}</textarea>
+        <p class="caret-status label-mono">Linha <span data-caret-line>1</span> de <span data-caret-total>{{ hymn.text|line_count }}</span> · destaque sincronizado com a prévia →</p>
+      </div>
+
+      {# === Sub-view: OCR cru === #}
+      <pre data-view-pane="ocr" class="hidden ocr-raw font-mono text-xs leading-6 whitespace-pre-wrap bg-ink/5 dark:bg-white/5 rounded-md p-4 max-h-[480px] overflow-auto">{{ hymn.ocr_text|default:"— Texto OCR não disponível para este hino —" }}</pre>
+
+      {# === Sub-view: Diff vs OCR === #}
+      <div data-view-pane="diff" class="hidden diff-inline bg-ink/5 dark:bg-white/5 rounded-md max-h-[480px] overflow-auto">
         {% for line in inline_diff.lines %}
           <div class="diff-line {{ line.kind }}">{% spaceless %}{% for tok in line.tokens %}{% if tok.kind == 'eq' %}<span>{{ tok.text }}</span>{% elif tok.kind == 'sub' %}<span class="t-sub">{{ tok.sub }}</span><span class="t-add">{{ tok.add }}</span>{% elif tok.kind == 'add' %}<span class="t-add">{{ tok.text }}</span>{% elif tok.kind == 'del' %}<span class="t-del">{{ tok.text }}</span>{% endif %}{% endfor %}{% endspaceless %}</div>
         {% empty %}
@@ -46,8 +79,9 @@
         {% endif %}
       </div>
 
+      {# Confiança OCR · só visível em ocr/diff (escondido em write) #}
       {% if ocr_line_confidences %}
-        <div>
+        <div data-confidence-block class="hidden">
           <div class="flex justify-between label-mono mb-2">
             <span>Confiança OCR · por linha</span>
             {% if hymn.ocr_avg_confidence %}<span>{{ hymn.ocr_avg_confidence|floatformat:0 }}% médio</span>{% endif %}
@@ -62,38 +96,13 @@
           </div>
         </div>
       {% endif %}
-    </section>
 
-    <section class="px-6 lg:px-10 py-8 space-y-5">
-      <p class="eyebrow">Versão revisada</p>
-
-      <div class="grid grid-cols-[88px_1fr] gap-3">
-        <input type="number" name="number" value="{{ hymn.number }}" required
-               class="rounded-md border border-rule px-3 py-2 bg-cream-soft dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-gold/40 text-2xl font-display text-center">
-        <input type="text" name="title" value="{{ hymn.title }}" required
-               class="rounded-md border border-rule px-3 py-2 bg-cream-soft dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-gold/40 text-2xl font-display">
-      </div>
-
-      <div class="space-y-2">
-        <p class="eyebrow">Atalhos</p>
-        <div class="flex flex-wrap gap-2">
-          <button type="button" class="shortcut-pill" data-shortcut="strip-blanks" title="Remove linhas em branco">
-            <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor" aria-hidden="true"><rect y="0" width="14" height="2"/><rect y="4" width="14" height="2"/><rect y="8" width="14" height="2"/></svg>
-            Sem linhas em branco
-          </button>
-          <button type="button" class="shortcut-pill" data-shortcut="paragraph" data-n="4" title="Quebra em parágrafos a cada 4 linhas">¶ a cada 4 linhas</button>
-          <button type="button" class="shortcut-pill" data-shortcut="paragraph" data-n="3" title="Quebra em parágrafos a cada 3 linhas">¶ a cada 3 linhas</button>
-        </div>
-      </div>
-
-      <textarea name="text" rows="14" required
-                class="w-full rounded-md border border-rule px-4 py-3 bg-cream-soft dark:bg-white/5 font-serif text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-gold/40">{{ hymn.text }}</textarea>
-
+      {# Meta grid — sempre visível #}
       <div class="grid grid-cols-2 gap-x-3 gap-y-4">
         <label class="block space-y-1">
           <span class="eyebrow">Repetições</span>
           <input type="text" name="repetitions" value="{{ hymn.repetitions }}"
-                 data-suggestion-target="repetitions"
+                 data-suggestion-target="repetitions" data-revise-reps
                  class="w-full rounded-md border border-rule px-3 py-2 bg-cream-soft dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-gold/40">
           {% if common_repetitions %}
             <div class="suggestion-chips mt-2">
@@ -148,11 +157,43 @@
                class="w-full rounded-md border border-rule px-3 py-2 bg-cream-soft dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-gold/40">
       </label>
     </section>
+
+    {# === DIREITA: Prévia + Audio Review === #}
+    <section class="px-6 lg:px-10 py-8 space-y-6 bg-cream-soft" data-preview-root>
+      <p class="eyebrow">Prévia · como o leitor vai ver</p>
+      <article class="preview-card">
+        <h2 class="preview-title font-serif" data-preview-title>{{ hymn.number }} - {{ hymn.title }}</h2>
+        <div class="preview-body" data-preview-body data-line-height="26">
+          {% for stanza in preview.stanzas %}
+            <div class="preview-stanza">
+              {% for ln in stanza.lines %}
+                <div class="preview-line" data-line="{{ ln.global_idx }}">{{ ln.text }}</div>
+              {% endfor %}
+              {% for bar in stanza.repetition_bars %}
+                <div class="repetition-bar" style="top: {{ bar.top_px }}px; height: {{ bar.height_px }}px"></div>
+              {% endfor %}
+            </div>
+          {% empty %}
+            <p class="preview-empty">— sem texto ainda —</p>
+          {% endfor %}
+        </div>
+        {% if preview.stanzas %}<div class="preview-glyph">✡</div>{% endif %}
+      </article>
+
+      {% if audio %}
+        {% include "hymns/editor/_audio_review.html" %}
+      {% else %}
+        <div class="audio-empty">
+          <span class="serif italic">Sem gravação para este hino.</span>
+          <a href="#" class="text-firmament underline">Contribuir áudio</a>
+        </div>
+      {% endif %}
+    </section>
   </div>
 
   <footer class="action-bar sticky bottom-0 z-10" data-no-print>
     <a href="{% url 'hymns:editor_hymnbook_detail' hymnbook.slug %}" class="btn-ghost">← Voltar</a>
-    <a href="{% url 'hymns:editor_next_hymn' hymnbook.slug %}" class="btn-ghost">Pular sem salvar <kbd class="kbd">Esc</kbd></a>
+    <a href="{% url 'hymns:editor_next_hymn' hymnbook.slug %}?from={{ hymn.pk }}" class="btn-ghost">Pular sem salvar <kbd class="kbd">Esc</kbd></a>
     <span class="ml-auto label-mono"><span data-autosave-status>—</span></span>
     <button type="submit" name="next_action" value="back" data-action="draft" class="btn-ghost">Salvar rascunho <kbd class="kbd">⌘S</kbd></button>
     <button type="submit" name="next_action" value="next" class="btn-primary-firmament">Marcar revisado e avançar <kbd class="kbd kbd-primary">⏎</kbd></button>
@@ -161,26 +202,33 @@
 
 <script>
 (function () {
-  // Tab toggle (OCR/Diff)
-  var tabs = document.querySelector('[data-source-tabs]');
-  if (tabs) {
-    tabs.addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-tab]');
+  var form = document.querySelector('[data-revise-form]');
+  if (!form) return;
+
+  // ===== View toggle (Escrever / OCR cru / Diff vs OCR) =====
+  var viewToggle = form.querySelector('[data-view-toggle]');
+  var editorPane = form.querySelector('[data-editor-pane]');
+  var confidenceBlock = form.querySelector('[data-confidence-block]');
+  if (viewToggle && editorPane) {
+    viewToggle.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-view]');
       if (!btn) return;
-      tabs.querySelectorAll('[data-tab]').forEach(function (b) { b.dataset.active = String(b === btn); });
-      document.querySelectorAll('[data-tab-pane]').forEach(function (p) {
-        p.classList.toggle('hidden', p.dataset.tabPane !== btn.dataset.tab);
+      var view = btn.dataset.view;
+      editorPane.dataset.activeView = view;
+      viewToggle.querySelectorAll('[data-view]').forEach(function (b) {
+        b.dataset.active = String(b === btn);
       });
-    });
-    // Default: hide non-active
-    document.querySelectorAll('[data-tab-pane]').forEach(function (p) {
-      p.classList.toggle('hidden', p.dataset.tabPane !== 'diff');
+      editorPane.querySelectorAll('[data-view-pane]').forEach(function (p) {
+        p.classList.toggle('hidden', p.dataset.viewPane !== view);
+      });
+      // Sparkline de confiança só faz sentido em ocr/diff.
+      if (confidenceBlock) {
+        confidenceBlock.classList.toggle('hidden', view === 'write');
+      }
     });
   }
 
-  // Autosave debounced
-  var form = document.querySelector('[data-revise-form]');
-  if (!form) return;
+  // ===== Autosave debounced =====
   var status = form.querySelector('[data-autosave-status]');
   var timer;
   form.addEventListener('input', function () {
@@ -197,10 +245,7 @@
     }, 1500);
   });
 
-  // Reorganização do textarea via pills (data-shortcut).
-  // strip-blanks: colapsa runs de \n para um único \n.
-  // paragraph (n): normaliza blanks, depois insere \n a cada N linhas não-vazias.
-  // Aplicação preserva undo nativo via execCommand('insertText') quando suportado.
+  // ===== Atalhos de formatação do textarea =====
   function applyShortcut(action, n) {
     var ta = form.querySelector('textarea[name="text"]');
     if (!ta) return;
@@ -251,12 +296,7 @@
     }
   });
 
-  // Atalhos globais (gap 4 do design):
-  //  · Esc       → pular sem salvar (próximo hino)
-  //  · ⌘S/Ctrl+S → submeter como rascunho (next_action=back)
-  //  · ⏎         → submeter como revisado (next_action=next), exceto dentro
-  //                de TEXTAREA/INPUT (Enter mantém comportamento nativo lá)
-  //  · ⌘⏎/Ctrl+⏎ → submeter como revisado de qualquer lugar
+  // ===== Atalhos globais =====
   function submitWithAction(action) {
     if (!form) return;
     var input = form.querySelector('input[name="next_action"][type="hidden"]');
@@ -275,7 +315,7 @@
   }
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-      window.location.href = "{% url 'hymns:editor_next_hymn' hymnbook.slug %}";
+      window.location.href = "{% url 'hymns:editor_next_hymn' hymnbook.slug %}?from={{ hymn.pk }}";
       return;
     }
     if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
@@ -294,4 +334,6 @@
   });
 })();
 </script>
+<script src="{% static 'js/editor-preview.js' %}"></script>
+{% if audio %}<script src="{% static 'js/audio-review.js' %}"></script>{% endif %}
 {% endblock %}

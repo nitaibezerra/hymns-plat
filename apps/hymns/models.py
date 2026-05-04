@@ -3,6 +3,7 @@ import uuid
 
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 
@@ -291,6 +292,21 @@ class HymnBookVersion(models.Model):
 class HymnAudio(models.Model):
     """Áudio de um hino."""
 
+    QUALITY_OBSERVATIONS = (
+        "Ruído de fundo",
+        "Voz baixa",
+        "Cortes",
+        "Excelente captação",
+        "Mestre de cerimônias",
+    )
+
+    class MismatchReason(models.TextChoices):
+        OTHER_HYMN = "other_hymn", "É outro hino"
+        INCOMPLETE = "incomplete", "Áudio cortado/incompleto"
+        WRONG_LYRICS = "wrong_lyrics", "Letra diferente"
+        INAUDIBLE = "inaudible", "Áudio inaudível"
+        OTHER = "other", "Outro"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     # Relacionamento
@@ -332,6 +348,42 @@ class HymnAudio(models.Model):
     # Vazio enquanto a thread daemon não terminou o backfill.
     waveform_peaks = models.JSONField("Picos da waveform", default=list, blank=True)
 
+    # Revisão de áudio (Fase 2 — tela 07 · Revisar Hino).
+    # Revisor confirma se o áudio é mesmo a gravação do hino, dá nota de
+    # qualidade ou sinaliza motivo do mismatch. Mismatch sempre desaprova.
+    is_match = models.BooleanField(
+        "Confere com o hino?", null=True, blank=True, help_text="True/False/None (não revisado)"
+    )
+    quality_rating = models.PositiveSmallIntegerField(
+        "Qualidade",
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="1 a 5, só preenchido quando is_match=True",
+    )
+    quality_observations = models.JSONField(
+        "Observações de qualidade",
+        default=list,
+        blank=True,
+        help_text="Lista de strings em QUALITY_OBSERVATIONS",
+    )
+    mismatch_reason = models.CharField(
+        "Motivo de mismatch",
+        max_length=20,
+        blank=True,
+        choices=MismatchReason.choices,
+        help_text="Só preenchido quando is_match=False",
+    )
+    reviewed_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="hymn_audio_reviews",
+        verbose_name="Revisado por",
+    )
+    reviewed_at = models.DateTimeField("Revisado em", null=True, blank=True)
+
     # Timestamps
     created_at = models.DateTimeField("Criado em", auto_now_add=True)
     updated_at = models.DateTimeField("Atualizado em", auto_now=True)
@@ -345,6 +397,16 @@ class HymnAudio(models.Model):
             models.Index(fields=["is_approved"]),
             models.Index(fields=["uploaded_by"]),
         ]
+
+    def save(self, *args, **kwargs):
+        # Mismatch força desaprovação e zera quality fields. Match limpa motivo.
+        if self.is_match is False:
+            self.is_approved = False
+            self.quality_rating = None
+            self.quality_observations = []
+        elif self.is_match is True:
+            self.mismatch_reason = ""
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Áudio: {self.hymn.title} ({self.title or 'Sem título'})"

@@ -24,6 +24,11 @@ urlpatterns = [
     path("editor/audios/", editor_views.editor_pending_audios, name="editor_pending_audios"),
     path("editor/audios/<uuid:pk>/aprovar/", editor_views.editor_approve_audio, name="editor_approve_audio"),
     path("editor/audios/<uuid:pk>/rejeitar/", editor_views.editor_reject_audio, name="editor_reject_audio"),
+    path(
+        "editor/hinos/<uuid:hymn_pk>/audio/<uuid:audio_pk>/review/",
+        editor_views.editor_hymn_audio_review,
+        name="editor_hymn_audio_review",
+    ),
     path("", views.home_view, name="home"),
     path("hinarios/", views.HymnBookListView.as_view(), name="hymnbook_list"),
     # Create rota antes de <slug> para evitar conflito

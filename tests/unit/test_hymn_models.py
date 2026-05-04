@@ -308,3 +308,92 @@ class TestHymnOptionalFields:
         book = HymnBook.objects.create(name="Test Book", owner_name="Test Owner")
         hymn = Hymn.objects.create(hymn_book=book, number=1, title="Test", text="Text", repetitions="1-4, 5-8")
         assert hymn.repetitions == "1-4, 5-8"
+
+
+@pytest.mark.django_db
+class TestHymnAudioReviewFields:
+    """Marco Fase 2 — Audio Review.
+
+    Revisor pode confirmar (✓ Confere) ou marcar mismatch (✗ Não confere) num
+    áudio. Quando ✓: avalia qualidade 1-5 + observações. Quando ✗: marca
+    motivo + áudio é forçado a `is_approved=False` e quality fields são
+    zerados (não fazem sentido). Toggle entre as duas vertentes limpa os
+    campos da outra.
+    """
+
+    def _make_audio(self):
+        from apps.hymns.models import HymnAudio
+
+        book = HymnBook.objects.create(name="B", owner_name="O")
+        hymn = Hymn.objects.create(hymn_book=book, number=1, title="t", text="x")
+        return HymnAudio.objects.create(hymn=hymn, audio_file="x.mp3", is_approved=True)
+
+    def test_review_fields_default_none(self):
+        audio = self._make_audio()
+        assert audio.is_match is None
+        assert audio.quality_rating is None
+        assert audio.quality_observations == []
+        assert audio.mismatch_reason == ""
+        assert audio.reviewed_by is None
+        assert audio.reviewed_at is None
+
+    def test_is_match_false_clears_quality_and_force_unapproves(self):
+        audio = self._make_audio()
+        audio.is_match = True
+        audio.quality_rating = 4
+        audio.quality_observations = ["Voz baixa"]
+        audio.save()
+        # Mudou opinião: agora é mismatch.
+        audio.is_match = False
+        audio.mismatch_reason = "incomplete"
+        audio.save()
+        audio.refresh_from_db()
+        assert audio.is_match is False
+        assert audio.is_approved is False  # mismatch nunca aprova
+        assert audio.quality_rating is None  # zerado
+        assert audio.quality_observations == []
+        assert audio.mismatch_reason == "incomplete"
+
+    def test_is_match_true_clears_mismatch_reason(self):
+        audio = self._make_audio()
+        audio.is_match = False
+        audio.mismatch_reason = "wrong_lyrics"
+        audio.save()
+        audio.is_match = True
+        audio.save()
+        audio.refresh_from_db()
+        assert audio.is_match is True
+        assert audio.mismatch_reason == ""
+
+    def test_quality_rating_validators(self):
+        from django.core.exceptions import ValidationError
+
+        from apps.hymns.models import HymnAudio
+
+        audio = self._make_audio()
+        audio.is_match = True
+        audio.quality_rating = 0
+        with pytest.raises(ValidationError):
+            audio.full_clean()
+        audio.quality_rating = 6
+        with pytest.raises(ValidationError):
+            audio.full_clean()
+        audio.quality_rating = 3
+        audio.full_clean()  # ok
+        # Garante que o campo está mesmo no model.
+        assert HymnAudio._meta.get_field("quality_rating").null is True
+
+    def test_mismatch_reason_choices(self):
+        from apps.hymns.models import HymnAudio
+
+        valid = {c[0] for c in HymnAudio.MismatchReason.choices}
+        assert valid == {"other_hymn", "incomplete", "wrong_lyrics", "inaudible", "other"}
+
+    def test_quality_observations_class_constant(self):
+        from apps.hymns.models import HymnAudio
+
+        assert "Ruído de fundo" in HymnAudio.QUALITY_OBSERVATIONS
+        assert "Voz baixa" in HymnAudio.QUALITY_OBSERVATIONS
+        assert "Cortes" in HymnAudio.QUALITY_OBSERVATIONS
+        assert "Excelente captação" in HymnAudio.QUALITY_OBSERVATIONS
+        assert "Mestre de cerimônias" in HymnAudio.QUALITY_OBSERVATIONS
