@@ -194,7 +194,7 @@ body {
   font-family: var(--font-serif);
 }
 .hymn-page .hymn-title {
-  font-family: var(--font-display);
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 28px;
   text-align: center;
@@ -218,6 +218,9 @@ body {
   line-height: 1.55;
   color: var(--ink);
   white-space: pre-wrap;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
 }
 .hymn-stanza { position: relative; padding-left: 18px; margin-bottom: 22px; }
 .hymn-stanza.rep::before {
