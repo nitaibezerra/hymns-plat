@@ -8,6 +8,26 @@ name: Deploy
 #   - workflow_dispatch (manual redeploy from the Actions UI when Railway has
 #     a hiccup unrelated to the code).
 #
+# Failure model
+# -------------
+# Earlier we ran `railway up --ci` which "streams build logs only, then exit".
+# When Railway's log streaming hiccupped (`Failed to retrieve build log`), the
+# CLI exited non-zero — even though the upload succeeded and the deployment
+# went on to build and run successfully. The workflow ran was reported as
+# failed, the smoke step was skipped, and the only signal that prod was
+# actually fine had to be checked manually.
+#
+# This workflow now decouples the three concerns:
+#   1. Upload   — `railway up --detach` exits as soon as the archive is
+#                 queued; no log streaming, so log-stream flakes can't fail
+#                 the workflow.
+#   2. Build    — we capture the deployment ID from the upload output and
+#                 poll `railway deployment list` until it reaches a terminal
+#                 status (SUCCESS or one of the failure states).
+#   3. Healthy  — only after the deployment is SUCCESS do we probe the public
+#                 `/health/` URL, so we know we're hitting the new container,
+#                 not the previous one that was still serving during build.
+#
 # Required GitHub Actions secret:
 #   RAILWAY_API_TOKEN — account-scoped Railway token (same one used locally,
 #   stored at /Users/nitai/dev/copa-dos-reis/dev/portal/.env.railway).
@@ -28,6 +48,14 @@ jobs:
     name: Deploy to Railway
     runs-on: ubuntu-latest
 
+    env:
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      # Project + environment + service IDs pinned in CLAUDE.md so this
+      # never depends on stateful `railway link` from a developer machine.
+      RAILWAY_PROJECT_ID: b840e96a-933f-49c5-bd01-d3531031a375
+      RAILWAY_ENVIRONMENT_ID: 985e62de-1a1c-4334-ad0d-477ac47b430e
+      RAILWAY_SERVICE_ID: feace17d-3883-41e7-b741-881674decdba
+
     steps:
       - uses: actions/checkout@v4
 
@@ -39,24 +67,56 @@ jobs:
       - name: Install Railway CLI
         run: npm i -g @railway/cli@4
 
-      - name: Deploy
-        env:
-          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
-          # Project + environment + service IDs pinned in CLAUDE.md so this
-          # never depends on stateful `railway link` from a developer machine.
-          RAILWAY_PROJECT_ID: b840e96a-933f-49c5-bd01-d3531031a375
-          RAILWAY_ENVIRONMENT_ID: 985e62de-1a1c-4334-ad0d-477ac47b430e
-          RAILWAY_SERVICE_ID: feace17d-3883-41e7-b741-881674decdba
-        run: railway up --ci --service "$RAILWAY_SERVICE_ID"
+      - name: Upload to Railway (detached)
+        # `--detach` exits after upload, no log streaming. The deployment ID
+        # is in the "Build Logs" URL printed by the CLI; we capture it and
+        # hand it to the next step.
+        id: upload
+        run: |
+          set -euo pipefail
+          railway up --detach --service "$RAILWAY_SERVICE_ID" 2>&1 | tee /tmp/up.log
+          deploy_id=$(grep -oE 'id=[a-f0-9-]{36}' /tmp/up.log | head -1 | cut -d= -f2 || true)
+          if [ -z "$deploy_id" ]; then
+            echo "::error::could not extract deployment ID from upload output"
+            exit 1
+          fi
+          echo "deployment_id=$deploy_id" >> "$GITHUB_OUTPUT"
+          echo "Captured deployment ID: $deploy_id"
+
+      - name: Wait for Railway build to finish
+        # Poll Railway for terminal status of the deployment we just queued.
+        # Railway statuses: INITIALIZING, BUILDING, DEPLOYING, SUCCESS,
+        # FAILED, CRASHED, REMOVED, REMOVING, SKIPPED. We treat anything
+        # other than SUCCESS as a hard failure.
+        run: |
+          set -euo pipefail
+          deploy_id="${{ steps.upload.outputs.deployment_id }}"
+          for i in $(seq 1 60); do
+            status=$(railway deployment list -s "$RAILWAY_SERVICE_ID" --limit 5 --json \
+              | jq -r --arg id "$deploy_id" '.[] | select(.id==$id) | .status' \
+              | head -1)
+            status="${status:-PENDING}"
+            echo "[$i/60] status=$status"
+            case "$status" in
+              SUCCESS)
+                exit 0 ;;
+              FAILED|CRASHED|REMOVED|SKIPPED)
+                echo "::error::Railway deploy $deploy_id ended in status: $status"
+                exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::deploy $deploy_id did not reach a terminal status within 10 minutes"
+          exit 1
 
       - name: Smoke test (external probe)
         # Healthcheck inside Railway is disabled because the internal probe is
         # blocked by ALLOWED_HOSTS — see CLAUDE.md. We probe the public URL
-        # via Cloudflare instead. Allow up to ~90s for the new container to
-        # become reachable end-to-end.
+        # via Cloudflare instead. The new container is already SUCCESS at
+        # this point, so 30s is plenty for the edge to start routing to it.
         run: |
           set -e
-          for i in $(seq 1 18); do
+          for i in $(seq 1 12); do
             code=$(curl -s -o /dev/null -w "%{http_code}" "https://hinaria.com.br/health/" || true)
             if [ "$code" = "200" ]; then
               echo "Health OK on attempt $i"
