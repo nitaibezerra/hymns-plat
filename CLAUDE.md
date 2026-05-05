@@ -66,7 +66,7 @@ Three Django apps under `apps/`:
 
 **OCR pipeline** lives in the external `hymn-ocr` package (pinned to a commit in `pyproject.toml`). It needs `tesseract-ocr` + `tesseract-ocr-por` + `poppler-utils` system packages — already in the `Dockerfile`. The Django side just calls into the lib.
 
-**Permissions** — see `apps/hymns/permissions.py`. `can_edit_hymnbook(user, hb)` and `can_publish_hymnbook(user, hb)` are the public helpers; everything else (views, templates) calls through them. The `editor` group is created by migration `0008_editor_group_and_perms.py` and grants the editorial workspace under `/editor/`.
+**Permissions** — see `apps/hymns/permissions.py`. Mutar hinários/hinos (cadastrar, editar, deletar, publicar) é restrito a **Editores ou Admins**: membros do grupo `editor` (criado por `0008_editor_group_and_perms.py`) ou superusers. `owner_user` é apenas metadado de proveniência e **não** confere direitos. Helpers públicos: `can_create_hymnbook(user)` gateia views de criação; `can_edit_hymnbook(user, hb)` e `can_publish_hymnbook(user, hb)` gateiam mutação/publicação. Templates checam via `{% if perms.hymns.can_review_any_hymnbook %}` (ex.: botão "+ Novo hinário" no list). Editor workspace sob `/editor/` aplica a mesma regra (`apps/hymns/editor_views.py::_has_editor_access`).
 
 **Frontend** — Tailwind CSS via the Play CDN (no Node build). Design tokens in `static/css/design-tokens.css`. The audio player is a custom component (`templates/hymns/_audio_player.html` + `static/js/audio-player.js`) that renders the waveform peaks as SVG bars and animates a `clip-path`. Dark mode toggle persists in `localStorage`.
 

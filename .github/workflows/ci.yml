@@ -6,7 +6,6 @@ on:
     paths-ignore:
       - '_design/**'
       - '_plan/**'
-      - '**/*.md'
   workflow_dispatch:
 
 jobs:
