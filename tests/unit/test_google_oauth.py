@@ -244,6 +244,25 @@ def test_settings_uses_custom_account_adapter():
     assert settings.ACCOUNT_ADAPTER == "apps.users.adapters.CustomAccountAdapter"
 
 
+def test_settings_uses_custom_social_account_adapter():
+    """SOCIALACCOUNT_ADAPTER precisa estar definido — caso contrário, o
+    DefaultSocialAccountAdapter delega `is_open_for_signup` para o account
+    adapter, que está bloqueando signup tradicional, e o flow Google quebra
+    para usuários novos."""
+    assert settings.SOCIALACCOUNT_ADAPTER == "apps.users.adapters.CustomSocialAccountAdapter"
+
+
+def test_custom_social_account_adapter_allows_signup():
+    """O adapter social custom deve permitir signup via Google mesmo com o
+    account adapter bloqueando signup tradicional. Sem isso, callbacks do
+    Google para usuários novos voltam para a tela de login sem logar."""
+    from allauth.socialaccount.adapter import get_adapter as get_social_adapter
+
+    adapter = get_social_adapter()
+    # O parâmetro `sociallogin` não é consultado na implementação custom; passar None.
+    assert adapter.is_open_for_signup(request=None, sociallogin=None) is True
+
+
 @pytest.mark.django_db
 @override_settings(SOCIALACCOUNT_PROVIDERS=GOOGLE_PROVIDER_OVERRIDE)
 def test_login_template_has_no_password_form():
