@@ -163,8 +163,7 @@ class Command(BaseCommand):
             raise ValueError(f"Hymn number is required for hymn: {title}")
         if not title:
             raise ValueError(f"Hymn title is required for hymn number: {number}")
-        if not text:
-            raise ValueError(f"Hymn text is required for hymn: {title}")
+        # Texto pode vir vazio (hinos só-música, ex.: #127 de O Cruzeiro do Mestre Irineu).
 
         received_at = None
         received_at_str = hymn_data.get("received_at")
@@ -234,6 +233,10 @@ class Command(BaseCommand):
                 file_size=len(data),
             )
             audio.audio_file.save(abs_path.name, ContentFile(data), save=False)
+            # Bulk import: pula spawn da daemon thread de waveform (rodar
+            # `backfill_audio_waveforms` depois). Senão 100+ threads disparam
+            # juntas e esgotam o pool de conexões do postgres.
+            audio._skip_waveform_signal = True
             audio.save()
             created += 1
 

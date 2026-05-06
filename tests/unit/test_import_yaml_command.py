@@ -127,8 +127,9 @@ class TestImportYamlCommand:
         with pytest.raises(CommandError, match="Hymn title is required"):
             call_command("import_yaml", str(yaml_file))
 
-    def test_raises_error_on_missing_hymn_text(self, db, tmp_path):
-        """Test that command raises error when hymn is missing text."""
+    def test_allows_hymn_without_text(self, db, tmp_path):
+        """Hinos só-música (ex.: #127 de O Cruzeiro do Mestre Irineu) têm texto
+        vazio — devem ser aceitos. Editor preenche depois se quiser."""
         yaml_content = """hymn_book:
   name: Test Book
   owner: Owner
@@ -139,8 +140,11 @@ class TestImportYamlCommand:
         yaml_file = tmp_path / "no_text.yaml"
         yaml_file.write_text(yaml_content)
 
-        with pytest.raises(CommandError, match="Hymn text is required"):
-            call_command("import_yaml", str(yaml_file))
+        call_command("import_yaml", str(yaml_file))
+        from apps.hymns.models import Hymn
+
+        hymn = Hymn.objects.get(number=1)
+        assert hymn.text == ""
 
     def test_raises_error_on_duplicate_hymnbook_without_update(self, db, sample_yaml_valid):
         """Test that command raises error when hymnbook exists and --update not used."""

@@ -163,6 +163,47 @@ def test_owner_username_assigns_uploaded_by(db, user_factory, tmp_path):
     assert audio.uploaded_by_id == user.id
 
 
+def test_hymn_with_empty_text_is_allowed(db, nitai_user, tmp_path):
+    """Hinos só-música (ex.: #127 de O Cruzeiro) têm texto vazio no portal-fonte.
+    Devem ser importados normalmente — quem decide se completar é o editor."""
+    yaml_text = """hymn_book:
+  name: Music Only Book
+  owner: Test Owner
+  hymns:
+    - number: 1
+      title: First
+      text: |
+        com letra
+    - number: 127
+      title: Hino 127
+      text: ''
+"""
+    yaml_path = tmp_path / "book.yaml"
+    yaml_path.write_text(yaml_text)
+
+    call_command("import_yaml", str(yaml_path))
+    assert HymnBook.objects.count() == 1
+    hymn_127 = Hymn.objects.get(number=127)
+    assert hymn_127.text == ""
+
+
+def test_audio_import_skips_waveform_signal_thread(db, nitai_user, tmp_path):
+    """Durante import_yaml em massa, o signal de waveform NÃO deve disparar
+    a thread daemon (esgota conexões no postgres com 100+ áudios). O backfill
+    fica pra o comando dedicado `backfill_audio_waveforms`."""
+    from unittest.mock import patch
+
+    _write_mp3(tmp_path, "audios/001.mp3")
+    yaml_path = _make_yaml_with_audios(tmp_path, audios_for_hymn1=[{"path": "audios/001.mp3", "source": "X"}])
+
+    with patch("apps.hymns.services.audio._run_in_thread") as mock_run:
+        call_command("import_yaml", str(yaml_path))
+
+    assert not mock_run.called, "signal de waveform não deve spawn thread durante import_yaml"
+    audio = HymnAudio.objects.get()
+    assert audio.waveform_peaks == []  # vazio até backfill
+
+
 def test_dry_run_does_not_create_audios(db, nitai_user, tmp_path):
     _write_mp3(tmp_path, "audios/001.mp3")
     yaml_path = _make_yaml_with_audios(tmp_path, audios_for_hymn1=[{"path": "audios/001.mp3", "source": "X"}])

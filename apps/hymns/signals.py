@@ -149,6 +149,11 @@ def _generate_waveform_for_audio(sender, instance, created, raw=False, **kwargs)
     """
     if raw:
         return
+    # Bulk imports (ex.: import_yaml com 100+ áudios) marcam essa flag pra
+    # evitar spawn de N threads simultâneas que esgotariam o pool de conexões
+    # do postgres. Backfill fica para o comando `backfill_audio_waveforms`.
+    if getattr(instance, "_skip_waveform_signal", False):
+        return
     if instance.waveform_peaks:
         return
     if not instance.audio_file:
