@@ -144,6 +144,10 @@ body {
 }
 .hairline { height: 1px; background: var(--rule); margin: 16px 0; border: 0; }
 
+/* Clickable queue row */
+.queue-row { display: block; }
+.queue-row:hover { background: var(--paper); box-shadow: 0 2px 10px rgba(0,0,0,0.04); border-color: var(--ink-soft); }
+
 /* ===== STATUS PILLS ===== */
 .pill {
   display: inline-flex; align-items: center; gap: 6px;
