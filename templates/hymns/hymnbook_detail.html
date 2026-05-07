@@ -81,33 +81,39 @@
 </section>
 
 <section class="max-w-6xl mx-auto px-6 py-10{% if mode != 'indice' %} hidden{% endif %}" data-mode-pane="indice">
-  <ol class="grid sm:grid-cols-2 gap-x-12 gap-y-2 font-serif max-w-4xl mx-auto">
-    {% for h in hymns %}
-      <li class="flex items-center gap-2">
-        {% if h.number in hymns_with_audio %}
-          <button type="button"
-                  data-player-play-hymn
-                  data-slug="{{ hymnbook.slug }}"
-                  data-n="{{ h.number }}"
-                  class="shrink-0 w-7 h-7 grid place-items-center rounded-full border border-firmament/30 text-firmament hover:bg-firmament hover:text-cream transition"
-                  aria-label="Tocar hino {{ h.number }}">
-            <svg data-icon-play width="9" height="9" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1 L12 7 L3 13 Z"/></svg>
-            <svg data-icon-pause width="9" height="9" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><rect x="2" y="2" width="3" height="10"/><rect x="9" y="2" width="3" height="10"/></svg>
-          </button>
-        {% else %}
-          <span class="shrink-0 w-7 h-7 grid place-items-center text-ink-mute opacity-40" aria-label="Sem gravação" title="Sem gravação ainda">⊘</span>
-        {% endif %}
-        <a href="{% url 'hymns:hymn_detail' h.pk %}" class="dot-leader py-2 hover:text-gold flex-1 min-w-0">
-          <span class="font-mono text-xs text-ink-soft pr-2">{{ h.number|stringformat:"02d" }}</span>
-          <span class="text-lg">{{ h.title }}</span>
-          <span class="leader-fill"></span>
-          {% if h.style %}<span class="label-mono">{{ h.style }}</span>{% endif %}
-        </a>
-      </li>
-    {% empty %}
-      <p class="text-ink-soft">Nenhum hino cadastrado.</p>
-    {% endfor %}
-  </ol>
+  {% regroup hymns by section as section_groups %}
+  {% for group in section_groups %}
+    {% if group.grouper %}
+      <h3 class="font-display text-2xl text-firmament max-w-4xl mx-auto mt-10 first:mt-0 mb-3" data-section-header>{{ group.grouper }}</h3>
+    {% endif %}
+    <ol class="grid sm:grid-cols-2 gap-x-12 gap-y-2 font-serif max-w-4xl mx-auto">
+      {% for h in group.list %}
+        <li class="flex items-center gap-2">
+          {% if h.number in hymns_with_audio %}
+            <button type="button"
+                    data-player-play-hymn
+                    data-slug="{{ hymnbook.slug }}"
+                    data-n="{{ h.number }}"
+                    class="shrink-0 w-7 h-7 grid place-items-center rounded-full border border-firmament/30 text-firmament hover:bg-firmament hover:text-cream transition"
+                    aria-label="Tocar hino {{ h.number }}">
+              <svg data-icon-play width="9" height="9" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1 L12 7 L3 13 Z"/></svg>
+              <svg data-icon-pause width="9" height="9" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><rect x="2" y="2" width="3" height="10"/><rect x="9" y="2" width="3" height="10"/></svg>
+            </button>
+          {% else %}
+            <span class="shrink-0 w-7 h-7 grid place-items-center text-ink-mute opacity-40" aria-label="Sem gravação" title="Sem gravação ainda">⊘</span>
+          {% endif %}
+          <a href="{% url 'hymns:hymn_detail' h.pk %}" class="dot-leader py-2 hover:text-gold flex-1 min-w-0">
+            <span class="font-mono text-xs text-ink-soft pr-2">{{ h.number|stringformat:"02d" }}</span>
+            <span class="text-lg">{{ h.title }}</span>
+            <span class="leader-fill"></span>
+            {% if h.style %}<span class="label-mono">{{ h.style }}</span>{% endif %}
+          </a>
+        </li>
+      {% endfor %}
+    </ol>
+  {% empty %}
+    <p class="text-ink-soft">Nenhum hino cadastrado.</p>
+  {% endfor %}
 </section>
 
 <section class="bg-cream-deep dark:bg-night-deep{% if mode != 'corrido' %} hidden{% endif %}" data-mode-pane="corrido">
