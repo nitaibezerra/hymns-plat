@@ -32,8 +32,9 @@
 
     <div class="hymn-end" aria-hidden="true">{% if hymn.number|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
 
-    {% if hymn.received_at or hymn.style or hymn.offered_to %}
+    {% if hymn.received_at or hymn.style or hymn.offered_to or hymn.section %}
       <div class="hymn-meta-row">
+        {% if hymn.section %}<span>Seção · {{ hymn.section }}</span>{% endif %}
         {% if hymn.received_at %}<span>Recebido · {{ hymn.received_at|date:"d M Y" }}</span>{% endif %}
         {% if hymn.style %}<span>{{ hymn.style }}</span>{% endif %}
         {% if hymn.offered_to %}<span>Oferecido · {{ hymn.offered_to }}</span>{% endif %}
@@ -75,6 +76,7 @@
     <section class="card-soft p-5">
       <p class="label-mono mb-3">Detalhes</p>
       <dl class="space-y-2 text-sm">
+        {% if hymn.section %}<div class="flex justify-between"><dt class="text-ink-soft">Seção</dt><dd>{{ hymn.section }}</dd></div>{% endif %}
         {% if hymn.style %}<div class="flex justify-between"><dt class="text-ink-soft">Estilo</dt><dd>{{ hymn.style }}</dd></div>{% endif %}
         {% if hymn.received_at %}<div class="flex justify-between"><dt class="text-ink-soft">Recebido em</dt><dd>{{ hymn.received_at|date:"d M Y" }}</dd></div>{% endif %}
         {% if hymn.offered_to %}<div class="flex justify-between"><dt class="text-ink-soft">Oferecido a</dt><dd>{{ hymn.offered_to }}</dd></div>{% endif %}

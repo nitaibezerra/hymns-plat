@@ -175,6 +175,13 @@ class Hymn(models.Model):
     repetitions = models.CharField(
         "Repetições", max_length=100, blank=True, help_text="Ex: 1-4, 5-8 (indicação de estrofes a repetir)"
     )
+    section = models.CharField(
+        "Seção",
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Subgrupo dentro do hinário (ex.: 'Offered to Sônia Palhares' em Firmado na Luz)",
+    )
 
     # Estado de revisão (Marco 1.3)
     review_status = models.CharField(

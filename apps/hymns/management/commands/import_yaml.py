@@ -186,6 +186,7 @@ class Command(BaseCommand):
             style=hymn_data.get("style", "").strip(),
             extra_instructions=hymn_data.get("extra_instructions", "").strip(),
             repetitions=hymn_data.get("repetitions", "").strip(),
+            section=hymn_data.get("section", "").strip(),
             source=Hymn.Source.YAML,
             review_status=review_status,
         )
