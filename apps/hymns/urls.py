@@ -17,6 +17,11 @@ urlpatterns = [
         name="editor_next_hymn",
     ),
     path(
+        "editor/hinarios/<slug:slug>/agil/",
+        editor_views.editor_quick_review,
+        name="editor_quick_review",
+    ),
+    path(
         "editor/hinos/<uuid:pk>/revisar/",
         editor_views.editor_revise_hymn,
         name="editor_revise_hymn",

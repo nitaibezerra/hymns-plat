@@ -54,23 +54,32 @@
   <ul class="mt-6 space-y-3">
     {% for hb in hymnbooks %}
       {% with pct=hb.review_pct|default:0 %}
-      <li class="card-soft p-5 flex items-center gap-6 flex-wrap">
-        <div class="w-12 h-12 rounded-full inline-flex items-center justify-center font-display text-xl shrink-0" style="background: color-mix(in srgb, {{ hb.display_accent }} 18%, transparent); color: {{ hb.display_accent }};">{{ forloop.counter|stringformat:"02d" }}</div>
-        <div class="min-w-0 flex-1">
-          <p class="font-display text-xl truncate">{{ hb.name }}</p>
-          <p class="label-mono mt-1">
-            {{ hb.owner_name }} · subido {{ hb.created_at|timesince }} atrás
-          </p>
-        </div>
-        <div class="w-72">
-          <div class="flex justify-between text-xs font-mono mb-1"><span>{{ hb.reviewed_hymns }}/{{ hb.total_hymns }} revisados</span><span>{{ pct }}%</span></div>
-          <div class="h-2 bg-ink/10 rounded-full overflow-hidden"><div class="h-full bg-firmament" style="width: {{ pct }}%;"></div></div>
-        </div>
-        {% if hb.review_pct == 100 and not hb.is_published %}
-          <form action="{% url 'hymns:hymnbook_publish' hb.slug %}" method="post">{% csrf_token %}<button class="bg-firmament text-cream rounded-full px-4 py-2 text-sm font-medium hover:bg-firmament-2">Publicar hinário ✓</button></form>
-        {% else %}
-          <a href="{% url 'hymns:editor_next_hymn' hb.slug %}" class="bg-firmament text-cream rounded-full px-4 py-2 text-sm hover:bg-firmament-2">Revisar próximo →</a>
-        {% endif %}
+      <li>
+        <a href="{% url 'hymns:editor_hymnbook_detail' hb.slug %}"
+           class="card-soft p-5 flex items-center gap-6 flex-wrap no-underline text-inherit hover:bg-ink/5 transition">
+          <div class="w-12 h-12 rounded-full inline-flex items-center justify-center font-display text-xl shrink-0" style="background: color-mix(in srgb, {{ hb.display_accent }} 18%, transparent); color: {{ hb.display_accent }};">{{ forloop.counter|stringformat:"02d" }}</div>
+          <div class="min-w-0 flex-1">
+            <p class="font-display text-xl truncate">{{ hb.name }}</p>
+            <p class="label-mono mt-1">
+              {{ hb.owner_name }} · subido {{ hb.created_at|timesince }} atrás
+            </p>
+          </div>
+          <div class="w-72">
+            <div class="flex justify-between text-xs font-mono mb-1"><span>{{ hb.reviewed_hymns }}/{{ hb.total_hymns }} revisados</span><span>{{ pct }}%</span></div>
+            <div class="h-2 bg-ink/10 rounded-full overflow-hidden"><div class="h-full bg-firmament" style="width: {{ pct }}%;"></div></div>
+          </div>
+          {# Botões internos: stopPropagation evita disparar a navegação da linha. #}
+          <div class="flex flex-col gap-1.5 items-stretch">
+            {% if hb.review_pct == 100 and not hb.is_published %}
+              <form action="{% url 'hymns:hymnbook_publish' hb.slug %}" method="post" onclick="event.stopPropagation()">{% csrf_token %}<button class="bg-firmament text-cream rounded-full px-4 py-2 text-sm font-medium hover:bg-firmament-2 w-full">Publicar hinário ✓</button></form>
+            {% else %}
+              <a href="{% url 'hymns:editor_next_hymn' hb.slug %}" class="bg-firmament text-cream rounded-full px-4 py-2 text-sm hover:bg-firmament-2 text-center" onclick="event.stopPropagation()">Revisar próximo →</a>
+            {% endif %}
+            <a href="{% url 'hymns:editor_quick_review' hb.slug %}"
+               class="border border-gold text-gold rounded-full px-3 py-1.5 text-xs font-mono uppercase tracking-widest text-center hover:bg-gold/10"
+               onclick="event.stopPropagation()">⚡ Revisão ágil</a>
+          </div>
+        </a>
       </li>
       {% endwith %}
     {% empty %}

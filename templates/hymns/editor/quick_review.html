@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% load static hymn_extras %}
+
+{% block title %}Editor · Revisão ágil · {{ hymnbook.name }}{% endblock %}
+
+{% block content %}
+<section class="border-b border-rule" data-no-print>
+  <div class="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex flex-col md:grid md:grid-cols-3 gap-2 md:items-center">
+    <a href="{% url 'hymns:editor_hymnbook_detail' hymnbook.slug %}" class="font-mono text-xs uppercase tracking-widest text-ink-soft hover:text-gold order-1">← {{ hymnbook.name }}</a>
+    <div class="md:text-center order-3 md:order-2">
+      <p class="font-display text-lg md:text-xl">Revisão ágil · Estilo & Repetições</p>
+      <p class="label-mono mt-0.5">{{ position|stringformat:"02d" }} DE {{ total|stringformat:"02d" }}</p>
+    </div>
+    <div class="md:text-right order-2 md:order-3">
+      <a href="{% url 'hymns:editor_revise_hymn' current_hymn.pk %}" class="font-mono text-xs uppercase tracking-widest text-ink-soft hover:text-gold">Ir para revisão completa →</a>
+    </div>
+  </div>
+  <div class="h-1 bg-ink/10"><div class="h-full bg-gold" style="width: {% widthratio position total 100 %}%; max-width: 100%;"></div></div>
+</section>
+
+<form method="post" action="{% url 'hymns:editor_quick_review' hymnbook.slug %}?h={{ current_hymn.number }}"
+      data-quick-review hx-boost="false">
+  {% csrf_token %}
+
+  <div class="lg:grid lg:grid-cols-2">
+    {# === ESQUERDA: Prévia === #}
+    <section class="px-6 lg:px-10 py-8 space-y-6 bg-cream-soft self-start lg:border-r lg:border-rule" data-preview-root>
+      <p class="eyebrow">Prévia · como o leitor vai ver</p>
+      <article class="preview-card">
+        <h2 class="preview-title font-serif">{{ current_hymn.number }} - {{ current_hymn.title }}</h2>
+        <div class="preview-body hymn-body-centered" data-preview-body data-render-url="{% url 'hymns:editor_preview_render' %}">{% render_hymn_body current_hymn %}</div>
+        {% if current_hymn.text %}<div class="preview-glyph">✡</div>{% endif %}
+      </article>
+    </section>
+
+    {# === DIREITA: 2 campos com tiles === #}
+    <section class="px-6 lg:px-10 py-8 space-y-8 self-start">
+      <div class="flex items-center justify-between">
+        <p class="eyebrow">Parâmetros objetivos</p>
+        <span class="label-mono">Atalhos de teclado ativos</span>
+      </div>
+
+      {# Estilo · 3 tiles #}
+      <div class="space-y-3">
+        <p class="eyebrow">Estilo</p>
+        <div class="grid grid-cols-3 gap-2">
+          {% for s in quick_styles %}
+            {# Mazurca usa Z (3a letra), Marcha/Valsa usam 1a letra. #}
+            {% if s == "Mazurca" %}{% with shortcut="Z" %}
+              <button type="button" class="quick-tile" data-quick-tile="style"
+                      data-value="{{ s }}" data-shortcut="{{ shortcut }}"
+                      {% if current_hymn.style == s %}data-active="true"{% endif %}>
+                {{ s }}<span class="kbd-mark">{{ shortcut }}</span>
+              </button>
+            {% endwith %}{% else %}{% with shortcut=s|slice:":1"|upper %}
+              <button type="button" class="quick-tile" data-quick-tile="style"
+                      data-value="{{ s }}" data-shortcut="{{ shortcut }}"
+                      {% if current_hymn.style == s %}data-active="true"{% endif %}>
+                {{ s }}<span class="kbd-mark">{{ shortcut }}</span>
+              </button>
+            {% endwith %}{% endif %}
+          {% endfor %}
+        </div>
+        <input type="hidden" name="style" value="{{ current_hymn.style }}" data-quick-style>
+      </div>
+
+      {# Repetições · 4 tiles com mini-diagrama SVG #}
+      <div class="space-y-3">
+        <p class="eyebrow">Repetições</p>
+        <div class="grid grid-cols-2 gap-2">
+          {% for r in quick_repetitions %}
+            <button type="button" class="quick-tile quick-tile-rep" data-quick-tile="repetitions"
+                    data-value="{{ r }}" data-shortcut="{{ forloop.counter }}"
+                    {% if current_hymn.repetitions == r %}data-active="true"{% endif %}>
+              <span class="quick-tile-rep-diagram" data-rep-value="{{ r }}"></span>
+              <span class="quick-tile-rep-label font-mono">{{ r }}</span>
+              <span class="kbd-mark">{{ forloop.counter }}</span>
+            </button>
+          {% endfor %}
+        </div>
+        <input type="text" name="repetitions" value="{{ current_hymn.repetitions }}"
+               data-quick-reps placeholder="Ou digite manualmente"
+               class="w-full rounded-md border border-rule px-3 py-2 bg-cream-soft dark:bg-white/5 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gold/40">
+      </div>
+
+      <p class="text-sm text-ink-soft border border-rule rounded-md px-4 py-3 bg-cream-soft">
+        <strong>Esta tela não conclui a revisão.</strong> Para marcar o hino como revisado é preciso
+        passar pela revisão completa (texto + áudio). Pressione <kbd class="kbd">⏎</kbd> ou clique em
+        "Salvar e ir" para gravar.
+      </p>
+
+      {# Botões de navegação #}
+      <div class="grid grid-cols-2 gap-2">
+        {% if prev_hymn %}
+          <a href="?h={{ prev_hymn.number }}" class="btn-pill text-center" data-quick-prev>
+            <kbd class="kbd">←</kbd> Anterior
+          </a>
+        {% else %}
+          <span class="btn-pill text-center opacity-40 pointer-events-none">
+            <kbd class="kbd">←</kbd> Anterior
+          </span>
+        {% endif %}
+        {% if next_hymn %}
+          <a href="?h={{ next_hymn.number }}" class="btn-pill text-center" data-quick-next>
+            Próximo <kbd class="kbd">→</kbd>
+          </a>
+        {% else %}
+          <span class="btn-pill text-center opacity-40 pointer-events-none">
+            Próximo <kbd class="kbd">→</kbd>
+          </span>
+        {% endif %}
+        <button type="submit" class="bg-firmament text-cream rounded-full px-5 py-3 text-sm hover:bg-firmament-2 col-span-2"
+                data-quick-submit>
+          Salvar e ir para o próximo <kbd class="kbd kbd-primary">⏎</kbd>
+        </button>
+      </div>
+    </section>
+  </div>
+</form>
+
+<script src="{% static 'js/quick-review.js' %}"></script>
+{% endblock %}
