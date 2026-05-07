@@ -18,6 +18,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -182,6 +183,74 @@ def _next_pending_hymn(hymnbook, current_hymn=None):
         if higher is not None:
             return higher
     return qs.order_by("number").first()
+
+
+@login_required
+def editor_quick_review(request, slug):
+    """Tela 07c · Revisão ágil — fluxo rápido só de `style` + `repetitions`.
+
+    Esta view nunca modifica `review_status`, `last_reviewed_at` ou
+    `last_reviewed_by`. A marcação como REVIEWED continua exigindo a tela
+    completa (`editor_revise_hymn`). O signal de `HymnRevision` cria audit
+    trail automaticamente quando um dos dois campos muda.
+    """
+    from .forms import QuickReviewForm
+
+    hymnbook = get_object_or_404(HymnBook, slug=slug)
+    if not can_edit_hymnbook(request.user, hymnbook):
+        messages.error(request, "Você não tem permissão para revisar este hinário.")
+        return redirect("hymns:home")
+
+    hymns = list(hymnbook.hymns.all().order_by("number"))
+    if not hymns:
+        messages.info(request, "Hinário sem hinos para revisar.")
+        return redirect("hymns:editor_hymnbook_detail", slug=hymnbook.slug)
+
+    # Seleção do hino atual via ?h=<number>; default = primeiro.
+    requested = request.GET.get("h")
+    current = None
+    if requested:
+        try:
+            current = next(h for h in hymns if h.number == int(requested))
+        except (ValueError, StopIteration):
+            current = None
+    if current is None:
+        current = hymns[0]
+
+    if request.method == "POST":
+        form = QuickReviewForm(request.POST, instance=current)
+        if form.is_valid():
+            form.save()
+        # Avança independente de erros de form (erros simples num CharField
+        # aqui são pouco prováveis; se ocorrerem, fica visível no GET seguinte).
+        idx = hymns.index(current)
+        if idx + 1 < len(hymns):
+            next_h = hymns[idx + 1]
+            url = reverse("hymns:editor_quick_review", kwargs={"slug": hymnbook.slug})
+            return redirect(f"{url}?h={next_h.number}")
+        return redirect("hymns:editor_hymnbook_detail", slug=hymnbook.slug)
+
+    idx = hymns.index(current)
+    prev_hymn = hymns[idx - 1] if idx > 0 else None
+    next_hymn = hymns[idx + 1] if idx + 1 < len(hymns) else None
+    return render(
+        request,
+        "hymns/editor/quick_review.html",
+        {
+            "hymnbook": hymnbook,
+            "current_hymn": current,
+            "prev_hymn": prev_hymn,
+            "next_hymn": next_hymn,
+            "position": idx + 1,
+            "total": len(hymns),
+            # Presets fixos da revisão ágil — ordem casa com os atalhos M/V/Z
+            # e 1/2/3/4 (design Fase 2 chat2.md). NÃO use `Hymn.CANONICAL_*`
+            # aqui: aquela lista é mais ampla e tem ordem própria; misturaria
+            # os atalhos.
+            "quick_styles": ["Marcha", "Valsa", "Mazurca"],
+            "quick_repetitions": ["1-2,3-4", "1-4", "1-2,3-4,1-4", "3-4,1-4"],
+        },
+    )
 
 
 @login_required

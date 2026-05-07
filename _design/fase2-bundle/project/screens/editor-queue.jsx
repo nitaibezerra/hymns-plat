@@ -45,6 +45,9 @@ const EditorQueueScreen = () => {
             Hinos do Sol · você parou no hino 42 · "Sol da Manhã"
           </div>
         </div>
+        <a href="#" className="mono muted" style={{fontSize: 11, textDecoration: "underline", letterSpacing: ".05em"}}>
+          ver lista do hinário →
+        </a>
         <button className="btn btn-primary">Retomar →</button>
       </section>
 
@@ -79,8 +82,13 @@ const EditorQueueScreen = () => {
 const QueueRow = ({q, idx}) => {
   const pct = Math.round((q.reviewed / q.total) * 100);
   const remaining = q.total - q.reviewed;
+  const stop = (e) => e.stopPropagation();
   return (
-    <div className="card" style={{padding: 0, display: "grid", gridTemplateColumns: "auto 1fr auto auto auto", alignItems: "center", gap: 24, padding: "20px 24px"}}>
+    <a href="#" onClick={(e) => e.preventDefault()} className="card queue-row" style={{
+      textDecoration: "none", color: "inherit",
+      display: "grid", gridTemplateColumns: "auto 1fr auto auto auto", alignItems: "center", gap: 24, padding: "20px 24px",
+      cursor: "pointer", transition: "background 120ms, box-shadow 120ms",
+    }}>
       {/* number badge */}
       <div style={{
         width: 56, height: 56, borderRadius: 8,
@@ -123,11 +131,17 @@ const QueueRow = ({q, idx}) => {
           : <span className="pill pill-mid">Em andamento</span>}
       </div>
 
-      {/* primary action */}
-      <button className={remaining ? "btn btn-primary" : "btn btn-gold"}>
-        {remaining ? `Revisar próximo →` : `Publicar hinário ✓`}
-      </button>
-    </div>
+      {/* actions */}
+      <div style={{display: "flex", flexDirection: "column", gap: 6}} onClick={stop}>
+        <button className={remaining ? "btn btn-primary" : "btn btn-gold"}>
+          {remaining ? `Revisar próximo →` : `Publicar hinário ✓`}
+        </button>
+        <button className="btn btn-ghost" style={{
+          fontSize: 11, padding: "6px 10px",
+          borderColor: "var(--gold)", color: "var(--gold)",
+        }}>⚡ Revisão ágil</button>
+      </div>
+    </a>
   );
 };
 

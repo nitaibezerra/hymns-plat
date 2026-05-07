@@ -913,3 +913,318 @@ Pronto. Agora as barrinhas são finas (2px) e ficam à esquerda das linhas agrup
 
 Devo aplicar o mesmo padrão na tela **04 · Carrossel** (e outras prévias do hino) pra ficar consistente em toda a plataforma?
 
+## User
+
+quero criar uma nova tela de revisão ágil, para ser mais rápido de revisar apenas os 2 parâmetros objetivos de cada hino: Estilo e Repetições. Isso vai ser uma versão simplificada da tela "07 · Revisar Hino". Nessa tela deve aparecer a prévia do hino e os campos Estilo e Repetições, ambos com as pílulas. O workflow vai ser simplificado. Além dos campos objetivos a tela deve ter 4 botões a mais: Anterior, Salvar e pular pro próximo, Próximo. Com isso o usuário pode navegar entre os hinos, pular se tiver dúvida, etc. Isso não deve estar vinculado ao status da revisão, que precisa da revisão completa para ser marcado como revisado.
+
+Na tela "06 · Fila de Revisão" e nesta tela que não temos design "https://hinaria.com.br/editor/hinarios/o-justiceiro/" (por sinal, vc podia criar esse design a partir do código. Também estou compartilhando um print aqui), adicione mais um botão para acessar essa tela de cada hinário. 
+
+Também adicione na tela "06 · Fila de Revisão" um link para a tela "https://hinaria.com.br/editor/hinarios/o-justiceiro/"
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: local_ls]_
+
+_[tool: view_image]_
+
+_[tool: grep]_
+
+_[tool: snip]_
+
+_[tool: read_file]_
+
+_[tool: snip]_
+
+_[tool: read_file]_
+
+_[tool: grep]_
+
+_[tool: grep]_
+
+_[tool: snip]_
+
+_[tool: read_file]_
+
+Now I have enough context to plan the work. Let me build the three pieces:
+
+1. **New screen `QuickReviewScreen`** — preview + Estilo/Repetições pills + 4 nav buttons
+2. **New screen `HymnbookEditorScreen`** — based on the Hinaria.com.br screenshot
+3. **Update `EditorQueueScreen`** — add link to hymnbook editor + quick review button per row
+
+Let me start by creating the quick review screen:
+
+_[tool: write_file]_
+
+_[tool: write_file]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: done]_
+
+<dropped_messages count="1">The preceding 1 messages were removed from the transcript to fit the context window.</dropped_messages>
+
+I see I'm working from limited context — let me re-read the recent state to understand what was being requested. The user wanted to evolve screen 07 with: (a) replace OCR-source left side with a final hymn preview on the right (sides flipped); (b) add audio review with quality feedback. Let me look at the current state.
+
+_[tool: read_file]_
+
+_[tool: snip]_
+
+Vou tornar essa tela totalmente responsiva. A estratégia: trocar o grid de 2 colunas por uma classe CSS com media queries, empilhando em mobile com a prévia em cima (mais natural para revisar), barra de ações sticky adaptada, e o player de áudio reorganizado em uma coluna em telas estreitas.
+
+Vou também adicionar um artboard mobile no canvas para mostrar a versão responsiva.
+
+_[tool: read_file]_
+
+I'll add responsive CSS for the revise screen and a mobile artboard.
+
+_[tool: str_replace_edit]_
+
+## User
+
+Só para esclarecer, quero uma tela nova e não sobrescrever a tela 07. Prossiga
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: read_file]_
+
+I'll create a copy of the revise-hymn screen for the responsive mobile version, instead of mutating the existing one. Then add CSS + a mobile artboard.
+
+_[tool: copy_files]_
+
+_[tool: read_file]_
+
+_[tool: snip]_
+
+Now I'll rewrite the mobile version completely. The mobile UX needs different priorities than the desktop version — let me design fresh:
+
+**Mobile flow:**
+1. Sticky top: progress + slim title
+2. Tabs at top: **Texto · Áudio · Detalhes** (replaces 2-column layout — they swipe between)
+3. **Texto** tab: rendered preview at top (compact), then editor below — when editor is focused, preview collapses
+4. **Áudio** tab: full-width player + match/quality
+5. **Detalhes** tab: estilo, repetições, status, recebido em
+6. Sticky bottom: "Marcar revisado e avançar" — full width
+
+_[tool: write_file]_
+
+The user attached the comment to a `QueueRow` card on the editor queue screen. Let me check what state we're in and what they want changed.
+
+_[tool: grep]_
+
+The user attached a comment pointing at `QueueRow` (a card in the editor queue) but the message itself just says "I'm referring to this element". They haven't told me what to change yet.
+
+I need to ask what they want done with this row. They said "me refiro a este elemento" — referring to it but no instruction. Probably this is a follow-up to something they want to change. Let me ask.
+
+Pode me dizer o que quer ajustar nessa linha do hinário (QueueRow) na fila do editor? Algumas hipóteses do que pode ser:
+
+- O botão **"⚡ Ágil"** — mudar texto, posição ou estilo?
+- O botão **"Abrir hinário"** — vinculá-lo à nova tela `HymnbookEditorScreen` (07b)?
+- Reorganizar a hierarquia do card (info do hinário, progresso, ações)?
+- Algo no comportamento ao clicar na linha inteira?
+
+Me diga qual direção e eu ajusto.
+
+## User
+
+quero remover o botão Abrir Hinário e tornar o elemento todo do Hinário (print) clicável com esse link.
+
+## Assistant
+
+Got it. I'll remove the "Abrir hinário" button and make the entire row clickable.
+
+_[tool: read_file]_
+
+I'll wrap the row in a clickable element, remove the "Abrir hinário" button, and make sure the inner buttons stop propagation so they still work independently. Let me also add subtle hover affordance so users can tell the card is clickable.
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: grep]_
+
+Now add a hover state so the row visually responds to being hoverable:
+
+_[tool: read_file]_
+
+_[tool: str_replace_edit]_
+
+_[tool: done]_
+
+Pronto. A linha inteira agora é clicável (vai abrir o hinário), com hover sutil de affordance. O botão "Abrir hinário" foi removido — sobraram só "Revisar próximo →" e "⚡ Revisão ágil" no canto direito, que param a propagação para funcionar de forma independente.
+
+## User
+
+na tela nova "07c · Revisão ágil · Estilo & Repetições" quero melhorar a UX das pílulas/opções de Repetições. Essa codificação é uma convenção que criei para definir as barrinhas que são impressas ao lado do hino (você pode deduzir mas estou compartilhando um print). Minha ideia é deixar mais intuitivo e para cada pílula ter dentro o código textual da repetição mas também termos o desenho das barrinhas, como um rascunho. Essas pílulas podem ser maiores pois temos espaço na tela.
+
+O botão pular sem salvar pode ser removido. Esse é o comportamento do botão Próximo.
+
+Gostei dos atalhos para teclado. Pense e proponha atalhos para selecionar Estilo e Repetições com atalhos. Pode ser uma combinação de teclas. Proponha
+
+## Assistant
+
+Vou olhar o estado atual da tela para entender o layout antes de propor.
+
+_[tool: read_file]_
+
+Antes de implementar, deixa eu propor o desenho dos atalhos pra você validar:
+
+## Proposta de atalhos
+
+**Anatomia mental:** o usuário tem mãos nos dois lados do teclado. Esquerda = Estilo (3 opções), direita = Repetições (4 opções). Tudo em tecla única, sem modificador, porque essa tela é **só** sobre esses dois campos.
+
+| Tecla | Ação |
+|---|---|
+| `M` | Estilo: **M**archa |
+| `V` | Estilo: **V**alsa |
+| `Z` | Estilo: Ma**z**urca |
+| `1` | Repetições: 1-2,3-4 *(o "tradicional")* |
+| `2` | Repetições: 1-4 *(linha corrida)* |
+| `3` | Repetições: 1-2,3-4,1-4 |
+| `4` | Repetições: 3-4,1-4 |
+| `←` / `→` | Anterior / Próximo |
+| `⏎` | Salvar e ir |
+
+**Por que tecla única e não combinação?**
+- A tela inteira é dedicada a estes 2 campos — não há campo de texto disputando teclas (o input manual de Repetições só captura quando ganha foco; aí os atalhos pausam).
+- Letras-mnemônico (M/V/Z) são instantâneas; combinações tipo `Cmd+1` exigiriam memorizar mapeamentos arbitrários.
+- Decision speed: revisar 64 hinos exige milisegundos por escolha. Tecla única é ~3× mais rápida.
+
+**Atalhos exibidos:** uma tecla pequena dentro de cada pílula (canto superior direito, mono 10px, opacity 0.5). Discreta no início; depois que o usuário pega o ritmo, ela vira reforço.
+
+---
+
+## Pílulas com mini-rascunho
+
+Vou desenhar cada padrão como SVG dentro da pílula — 4 linhas de "Lorem-like" mudas + as barrinhas verticais à esquerda exatamente como aparecem no impresso. Layout da pílula:
+
+```
+┌─────────────────────────┐
+│  ▌ ━━━━     1-2,3-4   1 │
+│  ▌ ━━━━                 │
+│  ▌ ━━━━                 │
+│  ▌ ━━━━                 │
+└─────────────────────────┘
+```
+
+Formato proposto: ~180×80px, 2 colunas internas (rascunho + texto/atalho).
+
+---
+
+**Vou implementar assim** — pílulas grandes com mini-preview SVG + atalhos de tecla única + remover "Pular sem salvar". Confirma ou ajusta antes?
+
+## User
+
+sim
+
+## Assistant
+
+[tool calls: snip and write_file — args removed]
+
+_[tool: snip]_
+
+_[tool: write_file]_
+
+_[tool: done]_
+
+Now I need to wire it into the HTML — add the script tag and a new artboard.
+
+_[tool: grep]_
+
+_[tool: snip]_
+
+_[tool: str_replace_edit]_
+
+_[tool: done]_
+
+_[tool: snip]_
+
+_[tool: fork_verifier_agent]_
+
+Pronto. Adicionei a tela **07c · Revisão ágil · Estilo & Repetições** no canvas, com:
+
+**Esquerda — prévia editorial:** o hino renderizado como aparece no Modo Carrossel (serif, número-título em uma linha, glifo dourado, barras de repetição na margem esquerda mudando ao vivo conforme você troca o preset).
+
+**Direita — só os 2 campos:**
+- **Estilo** (M / V / Z) — 3 tiles grandes
+- **Repetições** (1 / 2 / 3 / 4) — 4 tiles com mini-diagrama SVG mostrando 4 linhas mudas + barrinhas verticais à esquerda (igual ao impresso)
+- Cada tile tem o atalho de teclado discreto no canto superior direito
+- Input manual abaixo dos presets (quando ele tem foco, os atalhos pausam pra não roubar tecla)
+- Avisinho explícito: "Esta tela não conclui a revisão"
+
+**Atalhos:** M/V/Z, 1/2/3/4, ←/→, ⏎ (salvar e ir). Tile pulsa rapidinho ao receber atalho pra dar feedback visual.
+
+**Navegação:** topbar mostra `06 DE 16`, link "Ir para revisão completa →" no canto direito, botão primário "Salvar e ir para o próximo".
+
+## User
+
+Verifier agent check completed
+
+## Assistant
+
+Bem visto pelo verifier. Vou remover o duplicado.
+
+_[tool: grep]_
+
+Achei. Vou ler contexto pra remover só uma das duplicatas.
+
+_[tool: read_file]_
+
+The duplicate at line 139 sits in a better position (right after `hymnbook-editor`, before `publish`). I'll remove the one at line 133 (right after revise).
+
+_[tool: str_replace_edit]_
+
+_[tool: done]_
+
+Removida a duplicata. Agora `07c · Revisão ágil` aparece só uma vez, posicionada logo após `07b · Hinário em revisão`.
+
+## User
+
+As barrinhas de repetição das opções "1-2.3-4,1-4" e "3-4,1-4" estão erradas. Deve estar havendo uma sobreposição. 
+
+A terceira imagem é como está e as 2 primeiras é como deve ser
+
+## Assistant
+
+Entendi — quando há ranges sobrepostos (1-2 + 1-4, ou 3-4 + 1-4), eles precisam aparecer lado a lado em colunas, não empilhados no mesmo eixo. Vou ajustar o `RepDiagram` pra alocar cada range em uma coluna própria.
+
+_[tool: str_replace_edit]_
+
+Now apply the same column-packing fix to the live preview stanza on the left side (`QuickStanza`), so overlapping ranges show side-by-side there too.
+
+_[tool: str_replace_edit]_
+
+_[tool: done]_
+
+Corrigido. Agora ranges sobrepostos (como `1-2` + `1-4`, ou `3-4` + `1-4`) ficam em colunas separadas, lado a lado, igual à referência:
+
+- **`1-2,3-4,1-4`** → 2 colunas: a interna marca `1-2` e `3-4`; a externa marca `1-4`
+- **`3-4,1-4`** → 2 colunas: a interna marca só `3-4`; a externa marca `1-4`
+
+A correção foi aplicada nos dois lugares: no mini-diagrama dentro das pílulas e na prévia editorial (estrofe à esquerda).
+
+## User
+
+quase. Está invertido a ordem horizontal. As barrinhas são empilhadas da direita pra esquerda
+
+## Assistant
+
+Faz sentido — a barra mais externa (1-4) deve ficar à esquerda, e os ranges menores empilham pra dentro. Vou inverter a ordem das colunas.
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: done]_
+
+Pronto. Invertido — agora a coluna mais externa (a barra que abrange mais linhas, tipo `1-4`) fica à esquerda, e as barras menores (`1-2`, `3-4`) ficam à direita. Aplicado tanto no mini-diagrama da pílula quanto na prévia editorial.
+

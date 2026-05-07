@@ -856,3 +856,69 @@ html.dark .hymn-page { border-color: var(--color-rule); }
   background: var(--color-vermilion);
   color: var(--color-bg);
 }
+
+/* =====================================================
+ * Tela 07c · Revisão ágil — tiles + atalhos visuais
+ * ===================================================== */
+.quick-tile {
+  position: relative;
+  padding: 16px 14px;
+  border: 1px solid var(--color-rule);
+  border-radius: 10px;
+  background: var(--color-bg-soft);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 100ms, background 120ms, color 120ms, border-color 120ms;
+}
+.quick-tile:hover {
+  border-color: var(--color-ink-soft);
+}
+.quick-tile[data-active="true"] {
+  background: var(--color-ink);
+  color: var(--color-bg);
+  border-color: var(--color-ink);
+}
+.quick-tile-flash {
+  transform: scale(0.97);
+}
+.quick-tile-rep {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+}
+.quick-tile-rep-diagram { line-height: 0; flex-shrink: 0; }
+.quick-tile-rep-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.quick-mini-line { fill: var(--color-ink-soft); }
+.quick-mini-bar { fill: var(--color-ink); }
+.quick-tile[data-active="true"] .quick-mini-line { fill: rgba(246, 239, 226, 0.5); }
+.quick-tile[data-active="true"] .quick-mini-bar { fill: var(--color-bg); }
+
+/* Atalho de teclado pequeno no canto superior direito do tile */
+.kbd-mark {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--color-rule);
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  letter-spacing: 0.05em;
+}
+.quick-tile[data-active="true"] .kbd-mark {
+  border-color: rgba(246, 239, 226, 0.35);
+  background: rgba(246, 239, 226, 0.08);
+  color: rgba(246, 239, 226, 0.7);
+}

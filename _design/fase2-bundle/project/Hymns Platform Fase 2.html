@@ -40,6 +40,8 @@
 <script type="text/babel" src="screens/hymnbook-detail.jsx"></script>
 <script type="text/babel" src="screens/editor-queue.jsx"></script>
 <script type="text/babel" src="screens/revise-hymn.jsx"></script>
+<script type="text/babel" src="screens/quick-review.jsx"></script>
+<script type="text/babel" src="screens/hymnbook-editor.jsx"></script>
 <script type="text/babel" src="ios-frame.jsx"></script>
 <script type="text/babel" src="screens/wizards.jsx"></script>
 <script type="text/babel" src="screens/extras.jsx"></script>
@@ -127,6 +129,12 @@ function App() {
           </DCArtboard>
           <DCArtboard id="revise" label="07 · Revisar Hino · diff + atalhos" width={1440} height={1200}>
             <ReviseHymnScreen />
+          </DCArtboard>
+          <DCArtboard id="hymnbook-editor" label="07b · Hinário em revisão (editor)" width={1280} height={1400}>
+            <HymnbookEditorScreen />
+          </DCArtboard>
+          <DCArtboard id="quick-review" label="07c · Revisão ágil · Estilo & Repetições" width={1440} height={1100}>
+            <QuickReviewScreen />
           </DCArtboard>
           <DCArtboard id="publish" label="08 · Publicar (modal)" width={1280} height={800}>
             <PublishConfirmScreen />

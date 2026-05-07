@@ -92,6 +92,23 @@ class HymnForm(forms.ModelForm):
         return number
 
 
+class QuickReviewForm(forms.ModelForm):
+    """Form da tela 07c · Revisão ágil — só `style` e `repetitions`.
+
+    Restringe `Meta.fields` aos dois campos editáveis nesta tela; outros
+    campos (`text`, `review_status`, etc.) ficam imutáveis mesmo se vierem
+    no POST. Isso é defesa-em-profundidade contra um payload inflado.
+    """
+
+    class Meta:
+        model = Hymn
+        fields = ["style", "repetitions"]
+        widgets = {
+            "style": forms.TextInput(attrs={"class": "form-control"}),
+            "repetitions": forms.TextInput(attrs={"class": "form-control"}),
+        }
+
+
 class HymnBookPdfUploadForm(forms.Form):
     """
     Upload a hymnbook by sending a PDF; the server runs hymn-ocr to extract

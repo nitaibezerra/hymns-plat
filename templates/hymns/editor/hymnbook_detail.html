@@ -14,7 +14,11 @@
       <h1 class="font-display text-3xl md:text-4xl mt-2">{{ hymnbook.name }}</h1>
       <p class="text-ink-soft mt-1">{{ hymnbook.owner_name }}</p>
     </div>
-    <a href="{% url 'hymns:editor_next_hymn' hymnbook.slug %}" class="bg-firmament text-cream rounded-full px-5 py-2.5 text-sm hover:bg-firmament-2">Revisar próximo →</a>
+    <div class="flex flex-col gap-2 items-stretch">
+      <a href="{% url 'hymns:editor_next_hymn' hymnbook.slug %}" class="bg-firmament text-cream rounded-full px-5 py-2.5 text-sm hover:bg-firmament-2 text-center">Revisar próximo →</a>
+      <a href="{% url 'hymns:editor_quick_review' hymnbook.slug %}"
+         class="border border-gold text-gold rounded-full px-5 py-2 text-sm hover:bg-gold/10 text-center">⚡ Revisão ágil · Estilo & Repetições</a>
+    </div>
   </header>
 
   <div class="mt-6">
