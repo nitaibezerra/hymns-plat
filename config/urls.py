@@ -15,6 +15,8 @@ urlpatterns = [
     path("admin/", include(wagtailadmin_urls)),
     path("documents/", include(wagtaildocs_urls)),
     path("accounts/", include("allauth.urls")),
+    # GraphQL API (Marco 1 — headless refactor)
+    path("", include("apps.api.urls")),
     # Health check (Railway probe)
     path("", include("apps.core.urls")),
     # Users app URLs
