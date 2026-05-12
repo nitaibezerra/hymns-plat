@@ -8,25 +8,11 @@ com gradiente subindo da base e tipografia sobreposta.
    class="group block rounded-xl overflow-hidden shadow-soft border border-ink/10 transition-transform hover:-translate-y-0.5 text-cream"
    style="background: linear-gradient(140deg, {{ hb.display_accent }} 0%, color-mix(in srgb, {{ hb.display_accent }} 60%, black) 100%);">
 
-  {# Mobile #}
-  <article class="sm:hidden relative flex items-center gap-4 p-4">
-    <div class="shrink-0 w-20 h-20 rounded-full overflow-hidden border border-cream/15 bg-cream/5 grid place-items-center">
-      {% if hb.cover_image %}
-        <img src="{{ hb.cover_image.url }}" alt="Capa de {{ hb.name }}" class="w-full h-full object-cover" loading="lazy">
-      {% else %}
-        <span class="font-display text-4xl leading-none text-cream/40" aria-hidden="true">{{ hb.name|first|upper }}</span>
-      {% endif %}
-    </div>
-    <div class="flex-1 min-w-0">
-      <h3 class="font-display text-xl leading-tight">{{ hb.name }}</h3>
-      <p class="label-mono mt-1 text-cream/80 truncate">{{ hb.owner_name }}</p>
-      {% if not hb.is_published %}
-        <p class="label-mono mt-2 inline-block bg-cream/15 px-2 py-0.5 rounded-full text-cream/90">RASCUNHO</p>
-      {% endif %}
-    </div>
-  </article>
-
-  {# Desktop — variante "Foto Soberana": foto full-bleed + gradient + texto sobreposto #}
+  {% comment %}
+  Desktop — variante "Foto Soberana": foto full-bleed + gradient + texto sobreposto.
+  Vem antes do mobile no DOM para que selectors ".first" em E2E (rodando em viewport
+  desktop) peguem este card visível, não o mobile com sm:hidden.
+  {% endcomment %}
   <article class="hidden sm:block relative aspect-[3/4] overflow-hidden">
     {% if hb.cover_image %}
       <img src="{{ hb.cover_image.url }}" alt="Capa de {{ hb.name }}"
@@ -58,6 +44,24 @@ com gradiente subindo da base e tipografia sobreposta.
             <span>{{ hb.n_audios_anno }} ÁUDIOS</span>
           {% endif %}
         </div>
+      {% endif %}
+    </div>
+  </article>
+
+  {# Mobile #}
+  <article class="sm:hidden relative flex items-center gap-4 p-4">
+    <div class="shrink-0 w-20 h-20 rounded-full overflow-hidden border border-cream/15 bg-cream/5 grid place-items-center">
+      {% if hb.cover_image %}
+        <img src="{{ hb.cover_image.url }}" alt="Capa de {{ hb.name }}" class="w-full h-full object-cover" loading="lazy">
+      {% else %}
+        <span class="font-display text-4xl leading-none text-cream/40" aria-hidden="true">{{ hb.name|first|upper }}</span>
+      {% endif %}
+    </div>
+    <div class="flex-1 min-w-0">
+      <h3 class="font-display text-xl leading-tight">{{ hb.name }}</h3>
+      <p class="label-mono mt-1 text-cream/80 truncate">{{ hb.owner_name }}</p>
+      {% if not hb.is_published %}
+        <p class="label-mono mt-2 inline-block bg-cream/15 px-2 py-0.5 rounded-full text-cream/90">RASCUNHO</p>
       {% endif %}
     </div>
   </article>
