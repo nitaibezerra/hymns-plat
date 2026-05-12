@@ -1,7 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchRank, TrigramSimilarity
-from django.db.models import F, Func, Q, Value
+from django.db.models import Count, F, Func, IntegerField, OuterRef, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -10,8 +11,27 @@ from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView
 
 from .forms import HymnBookForm, HymnForm
-from .models import Hymn, HymnBook
+from .models import Hymn, HymnAudio, HymnBook
 from .permissions import can_create_hymnbook, can_edit_hymnbook, can_publish_hymnbook
+
+
+def _annotate_card_counts(queryset):
+    """Anota `n_hymns_anno` e `n_audios_anno` em cada HymnBook do queryset.
+
+    Usado pelos templates de card (home/list) para exibir contagens. Subquery
+    para áudios aprovados (uma única hit por HymnBook) — evita o problema
+    clássico de cross-product de múltiplos Count distinct no mesmo annotate.
+    """
+    audios_subq = (
+        HymnAudio.objects.filter(hymn__hymn_book=OuterRef("pk"), is_approved=True)
+        .values("hymn__hymn_book")
+        .annotate(c=Count("*"))
+        .values("c")
+    )
+    return queryset.annotate(
+        n_hymns_anno=Count("hymns", distinct=True),
+        n_audios_anno=Coalesce(Subquery(audios_subq, output_field=IntegerField()), 0),
+    )
 
 
 class UnaccentFunc(Func):
@@ -29,7 +49,7 @@ class HymnBookListView(ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        return HymnBook.objects.visible_to(self.request.user).order_by("name")
+        return _annotate_card_counts(HymnBook.objects.visible_to(self.request.user)).order_by("name")
 
 
 class HymnBookDetailView(DetailView):
@@ -263,7 +283,9 @@ def home_view(request):
 
     from .models import HymnAudio, HymnRevision
 
-    recent_hymnbooks = list(HymnBook.objects.visible_to(request.user).order_by("-created_at")[:6])
+    recent_hymnbooks = list(
+        _annotate_card_counts(HymnBook.objects.visible_to(request.user)).order_by("-created_at")[:6]
+    )
     total_hymnbooks = HymnBook.objects.published().count()
     total_hymns = Hymn.objects.filter(hymn_book__is_published=True).count()
     total_audios = HymnAudio.objects.filter(is_approved=True).count()
