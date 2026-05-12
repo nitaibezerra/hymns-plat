@@ -38,6 +38,9 @@ INSTALLED_APPS = [
     "apps.hymns",
     "apps.users",
     "apps.cms",
+    "apps.api",
+    # GraphQL
+    "strawberry_django",
     # Wagtail apps
     "wagtail.contrib.forms",
     "wagtail.contrib.redirects",

@@ -25,6 +25,8 @@ dependencies = [
     # checkout local, rode: uv pip install -e ../hymn-ocr
     "hymn-ocr",
     "cryptography>=47.0.0,<48.0.0",
+    "strawberry-graphql-django>=0.50,<1.0",
+    "strawberry-graphql>=0.250,<1.0",
 ]
 
 [dependency-groups]
