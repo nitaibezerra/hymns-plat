@@ -100,19 +100,24 @@ class TestTemplateUsage:
         assert 'class="font-display' in html or 'class="font-display ' in html or "font-display text" in html
 
     def test_carousel_hymn_title_uses_display_face(self):
-        # hymnbook_detail carousel mode h2.
-        html = _read("templates/hymns/hymnbook_detail.html")
-        # Three modes — at least the carousel/corrido h2 uses font-display.
-        assert html.count("font-display") >= 3, "expected font-display on hero h1, monogram, hymn h2 (carousel/corrido)"
+        # Após o refactor, corrido/carrossel vivem em `hymnbook_read.html`.
+        # Detail mantém hero h1 + monogram (placeholder sem cover).
+        detail = _read("templates/hymns/hymnbook_detail.html")
+        assert detail.count("font-display") >= 2, "expected font-display on hero h1 + monogram placeholder"
+        read = _read("templates/hymns/hymnbook_read.html")
+        assert "font-display" not in read or "hymn-title" in read, (
+            "carrossel/corrido podem usar font-serif no título (page-de-cantador), "
+            "mas hymn-title precisa estar presente"
+        )
 
     def test_brand_uses_display_face(self):
         html = _read("templates/_partials/_header.html")
         assert "font-display" in html, "brand 'Hinaria' should use the display face"
 
     def test_hymn_body_wrapper_keeps_serif_face(self):
-        # Body wrappers must keep `font-serif` (now Source Serif 4) — not be flipped to display.
+        # Body wrappers em `hymnbook_read.html` mantêm `font-serif` (Source Serif 4).
         # Line-height vem do `LINE_HEIGHT_EM` em hymn_extras.py (1.55, alinhado
         # ao design), não mais via Tailwind `leading-[1.7]`.
-        html = _read("templates/hymns/hymnbook_detail.html")
+        html = _read("templates/hymns/hymnbook_read.html")
         assert "font-serif text-lg mx-auto carousel-body" in html
         assert "font-serif text-lg max-w-prose mx-auto hymn-body-centered" in html

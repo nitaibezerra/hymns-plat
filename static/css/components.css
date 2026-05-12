@@ -140,7 +140,27 @@ html.dark .btn-pill[data-active="true"] {
   border-color: var(--color-gold);
 }
 
-/* ===== BARRA "MODO DE LEITURA" =====
+/* ===== TOGGLE EDITORIAL (corrido / carrossel) na tela /ler/ =====
+   Anchors sem caixa: cor label-mono no estado normal, ativo ganha
+   underline rust + cor ink. Sentido editorial, leitura de índice. */
+.reading-toggle {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  padding-bottom: 4px;
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+  transition: color 120ms, border-color 120ms;
+}
+.reading-toggle:hover { color: var(--color-ink); }
+.reading-toggle--active {
+  color: var(--color-ink);
+  border-bottom-color: var(--color-rust);
+}
+
+/* ===== BARRA "MODO DE LEITURA" (legado — não mais usada no detail) =====
    Wrapper "pill" com border + paper bg, abrigando os 3 botões. Botão ativo
    usa rust (burgundy) — espelha `_design/fase2-bundle/.../hymnbook-detail.jsx`
    linhas 56-86. */

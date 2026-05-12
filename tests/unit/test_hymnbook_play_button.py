@@ -49,23 +49,19 @@ class TestHymnbookHeaderPlayButton:
 
 @pytest.mark.django_db
 class TestIndiceRowPlayIcons:
+    """Sumário do hinário (detail page) — botão ▶ por linha quando há áudio."""
+
     def test_row_with_audio_has_play_icon(self, client, hymn_book_factory, hymn_factory):
         from apps.hymns.models import HymnAudio
 
         hb = hymn_book_factory(name="IR Audio")
         h = hymn_factory(hymn_book=hb, number=1)
         HymnAudio.objects.create(hymn=h, audio_file=_audio(), is_approved=True)
-        url = reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug})
-        body = client.get(url).content.decode()
-        idx = body.find('data-mode-pane="indice"')
-        section = body[idx : idx + 8000]
-        assert "data-player-play-hymn" in section
+        body = client.get(reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug})).content.decode()
+        assert "data-player-play-hymn" in body
 
     def test_row_without_audio_has_no_play_icon(self, client, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="IR Silent")
         hymn_factory(hymn_book=hb, number=1)
-        url = reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug})
-        body = client.get(url).content.decode()
-        idx = body.find('data-mode-pane="indice"')
-        section = body[idx : idx + 8000]
-        assert "data-player-play-hymn" not in section
+        body = client.get(reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug})).content.decode()
+        assert "data-player-play-hymn" not in body

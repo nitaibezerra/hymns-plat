@@ -80,9 +80,10 @@ class TestHymnbookCorridoSimplifiedHeader:
     def test_title_format_and_no_clutter(self, client, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="Corrido Test")
         hymn_factory(hymn_book=hb, number=3, title="Lua Branca")
-        url = reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug}) + "?mode=corrido"
+        url = reverse("hymns:hymnbook_read", kwargs={"slug": hb.slug}) + "?modo=corrido"
         body = client.get(url).content.decode()
-        idx = body.find('data-mode-pane="corrido"')
+        # No corrido, cada hino é uma <article id="hymn-N"> dentro da seção.
+        idx = body.find('id="hymn-3"')
         assert idx >= 0
         section = body[idx : idx + 8000]
         # Título com formato N - Título
@@ -98,7 +99,7 @@ class TestHymnbookCarrosselSimplifiedHeader:
     def test_title_format_and_no_clutter(self, client, hymn_book_factory, hymn_factory):
         hb = hymn_book_factory(name="Carrossel Test")
         hymn_factory(hymn_book=hb, number=12, title="Sol da Verdade")
-        url = reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug}) + "?mode=carrossel"
+        url = reverse("hymns:hymnbook_read", kwargs={"slug": hb.slug}) + "?modo=carrossel"
         body = client.get(url).content.decode()
         idx = body.find('data-mode-pane="carrossel"')
         assert idx >= 0
