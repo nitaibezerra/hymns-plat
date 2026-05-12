@@ -2,7 +2,9 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchRank, TrigramSimilarity
 from django.db.models import F, Func, Q, Value
+from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView
@@ -31,13 +33,21 @@ class HymnBookListView(ListView):
 
 
 class HymnBookDetailView(DetailView):
-    """Display a single hymn book with all its hymns."""
+    """Display a single hymn book with all its hymns (sumário/índice)."""
 
     model = HymnBook
     template_name = "hymns/hymnbook_detail.html"
     context_object_name = "hymnbook"
     slug_field = "slug"
     slug_url_kwarg = "slug"
+
+    def get(self, request, *args, **kwargs):
+        # Share links antigos `?mode=corrido|carrossel` agora vivem em /ler/.
+        legacy_mode = request.GET.get("mode")
+        if legacy_mode in {"corrido", "carrossel"}:
+            url = reverse("hymns:hymnbook_read", kwargs={"slug": kwargs.get("slug")})
+            return HttpResponseRedirect(f"{url}?modo={legacy_mode}")
+        return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -49,10 +59,44 @@ class HymnBookDetailView(DetailView):
         context["hymns_with_audio"] = hymns_with_audio
         context["audios_count"] = len(hymns_with_audio)
         context["can_edit"] = can_edit_hymnbook(self.request.user, self.object)
-        mode = self.request.GET.get("mode", "indice")
-        if mode not in {"indice", "corrido", "carrossel"}:
-            mode = "indice"
-        context["mode"] = mode
+        return context
+
+
+class HymnBookReadView(DetailView):
+    """Tela de leitura imersiva (corrido ou carrossel) de um hinário.
+
+    Sem hero/cabeçalho do hinário — apenas breadcrumb, toggle e os hinos.
+    Default `modo=corrido`. `?hino=N` posiciona a tela no hino N ao carregar.
+    """
+
+    model = HymnBook
+    template_name = "hymns/hymnbook_read.html"
+    context_object_name = "hymnbook"
+    slug_field = "slug"
+    slug_url_kwarg = "slug"
+
+    def get_queryset(self):
+        return HymnBook.objects.visible_to(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        hymns = list(self.object.hymns.all().prefetch_related("audios").order_by("number"))
+        hymns_with_audio = {h.number for h in hymns if any(a.is_approved for a in h.audios.all())}
+
+        modo = self.request.GET.get("modo", "corrido")
+        if modo not in {"corrido", "carrossel"}:
+            modo = "corrido"
+
+        try:
+            initial_hymn = int(self.request.GET.get("hino", "") or 0) or None
+        except ValueError:
+            initial_hymn = None
+
+        context["hymns"] = hymns
+        context["hymns_with_audio"] = hymns_with_audio
+        context["audios_count"] = len(hymns_with_audio)
+        context["modo"] = modo
+        context["initial_hymn"] = initial_hymn or ""
         return context
 
 

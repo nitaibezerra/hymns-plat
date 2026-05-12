@@ -49,6 +49,7 @@ urlpatterns = [
     path("hinarios/<slug:slug>/publicar/check/", views.hymnbook_publish_check_view, name="hymnbook_publish_check"),
     path("hinarios/<slug:slug>/despublicar/", views.hymnbook_unpublish_view, name="hymnbook_unpublish"),
     path("hinarios/<slug:slug>/hinos/novo/", views.hymn_create_view, name="hymn_create"),
+    path("hinarios/<slug:slug>/ler/", views.HymnBookReadView.as_view(), name="hymnbook_read"),
     path("hinarios/<slug:slug>/", views.HymnBookDetailView.as_view(), name="hymnbook_detail"),
     path("hinos/<uuid:pk>/editar/", views.hymn_edit_view, name="hymn_edit"),
     path("hinos/<uuid:pk>/revisar/", views.revise_hymn_view, name="hymn_revise"),

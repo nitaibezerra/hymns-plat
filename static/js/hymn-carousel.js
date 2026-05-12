@@ -133,7 +133,14 @@
       goTo(currentIndex() + 1);
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      window.location.search = '?mode=indice';
+      // Na tela /ler/, voltar para o detail do hinário.
+      var readPage = document.querySelector('[data-reading-page]');
+      if (readPage && readPage.dataset.bookSlug) {
+        window.location.href = '/hinarios/' + readPage.dataset.bookSlug + '/';
+      } else {
+        // Fallback (não deveria ocorrer fora de /ler/): volta no histórico.
+        window.history.back();
+      }
     }
   });
 

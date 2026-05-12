@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load hymn_extras %}
+
+{% block title %}Leitura · {{ hymnbook.name }}{% endblock %}
+
+{% block content %}
+<section class="max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-3"
+         data-reading-page
+         data-book-slug="{{ hymnbook.slug }}"
+         data-initial-hymn="{{ initial_hymn }}">
+  <a href="{% url 'hymns:hymnbook_detail' hymnbook.slug %}"
+     class="inline-flex items-center gap-2 text-sm text-ink-soft hover:text-rust transition">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+    <span>{{ hymnbook.name }}</span>
+  </a>
+  <nav class="mt-4 flex gap-6" role="tablist" aria-label="Modo de leitura">
+    <a href="?modo=corrido{% if initial_hymn %}&hino={{ initial_hymn }}{% endif %}"
+       class="reading-toggle{% if modo == 'corrido' %} reading-toggle--active{% endif %}"
+       role="tab" aria-selected="{% if modo == 'corrido' %}true{% else %}false{% endif %}">Corrido</a>
+    <a href="?modo=carrossel{% if initial_hymn %}&hino={{ initial_hymn }}{% endif %}"
+       class="reading-toggle{% if modo == 'carrossel' %} reading-toggle--active{% endif %}"
+       role="tab" aria-selected="{% if modo == 'carrossel' %}true{% else %}false{% endif %}">Carrossel</a>
+  </nav>
+</section>
+
+{% if modo == 'corrido' %}
+<section class="bg-cream-deep dark:bg-night-deep">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+    {% for h in hymns %}
+      <article class="hymn-page hymn-card px-6 sm:px-12 md:px-14 py-8 sm:py-10" id="hymn-{{ h.number }}">
+        <h2 class="hymn-title">{{ h.number }} - {{ h.title }}</h2>
+        <div class="font-serif text-lg max-w-prose mx-auto hymn-body-centered">
+          {% render_hymn_body h %}
+        </div>
+        <div class="hymn-end" aria-hidden="true">{% if forloop.counter|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
+      </article>
+    {% empty %}
+      <p class="text-ink-soft">Nenhum hino cadastrado.</p>
+    {% endfor %}
+  </div>
+</section>
+{% else %}
+<section class="bg-cream-deep dark:bg-night-deep" data-mode-pane="carrossel" aria-roledescription="carousel">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-10 relative">
+    <div class="overflow-hidden">
+      <div class="overflow-x-auto overflow-y-hidden snap-x snap-mandatory flex items-start -mx-4 sm:-mx-6" data-carousel>
+        {% for h in hymns %}
+          <article class="hymn-card snap-start shrink-0 w-full carousel-slide" id="hymn-slide-{{ h.number }}">
+            <div class="flex flex-col items-center gap-6 px-4 sm:px-6 py-6">
+              <div class="carousel-counter-pill" aria-hidden="true">
+                <span>{{ h.number|stringformat:"02d" }} / {{ hymns|length }}</span>
+              </div>
+              <div class="hymn-page hymn-page-deep w-full max-w-2xl px-6 sm:px-12 md:px-16 py-10 sm:py-14 text-center">
+                <h2 class="hymn-title">{{ h.number }} - {{ h.title }}</h2>
+                <div class="font-serif text-lg mx-auto carousel-body">{% render_hymn_body h %}</div>
+                <div class="hymn-end" aria-hidden="true">{% if forloop.counter|divisibleby:3 %}☀ ☾ ★{% else %}✡{% endif %}</div>
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button type="button" data-carousel-prev class="hidden md:grid place-items-center absolute left-0 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full border border-ink/15 bg-cream/90 dark:bg-night/90 backdrop-blur hover:border-rust hover:text-rust transition" aria-label="Hino anterior">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button type="button" data-carousel-next class="hidden md:grid place-items-center absolute right-0 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full border border-ink/15 bg-cream/90 dark:bg-night/90 backdrop-blur hover:border-rust hover:text-rust transition" aria-label="Próximo hino">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+
+    <div class="mt-8 flex flex-col items-center gap-2">
+      <div class="flex items-center justify-center gap-1" data-carousel-dots>
+        {% for i in '01234567890'|make_list %}
+          <button type="button" data-carousel-dot data-dot-position="{{ forloop.counter0 }}" class="carousel-dot" aria-label="Posição {{ forloop.counter }} de 11"></button>
+        {% endfor %}
+      </div>
+      <p class="label-mono">← → para navegar · espaço para tocar áudio · Esc para sair</p>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

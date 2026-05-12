@@ -1,26 +1,27 @@
-{# Card colorido de hinário (Marco 2.1.1). Usa display_accent. #}
-{# Quando há cover_image, confiamos no design da própria imagem e só sobrepomos o badge RASCUNHO. #}
-<a href="{% url 'hymns:hymnbook_detail' hb.slug %}" class="group block rounded-xl overflow-hidden shadow-soft border border-ink/10 hover:-translate-y-0.5 transition-transform" style="background: linear-gradient(140deg, {{ hb.display_accent }} 0%, color-mix(in srgb, {{ hb.display_accent }} 60%, black) 100%);">
-  {% if hb.cover_image %}
-    <article class="relative aspect-[3/4] overflow-hidden">
-      <img src="{{ hb.cover_image.url }}" alt="Capa de {{ hb.name }}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105">
-      {% if not hb.is_published %}
-        <p class="label-mono absolute top-4 left-4 inline-block bg-night/70 backdrop-blur px-2 py-0.5 rounded-full text-cream">RASCUNHO</p>
+{# Card do hinário. Avatar (foto do dono ou letra) + nome + dono. #}
+{# Mobile: horizontal compacto. Desktop (sm+): vertical com avatar pequeno acima do texto. #}
+<a href="{% url 'hymns:hymnbook_detail' hb.slug %}"
+   class="group block rounded-xl overflow-hidden shadow-soft border border-ink/10 hover:-translate-y-0.5 transition-transform text-cream"
+   style="background: linear-gradient(140deg, {{ hb.display_accent }} 0%, color-mix(in srgb, {{ hb.display_accent }} 60%, black) 100%);">
+  <article class="relative flex items-center gap-4 p-4 sm:block sm:p-6 sm:aspect-[4/5]">
+    {# Avatar — circular, foto do dono ou monograma. #}
+    <div class="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border border-cream/15 bg-cream/5 grid place-items-center">
+      {% if hb.cover_image %}
+        <img src="{{ hb.cover_image.url }}"
+             alt="Capa de {{ hb.name }}"
+             class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105">
+      {% else %}
+        <span class="font-display text-4xl sm:text-5xl leading-none text-cream/40 group-hover:text-cream/60 transition-colors" aria-hidden="true">{{ hb.name|first|upper }}</span>
       {% endif %}
-    </article>
-  {% else %}
-    <article class="relative aspect-[3/4] p-6 text-cream flex flex-col">
-      <span class="absolute inset-0 grid place-items-center pointer-events-none" aria-hidden="true">
-        <span class="font-display text-[8rem] leading-none text-cream/20 group-hover:text-cream/30 transition-colors">{{ hb.name|first|upper }}</span>
-      </span>
-      <span class="label-mono opacity-80 text-cream/80 relative">EST. {{ hb.created_at|date:"Y" }}</span>
-      <div class="mt-auto relative">
-        <h3 class="font-display text-2xl leading-tight">{{ hb.name }}</h3>
-        <p class="label-mono mt-1 text-cream/80">{{ hb.owner_name }}</p>
-        {% if not hb.is_published %}
-          <p class="label-mono mt-2 inline-block bg-cream/15 px-2 py-0.5 rounded-full text-cream/90">RASCUNHO</p>
-        {% endif %}
-      </div>
-    </article>
-  {% endif %}
+    </div>
+
+    {# Texto — à direita no mobile, abaixo do avatar no desktop. #}
+    <div class="flex-1 min-w-0 sm:mt-5">
+      <h3 class="font-display text-xl sm:text-2xl leading-tight">{{ hb.name }}</h3>
+      <p class="label-mono mt-1 text-cream/80 truncate">{{ hb.owner_name }}</p>
+      {% if not hb.is_published %}
+        <p class="label-mono mt-2 inline-block bg-cream/15 px-2 py-0.5 rounded-full text-cream/90">RASCUNHO</p>
+      {% endif %}
+    </div>
+  </article>
 </a>

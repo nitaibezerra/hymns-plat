@@ -52,9 +52,24 @@
   }
 
   function set(patch) {
+    var prevIdx = state.currentIdx;
+    var prevSlug = state.book && state.book.slug;
     Object.assign(state, patch);
     save();
     render();
+    // Notifica consumers (ex: tela /ler/ sincronizando scroll) quando muda
+    // o hino atual ou o hinário. Idempotente: só dispara se de fato mudou.
+    if ('currentIdx' in patch || 'book' in patch || 'queue' in patch) {
+      var t = currentTrack();
+      var newSlug = state.book && state.book.slug;
+      if (t && (prevIdx !== state.currentIdx || prevSlug !== newSlug)) {
+        try {
+          window.dispatchEvent(new CustomEvent('hinaria-player:track', {
+            detail: { slug: newSlug, n: t.n },
+          }));
+        } catch (e) { /* CustomEvent não suportado — ignorar */ }
+      }
+    }
   }
 
   function fmt(seconds) {
