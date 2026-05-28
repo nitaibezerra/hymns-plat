@@ -878,6 +878,420 @@ html.dark .hymn-page { border-color: var(--color-rule); }
 }
 
 /* =====================================================
+ * Workspace Editorial · cards verticais "queue-card"
+ * Espelha §1 do handoff `_plan/handoff-claude-code-fase2x.md` e
+ * `screens/editor-queue.jsx` do bundle Fase 2.x. Anatomia:
+ *  header [num · nome+glifo · pill priority]
+ *  4 micro-barras [REV / EST / REP / AUD]
+ *  última atividade (sparkline + texto mono)
+ *  ações (botão primary + botão ghost gold)
+ * ===================================================== */
+.queue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 24px 20px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-card, 12px);
+  box-shadow: 0 1px 2px var(--color-shadow);
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 150ms, box-shadow 150ms, transform 100ms;
+}
+.queue-card:hover {
+  border-color: color-mix(in oklab, var(--color-ink) 22%, var(--color-rule));
+  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+.queue-card--p1 {
+  border-color: color-mix(in oklab, var(--color-vermilion, var(--color-rust)) 25%, var(--color-rule));
+}
+.queue-card-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: flex-start;
+}
+.queue-card-num {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: var(--color-bg-soft, color-mix(in srgb, var(--color-ink) 6%, transparent));
+  color: var(--color-ink-mute);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 22px;
+}
+.queue-card-num.is-lead {
+  background: var(--color-gold);
+  color: var(--color-ink);
+}
+
+/* Glifo "estrela de 8 pontas" que aparece ao lado do nome se is_featured. */
+.featured-glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--color-gold);
+}
+
+/* === Pill de prioridade (canto direito do header) === */
+.priority-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.priority-pill--p1 {
+  background: var(--color-vermilion, var(--color-rust));
+  color: var(--color-bg);
+  border-color: var(--color-vermilion, var(--color-rust));
+  font-weight: 600;
+}
+.priority-pill--p2 {
+  background: var(--color-gold);
+  color: var(--color-ink);
+  border-color: var(--color-gold);
+  font-weight: 600;
+}
+.priority-pill--p3 {
+  background: transparent;
+  color: var(--color-ink-mute);
+  border-color: var(--color-rule);
+}
+
+/* === Bloco de 4 micro-barras === */
+.queue-card-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.metric-bar {
+  display: grid;
+  grid-template-columns: 32px 1fr 36px;
+  gap: 10px;
+  align-items: center;
+}
+.metric-bar-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--color-ink-mute);
+}
+.metric-bar-track {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--color-rule) 50%, var(--color-bg));
+  overflow: hidden;
+}
+.metric-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-gold);
+  transition: width 200ms;
+}
+/* Barra "REV" usa firmament pra distinguir como métrica primária. */
+.metric-bar--rev .metric-bar-fill {
+  background: var(--color-firmament);
+}
+.metric-bar-pct {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-ink-soft);
+  text-align: right;
+}
+
+/* === Última atividade — sparkline + linha mono === */
+.queue-card-activity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-rule-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-ink-mute);
+  letter-spacing: 0.02em;
+}
+.queue-card-spark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  width: 56px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.queue-card-spark > i {
+  display: block;
+  width: 5px;
+  background: var(--color-gold);
+  border-radius: 1px;
+  opacity: 0.7;
+}
+.queue-card-spark > i:nth-child(1) { height: 35%; }
+.queue-card-spark > i:nth-child(2) { height: 60%; opacity: 0.4; }
+.queue-card-spark > i:nth-child(3) { height: 25%; }
+.queue-card-spark > i:nth-child(4) { height: 80%; }
+.queue-card-spark > i:nth-child(5) { height: 50%; opacity: 0.4; }
+.queue-card-spark > i:nth-child(6) { height: 90%; }
+.queue-card-spark > i:nth-child(7) { height: 65%; }
+.queue-card-activity-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.queue-card-activity-text strong {
+  color: var(--color-ink-soft);
+  font-weight: 500;
+}
+.queue-card-activity-when { flex-shrink: 0; }
+.queue-card-activity-empty {
+  padding-top: 0;
+  font-style: italic;
+  color: var(--color-ink-mute);
+}
+
+/* === Ações no rodapé do card === */
+.queue-card-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+.btn-ghost-gold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-gold);
+  background: transparent;
+  color: var(--color-gold);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.btn-ghost-gold:hover {
+  background: color-mix(in oklab, var(--color-gold) 12%, var(--color-bg));
+  color: var(--color-ink);
+}
+
+/* === Chips de filtro: Ordenar / Prioridade === */
+.priority-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-rule);
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.priority-chip:hover {
+  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+  color: var(--color-ink);
+}
+.priority-chip.is-active {
+  background: var(--color-ink);
+  color: var(--color-bg);
+  border-color: var(--color-ink);
+}
+.priority-chip[data-dot]::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.priority-chip[data-dot="vermilion"]::before { background: var(--color-vermilion, var(--color-rust)); }
+.priority-chip[data-dot="gold"]::before { background: var(--color-gold); }
+.priority-chip.is-active[data-dot]::before { background: var(--color-bg); }
+
+/* =====================================================
+ * CTA pill "Fila de revisão" no header (editor-only).
+ * Substitui o item de nav central — vive ao lado do search e do sino.
+ * Espelha §2 do handoff `_plan/handoff-claude-code-fase2x.md` e
+ * `.editor-cta` do bundle de design Fase 2.x.
+ * ===================================================== */
+.editor-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--color-gold) 45%, var(--color-rule));
+  background: color-mix(in oklab, var(--color-gold) 8%, var(--color-bg));
+  color: color-mix(in oklab, var(--color-gold) 85%, var(--color-ink));
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background 150ms, border-color 150ms, color 150ms;
+}
+.editor-cta:hover {
+  background: color-mix(in oklab, var(--color-gold) 18%, var(--color-bg));
+  border-color: var(--color-gold);
+  color: var(--color-ink);
+}
+.editor-cta.is-active {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-bg);
+}
+.editor-cta-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--color-gold);
+  color: #1A1D2E;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+.editor-cta.is-active .editor-cta-count {
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+/* =====================================================
+ * Strip horizontal "Curadoria editorial" no hymnbook_detail (staff-only).
+ * Substitui o card-soft anterior — fica como um header secundário,
+ * uma linha só, sem ocupar espaço editorial. Espelha §3 do handoff
+ * `_plan/handoff-claude-code-fase2x.md`.
+ * ===================================================== */
+.editor-strip {
+  background: color-mix(in srgb, var(--color-bg-soft, var(--color-bg)) 92%, var(--color-ink) 0%);
+  border-bottom: 1px solid var(--color-rule);
+}
+.editor-strip-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+}
+.editor-strip-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-mute);
+}
+.editor-strip-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.editor-strip-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--color-ink-soft);
+}
+.priority-segmented {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: 999px;
+}
+.priority-segmented-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.priority-segmented-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  opacity: 0.7;
+  background: currentColor;
+}
+.priority-segmented-btn--p1 { color: var(--color-vermilion, var(--color-rust)); }
+.priority-segmented-btn--p2 { color: var(--color-gold); }
+.priority-segmented-btn--p3 { color: var(--color-ink-mute); }
+/* Estado ativo (controlado por data-active=true no <label>, definido no
+   server-render). O <input> radio fica sr-only — visual vai todo no label. */
+.priority-segmented-btn[data-active="true"] { color: var(--color-bg); }
+.priority-segmented-btn--p1[data-active="true"] { background: var(--color-vermilion, var(--color-rust)); }
+.priority-segmented-btn--p2[data-active="true"] { background: var(--color-gold); color: var(--color-ink); }
+.priority-segmented-btn--p3[data-active="true"] { background: var(--color-ink-soft); color: var(--color-bg); }
+.priority-segmented-btn[data-active="true"] .priority-segmented-dot { opacity: 0; }
+/* Foco/teclado: ainda usamos o <input> sr-only como source of truth — quando
+   ele recebe foco via Tab, sobe um outline no label adjacente. */
+.priority-segmented-btn:has(input:focus-visible) {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+.editor-strip-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+}
+.editor-strip-checkbox {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--color-gold);
+  margin: 0;
+}
+.editor-strip-save {
+  margin-left: auto;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-rule);
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.editor-strip-save:hover {
+  background: var(--color-bg-soft);
+  border-color: var(--color-ink-soft);
+}
+
+/* =====================================================
  * Tela 07c · Revisão ágil — tiles + atalhos visuais
  * ===================================================== */
 .quick-tile {

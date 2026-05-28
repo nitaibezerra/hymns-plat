@@ -1,0 +1,318 @@
+/* Component primitives for Hymns Platform Phase 2 */
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ===== APP CHROME ===== */
+.app-shell {
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 600px;
+}
+
+.appbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--rule);
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-soft) 100%);
+}
+.appbar .brand {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-display);
+  font-size: 22px; font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+.appbar .brand .glyph {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  color: var(--gold);
+}
+.appbar .brand .glyph svg { width: 100%; height: 100%; }
+.appbar nav {
+  display: flex; gap: 22px;
+  font-family: var(--font-sans);
+  font-size: 14px; font-weight: 500;
+  color: var(--ink-soft);
+}
+.appbar nav a {
+  color: inherit; text-decoration: none;
+  padding: 6px 0;
+  border-bottom: 1.5px solid transparent;
+  transition: border-color .15s, color .15s;
+}
+.appbar nav a:hover { color: var(--ink); }
+.appbar nav a[aria-current="page"] {
+  color: var(--firmament);
+  border-bottom-color: var(--gold);
+}
+.appbar .spacer { flex: 1; }
+.appbar .search-mini {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px;
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ink-mute);
+  min-width: 240px;
+  cursor: text;
+}
+/* Fila de revisão — CTA do revisor ao lado do avatar.
+   Discreto por padrão (texto + ícone + contador), realça quando ativo. */
+.appbar .editor-cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 12px 7px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--gold) 45%, var(--rule));
+  background: color-mix(in oklab, var(--gold) 8%, var(--paper));
+  color: color-mix(in oklab, var(--gold) 85%, var(--ink));
+  font-family: var(--font-sans);
+  font-size: 13px; font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.appbar .editor-cta:hover {
+  background: color-mix(in oklab, var(--gold) 18%, var(--paper));
+  border-color: var(--gold);
+  color: var(--ink);
+}
+.appbar .editor-cta[aria-current="page"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+.appbar .editor-cta-count {
+  display: inline-grid; place-items: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #1a1d2e;
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600;
+  line-height: 1;
+}
+.appbar .editor-cta[aria-current="page"] .editor-cta-count {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.appbar .icon-btn {
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--paper-soft);
+  color: var(--ink-soft);
+  position: relative;
+  cursor: pointer;
+}
+.appbar .icon-btn .dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--vermilion);
+}
+.appbar .avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--firmament-2), var(--firmament));
+  color: #f0e7d2;
+  display: grid; place-items: center;
+  font-family: var(--font-display);
+  font-size: 14px; font-weight: 600;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  font-size: 14px; font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform .06s ease, background .15s;
+  line-height: 1;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--firmament); color: var(--paper); }
+.btn-primary:hover { background: var(--firmament-2); }
+.btn-ghost {
+  background: transparent; color: var(--ink-soft);
+  border-color: var(--rule);
+}
+.btn-ghost:hover { background: var(--paper-soft); color: var(--ink); }
+.btn-gold {
+  background: var(--gold); color: #1a1d2e;
+  border-color: transparent;
+}
+.btn-gold:hover { background: var(--gold-soft); }
+.btn-danger { color: var(--vermilion); border-color: var(--rule); background: transparent; }
+
+/* ===== TYPE ===== */
+.h-display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  line-height: 1.1;
+  color: var(--ink);
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+/* ===== CARDS ===== */
+.card {
+  background: var(--paper-soft);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.hairline { height: 1px; background: var(--rule); margin: 16px 0; border: 0; }
+
+/* Clickable queue row */
+.queue-row { display: block; }
+.queue-row:hover { background: var(--paper); box-shadow: 0 2px 10px rgba(0,0,0,0.04); border-color: var(--ink-soft); }
+
+/* ===== STATUS PILLS ===== */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+.pill::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor;
+}
+.pill-ok      { color: var(--status-ok); border-color: color-mix(in oklab, var(--status-ok) 35%, var(--rule)); }
+.pill-mid     { color: var(--status-mid); border-color: color-mix(in oklab, var(--status-mid) 35%, var(--rule)); }
+.pill-not     { color: var(--status-not); border-color: color-mix(in oklab, var(--status-not) 35%, var(--rule)); }
+.pill-pub     { color: var(--firmament); border-color: color-mix(in oklab, var(--firmament) 35%, var(--rule)); }
+.pill-draft   { color: var(--ink-mute); }
+
+/* ===== PROGRESS ===== */
+.progress {
+  position: relative; height: 6px;
+  background: var(--paper-deep);
+  border-radius: 999px; overflow: hidden;
+}
+.progress > i {
+  position: absolute; top: 0; left: 0; bottom: 0;
+  background: linear-gradient(90deg, var(--firmament), var(--firmament-2));
+  border-radius: 999px;
+}
+.progress.gold > i { background: linear-gradient(90deg, var(--gold), var(--gold-soft)); }
+
+/* ===== HYMN TYPESETTING (PDF-faithful) =====
+   Replicates apps/hymns/repetitions.py output:
+   - left repetition bars (vertical hairlines)
+   - end-of-hymn centered glyph (✡ ☀ ☾ ★)
+*/
+.hymn-page {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-1);
+  padding: 56px 64px;
+  font-family: var(--font-serif);
+}
+.hymn-page .hymn-title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 28px;
+  text-align: center;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.hymn-page .hymn-num {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.2em;
+  color: var(--ink-mute);
+  margin-bottom: 14px;
+}
+.hymn-page .title-rule {
+  height: 1px; background: var(--rule); margin: 0 auto 28px;
+  width: 70%;
+}
+.hymn-body {
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+.hymn-stanza { position: relative; padding-left: 18px; margin-bottom: 22px; }
+.hymn-stanza.rep::before {
+  content: ""; position: absolute; left: 0; top: 4px; bottom: 4px;
+  width: 1px; background: var(--ink-soft);
+}
+.hymn-stanza.rep::after {
+  content: attr(data-rep);
+  position: absolute; left: -22px; top: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+}
+.hymn-end {
+  text-align: center;
+  margin-top: 28px;
+  font-size: 18px;
+  color: var(--gold);
+  letter-spacing: 0.4em;
+}
+.hymn-meta-row {
+  display: flex; justify-content: space-between; gap: 24px;
+  margin-top: 24px; padding-top: 16px;
+  border-top: 1px solid var(--rule-soft);
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.1em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+}
+
+/* ===== KBD ===== */
+kbd {
+  display: inline-block;
+  padding: 2px 7px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+/* utilities */
+.row { display: flex; gap: 12px; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.muted { color: var(--ink-mute); }
+.serif { font-family: var(--font-serif); }
+.display { font-family: var(--font-display); }
+.mono { font-family: var(--font-mono); }

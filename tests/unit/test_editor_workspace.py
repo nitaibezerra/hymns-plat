@@ -327,27 +327,10 @@ class TestRevisePerLineConfidenceSparkline:
         resp = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk}))
         assert resp.context["ocr_line_confidences"] == []
 
-    def test_template_renders_sparkline_bar_per_line(self, authenticated_client, hymn_book_factory, hymn_factory):
-        _make_editor(authenticated_client.user)
-        hb = hymn_book_factory(name="X")
-        h = hymn_factory(
-            hymn_book=hb,
-            number=1,
-            text="a\nb\nc\nd",
-            ocr_text="a\nb\nc\nd",
-            ocr_avg_confidence=87,
-        )
-        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
-        assert "ocr-confidence-sparkline" in body
-        # Uma barra por linha do OCR (4)
-        assert body.count("data-confidence=") == 4
-
-    def test_template_skips_sparkline_section_when_no_ocr(self, authenticated_client, hymn_book_factory, hymn_factory):
-        _make_editor(authenticated_client.user)
-        hb = hymn_book_factory(name="X")
-        h = hymn_factory(hymn_book=hb, number=1, ocr_text="", ocr_avg_confidence=None)
-        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
-        assert "ocr-confidence-sparkline" not in body
+    # Sparkline UI removida no handoff Fase 2.x §4 (template não tem mais
+    # `ocr-confidence-sparkline`). O backend continua computando
+    # `ocr_line_confidences` no contexto — útil para futuras reativações ou
+    # análises, mas não renderiza mais na tela do editor.
 
 
 class TestReviseKeyboardShortcuts:
@@ -511,50 +494,9 @@ class TestReviseCommonValuesPills:
 
 @pytest.mark.django_db
 class TestReviseInlineDiff:
-    """Diff inline palavra-por-palavra (gap 2). OCR `iluminna` vs current
-    `ilumina` deve gerar tokens `t-sub`/`t-add` lado a lado, não linhas
-    inteiras `+/-`."""
-
-    def test_inline_diff_word_substitution_marks_tokens(self, authenticated_client, hymn_book_factory, hymn_factory):
-        _make_editor(authenticated_client.user)
-        hb = hymn_book_factory(name="X")
-        h = hymn_factory(
-            hymn_book=hb,
-            number=1,
-            text="Sol da manhã\nQue ilumina",
-            ocr_text="Sol da manhã\nQue iluminna",
-        )
-        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
-        # Token sub para `iluminna` (vai sair) e add para `ilumina` (vai entrar).
-        assert 't-sub"' in body or "t-sub'" in body
-        assert "iluminna" in body
-        assert "ilumina" in body
-
-    def test_inline_diff_added_line_marked(self, authenticated_client, hymn_book_factory, hymn_factory):
-        _make_editor(authenticated_client.user)
-        hb = hymn_book_factory(name="X")
-        h = hymn_factory(
-            hymn_book=hb,
-            number=1,
-            text="A\nB\nC",
-            ocr_text="A\nB",
-        )
-        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
-        # Linha "C" foi acrescentada → marcador add.
-        assert "diff-line add" in body
-
-    def test_inline_diff_counter_present(self, authenticated_client, hymn_book_factory, hymn_factory):
-        _make_editor(authenticated_client.user)
-        hb = hymn_book_factory(name="X")
-        h = hymn_factory(
-            hymn_book=hb,
-            number=1,
-            text="A\nilumina",
-            ocr_text="A\niluminna",
-        )
-        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
-        assert "alterações" in body
-        assert "acréscimos" in body
+    """Diff inline palavra-por-palavra (gap 2). Removido do template no handoff
+    Fase 2.x §4 — o editor só tem o pane "Escrever". A função backend
+    `_compute_inline_diff` ainda existe e é pinada aqui via contexto."""
 
     def test_inline_diff_empty_when_no_ocr(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
@@ -655,40 +597,29 @@ class TestReviseLayoutInversion:
 
     def test_editor_pane_appears_before_preview_pane(self, authenticated_client, hymn_book_factory, hymn_factory):
         body = self._render(authenticated_client, hymn_book_factory, hymn_factory)
-        editor_idx = body.find("data-editor-pane")
+        # Após o handoff §4 a coluna esquerda não tem mais sentinel
+        # `data-editor-pane`/view-toggle. Usamos o eyebrow "Editor · texto"
+        # da coluna esquerda + `data-preview-root` da direita pra checar ordem.
+        editor_idx = body.find("Editor · texto")
         preview_idx = body.find("data-preview-root")
-        assert editor_idx != -1, "editor pane (data-editor-pane) ausente"
+        assert editor_idx != -1, "header 'Editor · texto' ausente"
         assert preview_idx != -1, "preview pane (data-preview-root) ausente"
         assert editor_idx < preview_idx, "editor deve aparecer antes da prévia no DOM"
 
 
 @pytest.mark.django_db
-class TestReviseEditorViewToggle:
-    """3 sub-views da coluna do editor: write / ocr / diff."""
+class TestReviseNoOcrToggle:
+    """View toggle Escrever/OCR cru/Diff vs OCR removida no handoff §4."""
 
-    def test_three_view_buttons_present(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_toggle_buttons_absent(self, authenticated_client, hymn_book_factory, hymn_factory):
         _make_editor(authenticated_client.user)
         hb = hymn_book_factory(name="X")
         h = hymn_factory(hymn_book=hb, number=1, title="t", text="L", ocr_text="oo")
         body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
-        assert 'data-view="write"' in body
-        assert 'data-view="ocr"' in body
-        assert 'data-view="diff"' in body
-
-    def test_default_view_pane_is_write_visible(self, authenticated_client, hymn_book_factory, hymn_factory):
-        _make_editor(authenticated_client.user)
-        hb = hymn_book_factory(name="X")
-        h = hymn_factory(hymn_book=hb, number=1, title="t", text="L")
-        body = authenticated_client.get(reverse("hymns:editor_revise_hymn", kwargs={"pk": h.pk})).content.decode()
-        # Container marca o view ativo
-        assert 'data-active-view="write"' in body
-        # Panes ocr/diff começam com classe `hidden`
-        import re
-
-        ocr_pane = re.search(r'<[^>]*data-view-pane="ocr"[^>]*>', body)
-        diff_pane = re.search(r'<[^>]*data-view-pane="diff"[^>]*>', body)
-        assert ocr_pane and "hidden" in ocr_pane.group(0)
-        assert diff_pane and "hidden" in diff_pane.group(0)
+        assert "data-view-toggle" not in body
+        assert 'data-view="ocr"' not in body
+        assert 'data-view="diff"' not in body
+        assert "data-active-view" not in body
 
 
 @pytest.mark.django_db

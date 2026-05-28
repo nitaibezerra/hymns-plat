@@ -80,7 +80,6 @@
         {% if hymn.style %}<div class="flex justify-between"><dt class="text-ink-soft">Estilo</dt><dd>{{ hymn.style }}</dd></div>{% endif %}
         {% if hymn.received_at %}<div class="flex justify-between"><dt class="text-ink-soft">Recebido em</dt><dd>{{ hymn.received_at|date:"d M Y" }}</dd></div>{% endif %}
         {% if hymn.offered_to %}<div class="flex justify-between"><dt class="text-ink-soft">Oferecido a</dt><dd>{{ hymn.offered_to }}</dd></div>{% endif %}
-        <div class="flex justify-between"><dt class="text-ink-soft">Origem</dt><dd>{{ hymn.get_source_display }}</dd></div>
         {% if hymn.last_reviewed_at %}
           <div class="flex justify-between"><dt class="text-ink-soft">Última revisão</dt>
             <dd>{% if hymn.last_reviewed_by %}{{ hymn.last_reviewed_by.username }} · {% endif %}{{ hymn.last_reviewed_at|date:"d M Y" }}</dd>
