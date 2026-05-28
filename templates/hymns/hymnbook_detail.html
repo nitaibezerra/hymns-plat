@@ -67,7 +67,7 @@
         {% with active=editorial_form.priority.value|stringformat:"s" %}
         {% for value, short in priority_segmented_labels %}
           <label class="priority-segmented-btn priority-segmented-btn--{{ value|lower }}"
-                 data-active="{% if active == value %}true{% else %}false{% endif %}">
+                 data-priority-option="{{ value }}">
             <input type="radio" name="priority" value="{{ value }}"
                    {% if active == value %}checked{% endif %} class="sr-only">
             <span class="priority-segmented-dot" aria-hidden="true"></span>

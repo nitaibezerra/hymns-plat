@@ -887,6 +887,7 @@ html.dark .hymn-page { border-color: var(--color-rule); }
  *  ações (botão primary + botão ghost gold)
  * ===================================================== */
 .queue-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -896,16 +897,36 @@ html.dark .hymn-page { border-color: var(--color-rule); }
   border-radius: var(--radius-card, 12px);
   box-shadow: 0 1px 2px var(--color-shadow);
   color: inherit;
-  text-decoration: none;
-  cursor: pointer;
   transition: border-color 150ms, box-shadow 150ms, transform 100ms;
 }
-.queue-card:hover {
+.queue-card:hover,
+.queue-card:focus-within {
   border-color: color-mix(in oklab, var(--color-ink) 22%, var(--color-rule));
   box-shadow: 0 6px 20px rgba(0,0,0,0.06);
 }
 .queue-card--p1 {
   border-color: color-mix(in oklab, var(--color-vermilion, var(--color-rust)) 25%, var(--color-rule));
+}
+
+/* Stretched-link: o título é o único `<a>` visível, mas o ::after estende
+   a área clicável a todo o card. Botões internos (z-index: 2) ficam acima
+   desse overlay, então clicar neles ainda navega para a action correta. */
+.queue-card-title-link {
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+.queue-card-title-link:hover { color: var(--color-gold); }
+.queue-card-title-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 1;
+}
+.queue-card-title-link:focus-visible::after {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
 }
 .queue-card-header {
   display: grid;
@@ -1065,9 +1086,18 @@ html.dark .hymn-page { border-color: var(--color-rule); }
 
 /* === Ações no rodapé do card === */
 .queue-card-actions {
+  position: relative;
+  z-index: 2; /* acima do ::after da stretched-link */
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
+  align-items: stretch;
+}
+.queue-card-publish-form { display: contents; }
+.queue-card-actions .btn-primary-firmament,
+.queue-card-actions .btn-ghost-gold {
+  width: 100%;
+  text-align: center;
 }
 .btn-ghost-gold {
   display: inline-flex;
@@ -1245,15 +1275,17 @@ html.dark .hymn-page { border-color: var(--color-rule); }
 .priority-segmented-btn--p1 { color: var(--color-vermilion, var(--color-rust)); }
 .priority-segmented-btn--p2 { color: var(--color-gold); }
 .priority-segmented-btn--p3 { color: var(--color-ink-mute); }
-/* Estado ativo (controlado por data-active=true no <label>, definido no
-   server-render). O <input> radio fica sr-only — visual vai todo no label. */
-.priority-segmented-btn[data-active="true"] { color: var(--color-bg); }
-.priority-segmented-btn--p1[data-active="true"] { background: var(--color-vermilion, var(--color-rust)); }
-.priority-segmented-btn--p2[data-active="true"] { background: var(--color-gold); color: var(--color-ink); }
-.priority-segmented-btn--p3[data-active="true"] { background: var(--color-ink-soft); color: var(--color-bg); }
-.priority-segmented-btn[data-active="true"] .priority-segmented-dot { opacity: 0; }
-/* Foco/teclado: ainda usamos o <input> sr-only como source of truth — quando
-   ele recebe foco via Tab, sobe um outline no label adjacente. */
+/* Estado ativo derivado do próprio <input type="radio"> via `:has()` — clicar
+   no label muda o checked do radio e o CSS responde instantaneamente, sem JS.
+   O server marca o radio inicial via `checked`; o ativo é função pura do DOM
+   (sem `data-active` ou JS de toggle). `:has()` é GA desde dez/2023. */
+.priority-segmented-btn:has(input:checked) { color: var(--color-bg); }
+.priority-segmented-btn--p1:has(input:checked) { background: var(--color-vermilion, var(--color-rust)); }
+.priority-segmented-btn--p2:has(input:checked) { background: var(--color-gold); color: var(--color-ink); }
+.priority-segmented-btn--p3:has(input:checked) { background: var(--color-ink-soft); color: var(--color-bg); }
+.priority-segmented-btn:has(input:checked) .priority-segmented-dot { opacity: 0; }
+/* Foco/teclado: usamos o <input> sr-only como source of truth — quando ele
+   recebe foco via Tab, sobe um outline no label que o envolve. */
 .priority-segmented-btn:has(input:focus-visible) {
   outline: 2px solid var(--color-gold);
   outline-offset: 2px;
