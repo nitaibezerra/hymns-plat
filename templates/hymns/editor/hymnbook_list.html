@@ -69,16 +69,22 @@
   <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
     {% for hb in hymnbooks %}
       {% with rev=hb.review_pct|default:0 sty=hb.style_pct|default:0 rep=hb.reps_pct|default:0 aud=hb.audio_pct|default:0 %}
-      <a href="{% url 'hymns:editor_hymnbook_detail' hb.slug %}"
-         class="queue-card {% if hb.priority == 'P1' %}queue-card--p1{% endif %}">
-        {# Header: badge numérico + nome + glifo featured + pill prioridade #}
+      {% comment %}
+        Stretched-link pattern: wrapper é <article> (não <a> — anchors aninhados
+        quebram o parser e descosturam o card). Só o título é link visível; um
+        ::after no título estende a área clicável a todo o card. Botões internos
+        ficam em z-index 2 pra escapar do overlay.
+      {% endcomment %}
+      <article class="queue-card {% if hb.priority == 'P1' %}queue-card--p1{% endif %}"
+               data-queue-card data-slug="{{ hb.slug }}" data-priority="{{ hb.priority|default:'P3' }}">
         <header class="queue-card-header">
           <div class="queue-card-num {% if forloop.counter0 == 0 %}is-lead{% endif %}">{{ forloop.counter|stringformat:"02d" }}</div>
           <div class="min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="font-display text-xl leading-tight">{{ hb.name }}</span>
+              <a href="{% url 'hymns:editor_hymnbook_detail' hb.slug %}"
+                 class="queue-card-title-link font-display text-xl leading-tight">{{ hb.name }}</a>
               {% if hb.is_featured %}
-                <span class="featured-glyph" title="Em destaque na home" aria-label="Em destaque">
+                <span class="featured-glyph" title="Em destaque na home" aria-label="Em destaque" data-featured-glyph>
                   <svg viewBox="0 0 32 32" width="16" height="16" aria-hidden="true">
                     <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
                       <path d="M16 5 L16 27 M5 16 L27 16 M8 8 L24 24 M24 8 L8 24"/>
@@ -90,17 +96,17 @@
             </div>
             <p class="font-serif italic text-ink-soft text-sm mt-0.5">{{ hb.owner_name }} · subido {{ hb.created_at|timesince }} atrás</p>
           </div>
-          <span class="priority-pill priority-pill--{{ hb.priority|default:'P3'|lower }}">
+          <span class="priority-pill priority-pill--{{ hb.priority|default:'P3'|lower }}" data-priority-pill>
             {% if hb.priority == 'P1' %}P1 Urgente{% elif hb.priority == 'P2' %}P2 Atenção{% else %}P3{% endif %}
           </span>
         </header>
 
         {# 4 micro-barras: REV / EST / REP / AUD #}
-        <div class="queue-card-metrics">
-          <div class="metric-bar metric-bar--rev"><span class="metric-bar-label">REV</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ rev }}%;"></span></span><span class="metric-bar-pct">{{ rev }}%</span></div>
-          <div class="metric-bar"><span class="metric-bar-label">EST</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ sty }}%;"></span></span><span class="metric-bar-pct">{{ sty }}%</span></div>
-          <div class="metric-bar"><span class="metric-bar-label">REP</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ rep }}%;"></span></span><span class="metric-bar-pct">{{ rep }}%</span></div>
-          <div class="metric-bar"><span class="metric-bar-label">AUD</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ aud }}%;"></span></span><span class="metric-bar-pct">{{ aud }}%</span></div>
+        <div class="queue-card-metrics" data-queue-metrics>
+          <div class="metric-bar metric-bar--rev" data-metric="rev"><span class="metric-bar-label">REV</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ rev }}%;"></span></span><span class="metric-bar-pct">{{ rev }}%</span></div>
+          <div class="metric-bar" data-metric="est"><span class="metric-bar-label">EST</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ sty }}%;"></span></span><span class="metric-bar-pct">{{ sty }}%</span></div>
+          <div class="metric-bar" data-metric="rep"><span class="metric-bar-label">REP</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ rep }}%;"></span></span><span class="metric-bar-pct">{{ rep }}%</span></div>
+          <div class="metric-bar" data-metric="aud"><span class="metric-bar-label">AUD</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ aud }}%;"></span></span><span class="metric-bar-pct">{{ aud }}%</span></div>
         </div>
 
         {# Última atividade — sparkline + linha mono compacta #}
@@ -119,23 +125,23 @@
           {% endif %}
         </div>
 
-        {# Ações — stopPropagation porque o card todo é <a> #}
+        {# Ações: z-index:2 (em .queue-card-actions) faz a área clicável ficar à frente do overlay do título. #}
         <div class="queue-card-actions">
           {% if hb.review_pct == 100 and not hb.is_published %}
-            <form action="{% url 'hymns:hymnbook_publish' hb.slug %}" method="post" onclick="event.stopPropagation()">
+            <form action="{% url 'hymns:hymnbook_publish' hb.slug %}" method="post" class="queue-card-publish-form">
               {% csrf_token %}
-              <button class="btn-primary-firmament w-full">Publicar hinário ✓</button>
+              <button type="submit" class="btn-primary-firmament w-full justify-center">Publicar hinário ✓</button>
             </form>
           {% else %}
             <a href="{% url 'hymns:editor_next_hymn' hb.slug %}"
-               class="btn-primary-firmament text-center justify-center"
-               onclick="event.stopPropagation()">Revisar próximo →</a>
+               class="btn-primary-firmament justify-center"
+               data-action="next">Revisar próximo →</a>
           {% endif %}
           <a href="{% url 'hymns:editor_quick_review' hb.slug %}"
              class="btn-ghost-gold"
-             onclick="event.stopPropagation()">⚡ Revisão ágil</a>
+             data-action="quick">⚡ Revisão ágil</a>
         </div>
-      </a>
+      </article>
       {% endwith %}
     {% empty %}
       <div class="col-span-full card-soft p-10 text-center text-ink-soft font-serif italic">
