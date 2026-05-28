@@ -69,6 +69,25 @@ class HymnBook(models.Model):
         verbose_name="Publicado por",
     )
 
+    class Priority(models.TextChoices):
+        P1 = "P1", "P1 — alta urgência"
+        P2 = "P2", "P2 — média"
+        P3 = "P3", "P3 — baixa"
+
+    is_featured = models.BooleanField(
+        "Em destaque",
+        default=False,
+        help_text="Aparece com prioridade na seção 'Em destaque' da home (rotação por hora).",
+    )
+    priority = models.CharField(
+        "Prioridade de revisão",
+        max_length=2,
+        choices=Priority.choices,
+        default=Priority.P3,
+        db_index=True,
+        help_text="Define a urgência da revisão na fila de revisão (P1 = mais urgente).",
+    )
+
     created_at = models.DateTimeField("Criado em", auto_now_add=True)
     updated_at = models.DateTimeField("Atualizado em", auto_now=True)
 

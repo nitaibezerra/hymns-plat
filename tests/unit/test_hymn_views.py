@@ -457,21 +457,23 @@ class TestHomeView:
         assert book2 in recent
         assert book3 in recent
 
-    def test_home_view_recent_ordering(self, client):
-        """Test that home view orders recent hymn books by created_at descending."""
-        # Create books in specific order
-        book1 = HymnBook.objects.create(is_published=True, name="Primeiro", owner_name="Owner")
-        book2 = HymnBook.objects.create(is_published=True, name="Segundo", owner_name="Owner")
-        book3 = HymnBook.objects.create(is_published=True, name="Terceiro", owner_name="Owner")
+    def test_home_view_featured_first(self, client):
+        """Hinários `is_featured=True` aparecem antes dos demais na seção 'Em destaque'.
+
+        Após o refactor de 2026-05, a ordem deixou de ser `-created_at` e passou
+        a ser sample determinístico por hora — featured primeiro, depois os
+        demais até completar 6.
+        """
+        book1 = HymnBook.objects.create(is_published=True, name="Comum 1", owner_name="Owner")
+        book2 = HymnBook.objects.create(is_published=True, name="Comum 2", owner_name="Owner")
+        featured = HymnBook.objects.create(is_published=True, name="Destaque", owner_name="Owner", is_featured=True)
 
         url = reverse("hymns:home")
         response = client.get(url)
-
         recent = list(response.context["recent_hymnbooks"])
-        # Most recent first (created last)
-        assert recent[0] == book3
-        assert recent[1] == book2
-        assert recent[2] == book1
+
+        assert recent[0] == featured
+        assert book1 in recent and book2 in recent
 
     def test_home_view_total_hymnbooks_stat(self, client):
         """Test that home view shows total hymn books count."""

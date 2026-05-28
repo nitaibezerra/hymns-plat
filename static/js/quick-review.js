@@ -7,14 +7,15 @@
  *   ← / →              → navegar Anterior / Próximo (sem salvar)
  *   ⏎                  → submeter (Salvar e ir para o próximo)
  *
- * Pausa quando o input manual de repetições tem foco — assim o usuário
- * pode digitar dígitos sem que `1/2/3/4` mudem o tile ativo.
+ * Pausa atalhos quando qualquer input/textarea/select tem foco — assim o
+ * usuário pode digitar texto livre nos campos de estilo e repetições sem
+ * que `1/2/3/4/M/V/Z` mudem o tile ativo.
  */
 (function () {
   var form = document.querySelector('[data-quick-review]');
   if (!form) return;
 
-  var styleHidden = form.querySelector('[data-quick-style]');
+  var styleInput = form.querySelector('[data-quick-style]');
   var repsInput = form.querySelector('[data-quick-reps]');
   var prevLink = form.querySelector('[data-quick-prev]');
   var nextLink = form.querySelector('[data-quick-next]');
@@ -95,7 +96,7 @@
     setTimeout(function () { tile.classList.remove('quick-tile-flash'); }, 350);
   }
   function setStyle(value, sourceTile) {
-    if (styleHidden) styleHidden.value = value;
+    if (styleInput) styleInput.value = value;
     setActive('style', value);
     if (sourceTile) flash(sourceTile);
   }
@@ -122,6 +123,13 @@
     repsInput.addEventListener('input', function () {
       setActive('repetitions', repsInput.value);
       schedulePreviewRerender();
+    });
+  }
+
+  // Input livre de estilo: digitar reflete no tile ativo (se coincide com preset).
+  if (styleInput) {
+    styleInput.addEventListener('input', function () {
+      setActive('style', styleInput.value);
     });
   }
 
@@ -168,8 +176,11 @@
 
   // ===== Atalhos =====
   document.addEventListener('keydown', function (e) {
-    // Pausa quando input manual está em foco (digitar dígitos sem ativar 1/2/3/4)
-    if (document.activeElement === repsInput) return;
+    // Pausa quando qualquer input/textarea/select tem foco — digitar texto
+    // livre (incluindo dígitos e letras M/V/Z) não deve disparar atalhos.
+    var ae = document.activeElement;
+    if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+    if (ae && ae.isContentEditable) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
 
     var k = e.key;

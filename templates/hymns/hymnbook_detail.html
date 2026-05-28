@@ -54,6 +54,39 @@
 </section>
 {% endwith %}
 
+{% if editorial_form %}
+<section class="max-w-6xl mx-auto px-6 mt-6" data-editorial-panel>
+  <form method="post" action="{% url 'hymns:hymnbook_editorial_update' hymnbook.slug %}"
+        class="card-soft p-5 flex flex-col md:flex-row md:items-end gap-5 md:gap-8 border border-gold/20">
+    {% csrf_token %}
+    <div class="flex-1">
+      <p class="label-mono text-ink-soft">Curadoria editorial · staff</p>
+      <div class="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+        {% for value, label in editorial_form.priority.field.choices %}
+          <label class="inline-flex items-center gap-2 text-sm">
+            <input type="radio" name="priority" value="{{ value }}"
+                   {% if editorial_form.priority.value == value %}checked{% endif %}
+                   class="accent-rust">
+            <span class="label-mono">{{ value }}</span>
+            <span class="text-ink-soft">{{ label|cut:value|cut:" — " }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+    <label class="inline-flex items-center gap-2 text-sm">
+      <input type="checkbox" name="is_featured" value="on"
+             {% if editorial_form.is_featured.value %}checked{% endif %}
+             class="accent-gold">
+      <span>Em destaque na home</span>
+    </label>
+    <button type="submit"
+            class="rounded-full bg-firmament text-cream px-4 py-2 text-sm font-medium hover:bg-firmament-2 transition">
+      Salvar curadoria
+    </button>
+  </form>
+</section>
+{% endif %}
+
 <section class="max-w-6xl mx-auto px-6 py-10">
   {% regroup hymns by section as section_groups %}
   {% for group in section_groups %}
