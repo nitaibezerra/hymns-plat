@@ -27,14 +27,9 @@
   <div class="lg:grid lg:grid-cols-2">
 
     {# === ESQUERDA: Editor (foco principal) === #}
-    <section class="px-6 lg:px-10 py-8 space-y-5 self-start lg:border-r lg:border-rule" data-editor-pane data-active-view="write">
-      <header class="flex items-center justify-between">
+    <section class="px-6 lg:px-10 py-8 space-y-5 self-start lg:border-r lg:border-rule">
+      <header>
         <p class="eyebrow">Editor · texto</p>
-        <div class="flex gap-1" data-view-toggle role="tablist" aria-label="Modo do editor">
-          <button type="button" class="btn-pill" data-view="write" data-active="true">Escrever</button>
-          <button type="button" class="btn-pill" data-view="ocr" data-active="false">OCR cru</button>
-          <button type="button" class="btn-pill" data-view="diff" data-active="false">Diff vs OCR</button>
-        </div>
       </header>
 
       {# Número + título — sempre visível #}
@@ -45,8 +40,7 @@
                class="rounded-md border border-rule px-3 py-2 bg-cream-soft dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-gold/40 text-2xl font-display">
       </div>
 
-      {# === Sub-view: Escrever === #}
-      <div data-view-pane="write" class="space-y-4">
+      <div class="space-y-4">
         <div class="space-y-2">
           <p class="eyebrow">Atalhos</p>
           <div class="flex flex-wrap gap-2">
@@ -63,39 +57,6 @@
                   class="w-full rounded-md border border-rule px-4 py-3 bg-cream-soft dark:bg-white/5 font-serif text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-gold/40">{{ hymn.text }}</textarea>
         <p class="caret-status label-mono">Linha <span data-caret-line>1</span> de <span data-caret-total>{{ hymn.text|line_count }}</span> · destaque sincronizado com a prévia →</p>
       </div>
-
-      {# === Sub-view: OCR cru === #}
-      <pre data-view-pane="ocr" class="hidden ocr-raw font-mono text-xs leading-6 whitespace-pre-wrap bg-ink/5 dark:bg-white/5 rounded-md p-4 max-h-[480px] overflow-auto">{{ hymn.ocr_text|default:"— Texto OCR não disponível para este hino —" }}</pre>
-
-      {# === Sub-view: Diff vs OCR === #}
-      <div data-view-pane="diff" class="hidden diff-inline bg-ink/5 dark:bg-white/5 rounded-md max-h-[480px] overflow-auto">
-        {% for line in inline_diff.lines %}
-          <div class="diff-line {{ line.kind }}">{% spaceless %}{% for tok in line.tokens %}{% if tok.kind == 'eq' %}<span>{{ tok.text }}</span>{% elif tok.kind == 'sub' %}<span class="t-sub">{{ tok.sub }}</span><span class="t-add">{{ tok.add }}</span>{% elif tok.kind == 'add' %}<span class="t-add">{{ tok.text }}</span>{% elif tok.kind == 'del' %}<span class="t-del">{{ tok.text }}</span>{% endif %}{% endfor %}{% endspaceless %}</div>
-        {% empty %}
-          <p class="px-4 py-3 text-ink-soft">Sem diferenças entre OCR e versão atual{% if not hymn.ocr_text %} (OCR não disponível){% endif %}.</p>
-        {% endfor %}
-        {% if inline_diff.lines %}
-          <p class="diff-counter">{{ inline_diff.changes }} alterações · {{ inline_diff.adds }} acréscimos · {{ inline_diff.dels }} remoções de linha</p>
-        {% endif %}
-      </div>
-
-      {# Confiança OCR · só visível em ocr/diff (escondido em write) #}
-      {% if ocr_line_confidences %}
-        <div data-confidence-block class="hidden">
-          <div class="flex justify-between label-mono mb-2">
-            <span>Confiança OCR · por linha</span>
-            {% if hymn.ocr_avg_confidence %}<span>{{ hymn.ocr_avg_confidence|floatformat:0 }}% médio</span>{% endif %}
-          </div>
-          <div class="ocr-confidence-sparkline" aria-hidden="true">
-            {% for c in ocr_line_confidences %}
-              <span class="bar {% if c >= 85 %}high{% elif c >= 70 %}mid{% else %}low{% endif %}"
-                    data-confidence="{{ c }}"
-                    style="height: {{ c }}%"
-                    title="Linha {{ forloop.counter }} · {{ c }}%"></span>
-            {% endfor %}
-          </div>
-        </div>
-      {% endif %}
 
       {# Meta grid — sempre visível #}
       <div class="grid grid-cols-2 gap-x-3 gap-y-4">

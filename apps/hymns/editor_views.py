@@ -98,22 +98,68 @@ def editor_reject_audio(request, pk):
 def editor_hymnbook_list(request):
     from datetime import timedelta
 
-    from .models import Hymn, HymnRevision
+    from .models import Hymn, HymnBook, HymnRevision
 
     if not _has_editor_access(request.user):
         messages.error(request, "Você não tem acesso ao workspace do editor.")
         return redirect("hymns:home")
 
-    sort = request.GET.get("sort", "least_reviewed")
-    qs = _editor_visible_books(request.user).with_review_progress()
-    if sort == "most_reviewed":
-        qs = qs.order_by("-review_pct", "name")
-    elif sort == "recent":
-        qs = qs.order_by("-created_at")
-    else:
-        qs = qs.order_by("review_pct", "name")
+    # Query params: sort e priority são independentes e combináveis.
+    # Invalid values caem para defaults (sem 4xx — view defensiva).
+    sort = request.GET.get("sort") or "least_reviewed"
+    priority = request.GET.get("priority") or "all"
 
-    # Stats inline (4 hinários · 173 hinos pendentes · 89 revisados · 7 dias)
+    qs = _editor_visible_books(request.user).with_review_progress()
+    if priority in HymnBook.Priority.values:
+        qs = qs.filter(priority=priority)
+
+    sort_map = {
+        "least_reviewed": ("review_pct", "name"),
+        "most_reviewed": ("-review_pct", "name"),
+        "recent": ("-created_at",),
+        "least_audios": ("audio_pct", "name"),
+    }
+    qs = qs.order_by(*sort_map.get(sort, sort_map["least_reviewed"]))
+    hymnbooks = list(qs)
+
+    # Última atividade por hinário (1 query, dict mapeado por hb.pk → dict).
+    book_ids = [hb.pk for hb in hymnbooks]
+    last_activity_by_book: dict = {}
+    if book_ids:
+        cutoff_7d = timezone.now() - timedelta(days=7)
+        latest_per_book: dict = {}
+        for rev in (
+            HymnRevision.objects.filter(hymn__hymn_book_id__in=book_ids)
+            .select_related("revised_by", "hymn", "hymn__hymn_book")
+            .order_by("-revised_at")
+        ):
+            bid = rev.hymn.hymn_book_id
+            if bid not in latest_per_book:
+                latest_per_book[bid] = rev
+            # Acumula contagem por revisor pra os últimos 7 dias.
+            if rev.revised_at >= cutoff_7d:
+                continue
+        # Para os hinários com revisão recente, conta hinos distintos
+        # revisados pelo último revisor nos últimos 7 dias.
+        for bid, rev in latest_per_book.items():
+            who = rev.revised_by
+            n = (
+                HymnRevision.objects.filter(
+                    hymn__hymn_book_id=bid,
+                    revised_by=who,
+                    revised_at__gte=cutoff_7d,
+                )
+                .values("hymn_id")
+                .distinct()
+                .count()
+            )
+            last_activity_by_book[bid] = {
+                "who": (who.username if who else "—"),
+                "when": rev.revised_at,
+                "n": n,
+            }
+
+    # Stats inline: hinários · hinos pendentes · revisados 7d · P1 urgentes.
     visible_ids = list(_editor_visible_books(request.user).values_list("pk", flat=True))
     pending_hymns = (
         Hymn.objects.filter(hymn_book_id__in=visible_ids).exclude(review_status=Hymn.ReviewStatus.REVIEWED).count()
@@ -124,6 +170,7 @@ def editor_hymnbook_list(request):
         revised_at__gte=cutoff,
         new_status=Hymn.ReviewStatus.REVIEWED,
     ).count()
+    p1_count = _editor_visible_books(request.user).filter(priority=HymnBook.Priority.P1).count()
 
     # Continuar revisão: último hino com revisão do user, ainda não REVIEWED
     resume = (
@@ -136,19 +183,38 @@ def editor_hymnbook_list(request):
 
     pending_audios_count = _pending_audios_for(request.user).count()
 
+    # Attach last_activity para o template sem precisar de filtros custom.
+    for hb in hymnbooks:
+        hb.last_activity = last_activity_by_book.get(hb.pk)
+
     return render(
         request,
         "hymns/editor/hymnbook_list.html",
         {
-            "hymnbooks": list(qs),
+            "hymnbooks": hymnbooks,
             "sort": sort,
+            "priority": priority,
             "stats": {
                 "books": len(visible_ids),
                 "pending_hymns": pending_hymns,
                 "recent_reviewed": recent_reviewed,
+                "p1_count": p1_count,
             },
             "resume": resume,
             "pending_audios_count": pending_audios_count,
+            # Pares (value, label, dot_color_hint) para os chips de filtro.
+            "sort_options": [
+                ("least_reviewed", "Menos revisados"),
+                ("most_reviewed", "Mais revisados"),
+                ("least_audios", "Menos áudios"),
+                ("recent", "Recém adicionados"),
+            ],
+            "priority_options": [
+                ("all", "Todas", None),
+                ("P1", "P1 Urgente", "vermilion"),
+                ("P2", "P2 Atenção", "gold"),
+                ("P3", "P3", None),
+            ],
         },
     )
 

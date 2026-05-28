@@ -1,5 +1,5 @@
 /**
- * Tela 07 · Revisar Hino — preview ao vivo + caret highlight + view toggle.
+ * Tela 07 · Revisar Hino — preview ao vivo + caret highlight.
  *
  * A prévia (coluna direita) reusa o template tag `render_hymn_body` (via
  * endpoint `editor_preview_render`) — exatamente o mesmo markup das telas
@@ -22,28 +22,6 @@
   var previewBody = document.querySelector('[data-preview-body]');
   var caretLineEl = document.querySelector('[data-caret-line]');
   var caretTotalEl = document.querySelector('[data-caret-total]');
-
-  // ===== View toggle (Escrever / OCR cru / Diff vs OCR) =====
-  var viewToggle = form.querySelector('[data-view-toggle]');
-  var editorPane = form.querySelector('[data-editor-pane]');
-  var confidenceBlock = form.querySelector('[data-confidence-block]');
-  if (viewToggle && editorPane) {
-    viewToggle.addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-view]');
-      if (!btn) return;
-      var view = btn.dataset.view;
-      editorPane.dataset.activeView = view;
-      viewToggle.querySelectorAll('[data-view]').forEach(function (b) {
-        b.dataset.active = String(b === btn);
-      });
-      editorPane.querySelectorAll('[data-view-pane]').forEach(function (p) {
-        p.classList.toggle('hidden', p.dataset.viewPane !== view);
-      });
-      if (confidenceBlock) {
-        confidenceBlock.classList.toggle('hidden', view === 'write');
-      }
-    });
-  }
 
   if (!textarea || !previewBody) return;
 

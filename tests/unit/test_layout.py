@@ -27,12 +27,32 @@ class TestBaseLayout:
 
     def test_header_renders_nav_when_authenticated(self, authenticated_client):
         resp = authenticated_client.get(reverse("hymns:home")).content.decode()
-        assert ">Fila de revisão<" in resp
+        # Fila de revisão saiu do nav central — vira CTA pill ao lado do avatar
+        # apenas para users com permissão de editor. Aqui pinamos só Contribuir,
+        # que continua no nav para qualquer authenticated user.
         assert ">Contribuir<" in resp
+
+    def test_header_hides_editor_cta_for_plain_authenticated(self, authenticated_client):
+        """User sem perm de revisor não vê a CTA `Fila de revisão`."""
+        resp = authenticated_client.get(reverse("hymns:home")).content.decode()
+        assert "Fila de revisão" not in resp
+        assert "data-editor-cta" not in resp
+
+    def test_header_shows_editor_cta_for_editor(self, editor_client):
+        """User com perm de revisor (grupo `editor`) vê a CTA pill."""
+        resp = editor_client.get(reverse("hymns:home")).content.decode()
+        assert "data-editor-cta" in resp
+        assert "Fila de revisão" in resp
+        # CTA fica FORA do <nav> central — vive ao lado do search/sino.
+        # Verifica via heurística: o data-editor-cta aparece DEPOIS do </nav>.
+        nav_close = resp.find("</nav>")
+        cta_idx = resp.find("data-editor-cta")
+        assert nav_close != -1 and cta_idx != -1 and cta_idx > nav_close
 
     def test_header_hides_editor_for_anon(self, client):
         resp = client.get(reverse("hymns:home")).content.decode()
         assert ">Fila de revisão<" not in resp
+        assert "data-editor-cta" not in resp
 
     def test_skip_link_present_for_a11y(self, client):
         resp = client.get(reverse("hymns:home")).content.decode()

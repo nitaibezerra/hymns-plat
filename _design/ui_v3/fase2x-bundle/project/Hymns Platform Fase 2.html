@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Hinaria · Fase 2 · UI Editorial</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+<link rel="stylesheet" href="styles/tokens.css"/>
+<link rel="stylesheet" href="styles/components.css"/>
+
+<style>
+  body { background: #1a1d2e; color: #f6efe2; font-family: "Inter Tight", sans-serif; }
+  .canvas-shell { padding: 0; }
+  .design-canvas-page { background: #0e1320; }
+
+  /* Make embedded artboards render the full screens */
+  .artboard-frame {
+    background: var(--paper);
+    color: var(--ink);
+    overflow: hidden;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="screens/_shared.jsx"></script>
+<script type="text/babel" src="screens/home.jsx"></script>
+<script type="text/babel" src="screens/hymn-detail.jsx"></script>
+<script type="text/babel" src="screens/hymnbook-detail.jsx"></script>
+<script type="text/babel" src="screens/editor-queue.jsx"></script>
+<script type="text/babel" src="screens/revise-hymn.jsx"></script>
+<script type="text/babel" src="screens/quick-review.jsx"></script>
+<script type="text/babel" src="screens/hymnbook-editor.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="screens/wizards.jsx"></script>
+<script type="text/babel" src="screens/extras.jsx"></script>
+<script type="text/babel" src="screens/player-a.jsx"></script>
+<script type="text/babel" src="screens/player-scenes.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const TWEAKS = /*EDITMODE-BEGIN*/{
+  "palette": "vermelhao",
+  "theme": "noite",
+  "fontDisplay": "cormorant",
+  "showCreditos": true
+}/*EDITMODE-END*/;
+
+const PALETTES = {
+  "luz-firmamento": {
+    "--paper": "#f6efe2", "--paper-soft": "#efe6d2", "--paper-deep": "#e6dcc4",
+    "--ink": "#1a1d2e", "--ink-soft": "#3a3f57", "--ink-mute": "#6b6f85",
+    "--rule": "#c8bda1", "--rule-soft": "#d9cfb6",
+    "--firmament": "#1d3b6a", "--firmament-2": "#2c5a92",
+    "--gold": "#b8893a", "--gold-soft": "#d9b06a",
+  },
+  "floresta": {
+    "--paper": "#f1ede2", "--paper-soft": "#e6e2d3", "--paper-deep": "#d8d4c2",
+    "--ink": "#1c2417", "--ink-soft": "#3a4530", "--ink-mute": "#6b745f",
+    "--rule": "#b8b39e", "--rule-soft": "#cfcab5",
+    "--firmament": "#3d5a3a", "--firmament-2": "#5a7a55",
+    "--gold": "#a47432", "--gold-soft": "#c89954",
+  },
+  "vermelhao": {
+    "--paper": "#f6ecdf", "--paper-soft": "#ede0cd", "--paper-deep": "#e0d2bb",
+    "--ink": "#2a1818", "--ink-soft": "#4a2c2c", "--ink-mute": "#7a5e5e",
+    "--rule": "#c8b5a0", "--rule-soft": "#d4c2ad",
+    "--firmament": "#7a2418", "--firmament-2": "#a23c28",
+    "--gold": "#b8893a", "--gold-soft": "#d9b06a",
+  },
+};
+
+const FONTS = {
+  cormorant: '"Cormorant Garamond", "DejaVu Serif", Georgia, serif',
+  source:    '"Source Serif 4", "DejaVu Serif", Georgia, serif',
+  serif:     'Georgia, "Times New Roman", serif',
+};
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAKS);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const pal = PALETTES[tweaks.palette] || PALETTES["luz-firmamento"];
+    Object.entries(pal).forEach(([k, v]) => root.style.setProperty(k, v));
+    root.style.setProperty("--font-display", FONTS[tweaks.fontDisplay] || FONTS.cormorant);
+    root.setAttribute("data-theme", tweaks.theme === "noite" ? "noite" : "");
+  }, [tweaks.palette, tweaks.theme, tweaks.fontDisplay]);
+
+  return (
+    <>
+      <DesignCanvas title="Hinaria — Fase 2 · UI Editorial">
+        <DCSection id="overview" title="Visão Geral">
+          <DCArtboard id="home" label="01 · Home" width={1280} height={1100}>
+            <HomeScreen />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="leitura" title="Leitura · detalhe + Abrir hinário (Corrido / Carrossel)">
+          <DCArtboard id="hymnbook" label="02 · Hinário · detalhe (índice + CTAs Tocar/Abrir)" width={1280} height={1180}>
+            <HymnbookDetailScreen />
+          </DCArtboard>
+          <DCArtboard id="hymnbook-flow" label="03 · Abrir hinário · Modo Corrido (default)" width={1280} height={1200}>
+            <HymnbookReadScreen initialMode="flow" />
+          </DCArtboard>
+          <DCArtboard id="hymnbook-carousel" label="04 · Abrir hinário · Modo Carrossel" width={1280} height={1200}>
+            <HymnbookReadScreen initialMode="carousel" />
+          </DCArtboard>
+          <DCArtboard id="hymn" label="05 · Hino · paper page (PDF-fiel)" width={1280} height={1300}>
+            <HymnDetailScreen />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="editorial" title="Workspace Editorial">
+          <DCArtboard id="queue" label="06 · Fila de Revisão · cards verticais + prioridade + 4 métricas" width={1280} height={1380}>
+            <EditorQueueScreen />
+          </DCArtboard>
+          <DCArtboard id="revise" label="07 · Revisar Hino · diff + atalhos" width={1440} height={1200}>
+            <ReviseHymnScreen />
+          </DCArtboard>
+          <DCArtboard id="hymnbook-editor" label="07b · Hinário em revisão (editor)" width={1280} height={1400}>
+            <HymnbookEditorScreen />
+          </DCArtboard>
+          <DCArtboard id="quick-review" label="07c · Revisão ágil · estilo livre + presets sincronizados" width={1440} height={1180}>
+            <QuickReviewScreen />
+          </DCArtboard>
+          <DCArtboard id="publish" label="08 · Publicar (modal)" width={1280} height={800}>
+            <PublishConfirmScreen />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="contribuir" title="Contribuir & Buscar">
+          <DCArtboard id="ocr" label="09 · OCR Wizard · preview" width={1280} height={1000}>
+            <OcrWizardScreen />
+          </DCArtboard>
+          <DCArtboard id="search" label="10 · Busca" width={1280} height={1000}>
+            <SearchScreen />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="player" title="Player & Playback · áudio persistente">
+          <DCArtboard id="player-idle" label="Hinário com botão Tocar" width={1280} height={1100}>
+            <Scene_BookIdle/>
+          </DCArtboard>
+          <DCArtboard id="player-playing" label="Tocando · barra inferior" width={1280} height={1100}>
+            <Scene_BookPlaying/>
+          </DCArtboard>
+          <DCArtboard id="player-queue" label="Fila aberta (drawer)" width={1280} height={1000}>
+            <Scene_QueueOpen/>
+          </DCArtboard>
+          <DCArtboard id="player-expanded" label="Player expandido (capa + karaokê)" width={1280} height={900}>
+            <Scene_Expanded/>
+          </DCArtboard>
+          <DCArtboard id="player-work" label="Modo Trabalho" width={1280} height={760}>
+            <Scene_WorkMode/>
+          </DCArtboard>
+          <DCArtboard id="player-empty" label="Hinário sem áudio (desabilitado)" width={1280} height={1100}>
+            <Scene_BookNoAudio/>
+          </DCArtboard>
+
+          <DCArtboard id="player-mobile" label="Mobile · barra rodapé" width={460} height={920}>
+            <Scene_Mobile/>
+          </DCArtboard>
+          <DCArtboard id="player-mobile-expanded" label="Mobile · expandido" width={460} height={920}>
+            <Scene_Mobile expanded/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="mobile" title="Mobile · leitura durante trabalhos">
+          <DCArtboard id="mobile-carousel" label="11 · Carrossel · Dia & Noite (iPhone)" width={920} height={950}>
+            <MobileCarouselScreen />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="social" title="Perfil & Histórico">
+          <DCArtboard id="profile" label="12 · Perfil + Notificações" width={1280} height={1100}>
+            <ProfileScreen />
+          </DCArtboard>
+          <DCArtboard id="history" label="13 · Histórico de Revisões (overlay)" width={1280} height={900}>
+            <RevisionHistoryScreen />
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection title="Identidade">
+          <TweakRadio label="Paleta" value={tweaks.palette} onChange={(v) => setTweak("palette", v)}
+            options={[
+              {value: "luz-firmamento", label: "Luz do Firmamento"},
+              {value: "floresta", label: "Floresta"},
+              {value: "vermelhao", label: "Vermelhão"},
+            ]}/>
+          <TweakRadio label="Tema" value={tweaks.theme} onChange={(v) => setTweak("theme", v)}
+            options={[{value: "dia", label: "Dia"}, {value: "noite", label: "Noite"}]}/>
+          <TweakRadio label="Display font" value={tweaks.fontDisplay} onChange={(v) => setTweak("fontDisplay", v)}
+            options={[
+              {value: "cormorant", label: "Cormorant"},
+              {value: "source", label: "Source Serif"},
+              {value: "serif", label: "Georgia"},
+            ]}/>
+        </TweakSection>
+      </TweaksPanel>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

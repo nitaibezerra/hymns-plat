@@ -27,7 +27,11 @@ class TestPanelVisibility:
         hb = hymn_book_factory(name="Staff Vista")
         body = admin_client.get(reverse("hymns:hymnbook_detail", kwargs={"slug": hb.slug})).content.decode()
         assert "data-editorial-panel" in body
-        assert "Curadoria editorial" in body
+        # Strip horizontal compacta (handoff §3): tem o eyebrow STAFF e o
+        # segmented control de prioridade, sem o card-soft anterior.
+        assert "editor-strip" in body
+        assert "STAFF" in body
+        assert "priority-segmented" in body
         # 3 radios de prioridade
         for value in ("P1", "P2", "P3"):
             assert f'value="{value}"' in body

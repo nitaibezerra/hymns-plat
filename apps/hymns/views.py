@@ -112,6 +112,14 @@ class HymnBookDetailView(DetailView):
         context["can_edit"] = can_edit_hymnbook(self.request.user, self.object)
         if self.request.user.is_authenticated and self.request.user.is_staff:
             context["editorial_form"] = HymnBookEditorialForm(instance=self.object)
+            # Curto e fixo: o segmented control não usa as labels longas
+            # ("P1 — alta urgência") do TextChoices. Ordem casa com a
+            # ordem dos choices.
+            context["priority_segmented_labels"] = [
+                ("P1", "P1 Urgente"),
+                ("P2", "P2 Atenção"),
+                ("P3", "P3"),
+            ]
         return context
 
 

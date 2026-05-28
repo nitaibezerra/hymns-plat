@@ -14,7 +14,6 @@
       <a href="{{ books_url }}" class="hover:text-ink dark:hover:text-cream {% if books_url in request.path %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Hinários</a>
       <a href="{{ search_url }}" class="hover:text-ink dark:hover:text-cream {% if search_url in request.path %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Buscar</a>
       {% if user.is_authenticated %}
-        <a href="{% url 'hymns:editor_hymnbook_list' %}" class="hover:text-ink dark:hover:text-cream {% if '/editor/' in request.path %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Fila de revisão</a>
         <a href="{% url 'users:upload' %}" class="hover:text-ink dark:hover:text-cream {% if '/contribuir/' in request.path %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Contribuir</a>
       {% endif %}
     </nav>
@@ -32,6 +31,19 @@
     </form>
 
     <div class="flex items-center gap-3 ml-auto md:ml-2">
+      {% if editor_can_review %}
+        <a href="{% url 'hymns:editor_hymnbook_list' %}"
+           class="editor-cta hidden md:inline-flex {% if '/editor/' in request.path %}is-active{% endif %}"
+           aria-current="{% if '/editor/' in request.path %}page{% endif %}"
+           data-editor-cta>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2.5 3.5 H13.5 M2.5 8 H13.5 M2.5 12.5 H9"/>
+            <circle cx="12" cy="12.5" r="2"/>
+          </svg>
+          <span>Fila de revisão</span>
+          {% if editor_pending_count %}<span class="editor-cta-count">{{ editor_pending_count }}</span>{% endif %}
+        </a>
+      {% endif %}
       <button type="button" data-mobile-menu-toggle aria-label="Abrir menu" aria-expanded="false" aria-controls="mobile-menu" class="md:hidden w-9 h-9 rounded-full hover:bg-ink/5 dark:hover:bg-white/10 inline-flex items-center justify-center text-ink dark:text-cream">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="4" y1="7" x2="20" y2="7"/>
@@ -81,7 +93,11 @@
     <a href="{% url 'hymns:hymnbook_list' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/hinarios/' in request.path %}text-firmament dark:text-firmament{% endif %}">Hinários</a>
     <a href="{% url 'hymns:search' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/busca/' in request.path %}text-firmament dark:text-firmament{% endif %}">Buscar</a>
     {% if user.is_authenticated %}
-      <a href="{% url 'hymns:editor_hymnbook_list' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/editor/' in request.path %}text-firmament dark:text-firmament{% endif %}">Fila de revisão</a>
+      {% if editor_can_review %}
+        <a href="{% url 'hymns:editor_hymnbook_list' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/editor/' in request.path %}text-firmament dark:text-firmament{% endif %}">
+          Fila de revisão{% if editor_pending_count %} <span class="editor-cta-count align-middle ml-1">{{ editor_pending_count }}</span>{% endif %}
+        </a>
+      {% endif %}
       <a href="{% url 'users:upload' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/contribuir/' in request.path %}text-firmament dark:text-firmament{% endif %}">Contribuir</a>
       <hr class="border-ink/10 dark:border-cream/10 my-2">
       <a href="{% url 'users:profile' user.username %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Meu perfil</a>

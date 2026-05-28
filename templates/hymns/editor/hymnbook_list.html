@@ -9,13 +9,17 @@
       <p class="label-mono">Workspace editorial</p>
       <h1 class="font-display text-3xl md:text-4xl mt-2">Fila de revisão</h1>
       <p class="text-ink-soft dark:text-cream/70 mt-2 max-w-xl">
-        Hinários aguardando revisão hino-a-hino. Comece pelo de menor progresso ou volte ao que você estava revisando.
+        Hinários aguardando revisão. Priorize pelo que está urgente, ou pelo que tem menos áudio aprovado.
       </p>
     </div>
-    <dl class="grid grid-cols-3 gap-x-10 gap-y-1 ml-auto text-right">
+    <dl class="grid grid-cols-4 gap-x-8 gap-y-1 ml-auto text-right">
+      <div>
+        <dt class="label-mono">P1 urgente</dt>
+        <dd class="font-display text-2xl text-rust">{{ stats.p1_count }}</dd>
+      </div>
       <div><dt class="label-mono">Hinários</dt><dd class="font-display text-2xl">{{ stats.books }}</dd></div>
       <div><dt class="label-mono">Pendentes</dt><dd class="font-display text-2xl text-gold">{{ stats.pending_hymns }}</dd></div>
-      <div><dt class="label-mono">Revisados · 7 dias</dt><dd class="font-display text-2xl">{{ stats.recent_reviewed }}</dd></div>
+      <div><dt class="label-mono">Revisados · 7d</dt><dd class="font-display text-2xl text-moss">{{ stats.recent_reviewed }}</dd></div>
     </dl>
   </header>
 
@@ -43,48 +47,105 @@
     </a>
   {% endif %}
 
+  {# === Filtros: ORDENAR + PRIORIDADE, duas dimensões combináveis === #}
   <div class="mt-8 flex items-center gap-3 flex-wrap text-sm">
     <span class="label-mono">Ordenar:</span>
-    <a href="?sort=least_reviewed" class="btn-pill" data-active="{% if sort == 'least_reviewed' %}true{% else %}false{% endif %}">● Menos revisados</a>
-    <a href="?sort=most_reviewed" class="btn-pill" data-active="{% if sort == 'most_reviewed' %}true{% else %}false{% endif %}">● Mais revisados</a>
-    <a href="?sort=recent" class="btn-pill" data-active="{% if sort == 'recent' %}true{% else %}false{% endif %}">● Recém adicionados</a>
+    {% for value, label in sort_options %}
+      <a href="?sort={{ value }}{% if priority and priority != 'all' %}&priority={{ priority }}{% endif %}"
+         class="priority-chip {% if sort == value %}is-active{% endif %}">{{ label }}</a>
+    {% endfor %}
     <span class="ml-auto label-mono">{{ hymnbooks|length }} hinário{{ hymnbooks|length|pluralize }}</span>
   </div>
+  <div class="mt-3 flex items-center gap-3 flex-wrap text-sm">
+    <span class="label-mono">Prioridade:</span>
+    {% for value, label, dot in priority_options %}
+      <a href="?priority={{ value }}{% if sort and sort != 'least_reviewed' %}&sort={{ sort }}{% endif %}"
+         class="priority-chip {% if priority == value %}is-active{% endif %}"
+         {% if dot %}data-dot="{{ dot }}"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </div>
 
-  <ul class="mt-6 space-y-3">
+  {# === Grid 2-col de cards verticais === #}
+  <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
     {% for hb in hymnbooks %}
-      {% with pct=hb.review_pct|default:0 %}
-      <li>
-        <a href="{% url 'hymns:editor_hymnbook_detail' hb.slug %}"
-           class="card-soft p-5 flex items-center gap-6 flex-wrap no-underline text-inherit hover:bg-ink/5 transition">
-          <div class="w-12 h-12 rounded-full inline-flex items-center justify-center font-display text-xl shrink-0" style="background: color-mix(in srgb, {{ hb.display_accent }} 18%, transparent); color: {{ hb.display_accent }};">{{ forloop.counter|stringformat:"02d" }}</div>
-          <div class="min-w-0 flex-1">
-            <p class="font-display text-xl truncate">{{ hb.name }}</p>
-            <p class="label-mono mt-1">
-              {{ hb.owner_name }} · subido {{ hb.created_at|timesince }} atrás
-            </p>
+      {% with rev=hb.review_pct|default:0 sty=hb.style_pct|default:0 rep=hb.reps_pct|default:0 aud=hb.audio_pct|default:0 %}
+      <a href="{% url 'hymns:editor_hymnbook_detail' hb.slug %}"
+         class="queue-card {% if hb.priority == 'P1' %}queue-card--p1{% endif %}">
+        {# Header: badge numérico + nome + glifo featured + pill prioridade #}
+        <header class="queue-card-header">
+          <div class="queue-card-num {% if forloop.counter0 == 0 %}is-lead{% endif %}">{{ forloop.counter|stringformat:"02d" }}</div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-display text-xl leading-tight">{{ hb.name }}</span>
+              {% if hb.is_featured %}
+                <span class="featured-glyph" title="Em destaque na home" aria-label="Em destaque">
+                  <svg viewBox="0 0 32 32" width="16" height="16" aria-hidden="true">
+                    <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                      <path d="M16 5 L16 27 M5 16 L27 16 M8 8 L24 24 M24 8 L8 24"/>
+                      <circle cx="16" cy="16" r="3" fill="currentColor" stroke="none"/>
+                    </g>
+                  </svg>
+                </span>
+              {% endif %}
+            </div>
+            <p class="font-serif italic text-ink-soft text-sm mt-0.5">{{ hb.owner_name }} · subido {{ hb.created_at|timesince }} atrás</p>
           </div>
-          <div class="w-72">
-            <div class="flex justify-between text-xs font-mono mb-1"><span>{{ hb.reviewed_hymns }}/{{ hb.total_hymns }} revisados</span><span>{{ pct }}%</span></div>
-            <div class="h-2 bg-ink/10 rounded-full overflow-hidden"><div class="h-full bg-firmament" style="width: {{ pct }}%;"></div></div>
-          </div>
-          {# Botões internos: stopPropagation evita disparar a navegação da linha. #}
-          <div class="flex flex-col gap-1.5 items-stretch">
-            {% if hb.review_pct == 100 and not hb.is_published %}
-              <form action="{% url 'hymns:hymnbook_publish' hb.slug %}" method="post" onclick="event.stopPropagation()">{% csrf_token %}<button class="bg-firmament text-cream rounded-full px-4 py-2 text-sm font-medium hover:bg-firmament-2 w-full">Publicar hinário ✓</button></form>
-            {% else %}
-              <a href="{% url 'hymns:editor_next_hymn' hb.slug %}" class="bg-firmament text-cream rounded-full px-4 py-2 text-sm hover:bg-firmament-2 text-center" onclick="event.stopPropagation()">Revisar próximo →</a>
-            {% endif %}
-            <a href="{% url 'hymns:editor_quick_review' hb.slug %}"
-               class="border border-gold text-gold rounded-full px-3 py-1.5 text-xs font-mono uppercase tracking-widest text-center hover:bg-gold/10"
-               onclick="event.stopPropagation()">⚡ Revisão ágil</a>
-          </div>
-        </a>
-      </li>
+          <span class="priority-pill priority-pill--{{ hb.priority|default:'P3'|lower }}">
+            {% if hb.priority == 'P1' %}P1 Urgente{% elif hb.priority == 'P2' %}P2 Atenção{% else %}P3{% endif %}
+          </span>
+        </header>
+
+        {# 4 micro-barras: REV / EST / REP / AUD #}
+        <div class="queue-card-metrics">
+          <div class="metric-bar metric-bar--rev"><span class="metric-bar-label">REV</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ rev }}%;"></span></span><span class="metric-bar-pct">{{ rev }}%</span></div>
+          <div class="metric-bar"><span class="metric-bar-label">EST</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ sty }}%;"></span></span><span class="metric-bar-pct">{{ sty }}%</span></div>
+          <div class="metric-bar"><span class="metric-bar-label">REP</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ rep }}%;"></span></span><span class="metric-bar-pct">{{ rep }}%</span></div>
+          <div class="metric-bar"><span class="metric-bar-label">AUD</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ aud }}%;"></span></span><span class="metric-bar-pct">{{ aud }}%</span></div>
+        </div>
+
+        {# Última atividade — sparkline + linha mono compacta #}
+        <div class="queue-card-activity">
+          {% if hb.last_activity %}
+            <span class="queue-card-spark" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </span>
+            <span class="queue-card-activity-text">
+              <strong>{{ hb.last_activity.who }}</strong>
+              revisou {{ hb.last_activity.n }} hino{{ hb.last_activity.n|pluralize }}
+            </span>
+            <span class="queue-card-activity-when">{{ hb.last_activity.when|timesince }} atrás</span>
+          {% else %}
+            <span class="queue-card-activity-empty">Sem atividade ainda</span>
+          {% endif %}
+        </div>
+
+        {# Ações — stopPropagation porque o card todo é <a> #}
+        <div class="queue-card-actions">
+          {% if hb.review_pct == 100 and not hb.is_published %}
+            <form action="{% url 'hymns:hymnbook_publish' hb.slug %}" method="post" onclick="event.stopPropagation()">
+              {% csrf_token %}
+              <button class="btn-primary-firmament w-full">Publicar hinário ✓</button>
+            </form>
+          {% else %}
+            <a href="{% url 'hymns:editor_next_hymn' hb.slug %}"
+               class="btn-primary-firmament text-center justify-center"
+               onclick="event.stopPropagation()">Revisar próximo →</a>
+          {% endif %}
+          <a href="{% url 'hymns:editor_quick_review' hb.slug %}"
+             class="btn-ghost-gold"
+             onclick="event.stopPropagation()">⚡ Revisão ágil</a>
+        </div>
+      </a>
       {% endwith %}
     {% empty %}
-      <li class="card-soft p-10 text-center text-ink-soft">Nenhum hinário disponível.</li>
+      <div class="col-span-full card-soft p-10 text-center text-ink-soft font-serif italic">
+        {% if priority and priority != 'all' %}
+          Nenhum hinário com essa prioridade.
+        {% else %}
+          Nenhum hinário disponível.
+        {% endif %}
+      </div>
     {% endfor %}
-  </ul>
+  </div>
 </section>
 {% endblock %}

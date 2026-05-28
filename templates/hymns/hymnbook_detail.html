@@ -55,34 +55,37 @@
 {% endwith %}
 
 {% if editorial_form %}
-<section class="max-w-6xl mx-auto px-6 mt-6" data-editorial-panel>
+<section class="editor-strip" data-editorial-panel>
   <form method="post" action="{% url 'hymns:hymnbook_editorial_update' hymnbook.slug %}"
-        class="card-soft p-5 flex flex-col md:flex-row md:items-end gap-5 md:gap-8 border border-gold/20">
+        class="editor-strip-row max-w-6xl mx-auto px-6">
     {% csrf_token %}
-    <div class="flex-1">
-      <p class="label-mono text-ink-soft">Curadoria editorial · staff</p>
-      <div class="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-        {% for value, label in editorial_form.priority.field.choices %}
-          <label class="inline-flex items-center gap-2 text-sm">
+    <span class="editor-strip-eyebrow">STAFF</span>
+
+    <div class="editor-strip-field">
+      <span class="editor-strip-label">Prioridade</span>
+      <div class="priority-segmented" role="radiogroup" aria-label="Prioridade de revisão">
+        {% with active=editorial_form.priority.value|stringformat:"s" %}
+        {% for value, short in priority_segmented_labels %}
+          <label class="priority-segmented-btn priority-segmented-btn--{{ value|lower }}"
+                 data-active="{% if active == value %}true{% else %}false{% endif %}">
             <input type="radio" name="priority" value="{{ value }}"
-                   {% if editorial_form.priority.value == value %}checked{% endif %}
-                   class="accent-rust">
-            <span class="label-mono">{{ value }}</span>
-            <span class="text-ink-soft">{{ label|cut:value|cut:" — " }}</span>
+                   {% if active == value %}checked{% endif %} class="sr-only">
+            <span class="priority-segmented-dot" aria-hidden="true"></span>
+            <span>{{ short }}</span>
           </label>
         {% endfor %}
+        {% endwith %}
       </div>
     </div>
-    <label class="inline-flex items-center gap-2 text-sm">
+
+    <label class="editor-strip-check">
       <input type="checkbox" name="is_featured" value="on"
              {% if editorial_form.is_featured.value %}checked{% endif %}
-             class="accent-gold">
+             class="editor-strip-checkbox">
       <span>Em destaque na home</span>
     </label>
-    <button type="submit"
-            class="rounded-full bg-firmament text-cream px-4 py-2 text-sm font-medium hover:bg-firmament-2 transition">
-      Salvar curadoria
-    </button>
+
+    <button type="submit" class="editor-strip-save">Salvar</button>
   </form>
 </section>
 {% endif %}
