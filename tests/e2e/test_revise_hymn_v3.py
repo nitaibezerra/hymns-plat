@@ -102,7 +102,11 @@ def revise_url(base_url, authenticated_page):
 class TestReviseScreenWorkflows:
     def test_layout_invertido_editor_left_preview_right(self, authenticated_page, revise_url):
         authenticated_page.goto(revise_url)
-        editor = authenticated_page.locator("[data-editor-pane]")
+        # Após o handoff Fase 2.x §4 a coluna esquerda perdeu o sentinel
+        # `data-editor-pane` (junto com o view-toggle OCR/Diff). Usa o
+        # textarea do editor como ancora pra esquerda + `data-preview-root`
+        # pra direita.
+        editor = authenticated_page.locator("textarea[name='text']")
         preview = authenticated_page.locator("[data-preview-root]")
         expect(editor).to_be_visible()
         expect(preview).to_be_visible()
@@ -110,21 +114,15 @@ class TestReviseScreenWorkflows:
         preview_box = preview.bounding_box()
         assert editor_box["x"] < preview_box["x"], "editor deve estar à esquerda da prévia"
 
-    def test_view_toggle_swaps_visible_pane(self, authenticated_page, revise_url):
+    def test_view_toggle_removed(self, authenticated_page, revise_url):
+        """View toggle Escrever/OCR/Diff foi removido no handoff §4. Só sobra
+        o pane de escrita (textarea direto, sem switcher)."""
         authenticated_page.goto(revise_url)
-        write_pane = authenticated_page.locator('[data-view-pane="write"]')
-        ocr_pane = authenticated_page.locator('[data-view-pane="ocr"]')
-        diff_pane = authenticated_page.locator('[data-view-pane="diff"]')
-
-        expect(write_pane).to_be_visible()
-        expect(ocr_pane).to_be_hidden()
-
-        authenticated_page.locator('[data-view="ocr"]').click()
-        expect(ocr_pane).to_be_visible()
-        expect(write_pane).to_be_hidden()
-
-        authenticated_page.locator('[data-view="diff"]').click()
-        expect(diff_pane).to_be_visible()
+        expect(authenticated_page.locator("[data-view-toggle]")).to_have_count(0)
+        expect(authenticated_page.locator('[data-view="ocr"]')).to_have_count(0)
+        expect(authenticated_page.locator('[data-view="diff"]')).to_have_count(0)
+        # O textarea continua sendo o canal único de edição.
+        expect(authenticated_page.locator('textarea[name="text"]')).to_be_visible()
 
     def test_shortcut_strip_blanks_modifies_textarea(self, authenticated_page, revise_url):
         authenticated_page.goto(revise_url)
