@@ -92,6 +92,26 @@ class HymnForm(forms.ModelForm):
         return number
 
 
+class HymnBookEditorialForm(forms.ModelForm):
+    """Painel staff de curadoria editorial no `hymnbook_detail`.
+
+    Edita só `priority` (P1/P2/P3) e `is_featured`. Outros campos do hinário
+    seguem editáveis pelo `HymnBookForm` regular ou pelo Django admin.
+    """
+
+    class Meta:
+        model = HymnBook
+        fields = ["priority", "is_featured"]
+        widgets = {
+            "priority": forms.RadioSelect(),
+            "is_featured": forms.CheckboxInput(),
+        }
+        labels = {
+            "priority": "Prioridade de revisão",
+            "is_featured": "Exibir em destaque na home",
+        }
+
+
 class QuickReviewForm(forms.ModelForm):
     """Form da tela 07c · Revisão ágil — só `style` e `repetitions`.
 

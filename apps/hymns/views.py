@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView
 
-from .forms import HymnBookForm, HymnForm
+from .forms import HymnBookEditorialForm, HymnBookForm, HymnForm
 from .models import Hymn, HymnAudio, HymnBook
 from .permissions import can_create_hymnbook, can_edit_hymnbook, can_publish_hymnbook
 
@@ -32,6 +32,37 @@ def _annotate_card_counts(queryset):
         n_hymns_anno=Count("hymns", distinct=True),
         n_audios_anno=Coalesce(Subquery(audios_subq, output_field=IntegerField()), 0),
     )
+
+
+def _hourly_featured(visible_qs, n=6):
+    """Sample determinístico por hora cheia para a seção 'Em destaque' da home.
+
+    Embaralha primeiro os `is_featured=True`; se sobrar espaço, completa
+    com os demais. A seed é o timestamp da hora cheia atual, então a
+    mesma seleção volta dentro da mesma hora e troca quando a hora vira.
+    """
+    import random
+
+    now = timezone.now()
+    seed = int(now.replace(minute=0, second=0, microsecond=0).timestamp())
+    rng = random.Random(seed)
+
+    featured_ids = [str(pk) for pk in visible_qs.filter(is_featured=True).values_list("id", flat=True)]
+    rng.shuffle(featured_ids)
+    selected = featured_ids[:n]
+
+    if len(selected) < n:
+        rest_ids = [str(pk) for pk in visible_qs.exclude(id__in=selected).values_list("id", flat=True)]
+        rng.shuffle(rest_ids)
+        selected.extend(rest_ids[: n - len(selected)])
+
+    if not selected:
+        return []
+
+    order = {pk: i for i, pk in enumerate(selected)}
+    books = list(_annotate_card_counts(visible_qs.filter(id__in=selected)))
+    books.sort(key=lambda b: order[str(b.id)])
+    return books
 
 
 class UnaccentFunc(Func):
@@ -79,6 +110,8 @@ class HymnBookDetailView(DetailView):
         context["hymns_with_audio"] = hymns_with_audio
         context["audios_count"] = len(hymns_with_audio)
         context["can_edit"] = can_edit_hymnbook(self.request.user, self.object)
+        if self.request.user.is_authenticated and self.request.user.is_staff:
+            context["editorial_form"] = HymnBookEditorialForm(instance=self.object)
         return context
 
 
@@ -283,9 +316,7 @@ def home_view(request):
 
     from .models import HymnAudio, HymnRevision
 
-    recent_hymnbooks = list(
-        _annotate_card_counts(HymnBook.objects.visible_to(request.user)).order_by("-created_at")[:6]
-    )
+    recent_hymnbooks = _hourly_featured(HymnBook.objects.visible_to(request.user), n=6)
     total_hymnbooks = HymnBook.objects.published().count()
     total_hymns = Hymn.objects.filter(hymn_book__is_published=True).count()
     total_audios = HymnAudio.objects.filter(is_approved=True).count()
@@ -357,6 +388,27 @@ def hymnbook_edit_view(request, slug):
             "hymnbook": hymnbook,
         },
     )
+
+
+@login_required
+@require_POST
+def hymnbook_editorial_update_view(request, slug):
+    """Atualiza `priority` e `is_featured` do hinário. Staff-only.
+
+    Endpoint do painel "Curadoria editorial" no `hymnbook_detail`.
+    """
+    if not request.user.is_staff:
+        messages.error(request, "Apenas staff pode alterar a curadoria editorial.")
+        return redirect("hymns:hymnbook_detail", slug=slug)
+
+    hymnbook = get_object_or_404(HymnBook, slug=slug)
+    form = HymnBookEditorialForm(request.POST, instance=hymnbook)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Curadoria editorial atualizada.")
+    else:
+        messages.error(request, "Não foi possível salvar a curadoria editorial.")
+    return redirect("hymns:hymnbook_detail", slug=hymnbook.slug)
 
 
 @login_required

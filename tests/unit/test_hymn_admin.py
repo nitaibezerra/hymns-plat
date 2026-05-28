@@ -19,7 +19,16 @@ class TestHymnBookAdmin:
 
     def test_list_display_fields(self):
         """Test correct list_display configuration."""
-        expected = ["name", "intro_name", "owner_name", "owner_user", "hymn_count", "created_at"]
+        expected = [
+            "name",
+            "intro_name",
+            "owner_name",
+            "owner_user",
+            "priority",
+            "is_featured",
+            "hymn_count",
+            "created_at",
+        ]
         assert HymnBookAdmin.list_display == expected
 
     def test_search_fields(self):
@@ -29,8 +38,12 @@ class TestHymnBookAdmin:
 
     def test_list_filter_fields(self):
         """Test list_filter configuration."""
-        expected = ["created_at", "owner_name"]
+        expected = ["priority", "is_featured", "is_published", "created_at", "owner_name"]
         assert HymnBookAdmin.list_filter == expected
+
+    def test_list_editable_fields(self):
+        """Curadoria editorial (priority + featured) editável direto na lista."""
+        assert HymnBookAdmin.list_editable == ["priority", "is_featured"]
 
     def test_readonly_fields(self):
         """Test readonly_fields configuration."""
@@ -44,22 +57,28 @@ class TestHymnBookAdmin:
 
     def test_fieldsets_structure(self):
         """Test fieldsets configuration structure."""
-        assert len(HymnBookAdmin.fieldsets) == 3
+        # 4 grupos: Básicas, Proprietário, Curadoria editorial, Metadados
+        assert len(HymnBookAdmin.fieldsets) == 4
 
-        # Test first fieldset - Informações Básicas
+        # Informações Básicas
         assert HymnBookAdmin.fieldsets[0][0] == "Informações Básicas"
         assert "name" in HymnBookAdmin.fieldsets[0][1]["fields"]
         assert "slug" in HymnBookAdmin.fieldsets[0][1]["fields"]
 
-        # Test second fieldset - Proprietário
+        # Proprietário
         assert HymnBookAdmin.fieldsets[1][0] == "Proprietário"
         assert "owner_name" in HymnBookAdmin.fieldsets[1][1]["fields"]
         assert "owner_user" in HymnBookAdmin.fieldsets[1][1]["fields"]
 
-        # Test third fieldset - Metadados
-        assert HymnBookAdmin.fieldsets[2][0] == "Metadados"
-        assert "id" in HymnBookAdmin.fieldsets[2][1]["fields"]
-        assert "collapse" in HymnBookAdmin.fieldsets[2][1]["classes"]
+        # Curadoria editorial
+        assert HymnBookAdmin.fieldsets[2][0] == "Curadoria editorial"
+        assert "priority" in HymnBookAdmin.fieldsets[2][1]["fields"]
+        assert "is_featured" in HymnBookAdmin.fieldsets[2][1]["fields"]
+
+        # Metadados (último)
+        assert HymnBookAdmin.fieldsets[3][0] == "Metadados"
+        assert "id" in HymnBookAdmin.fieldsets[3][1]["fields"]
+        assert "collapse" in HymnBookAdmin.fieldsets[3][1]["classes"]
 
     def test_inlines_configuration(self):
         """Test that HymnBookVersionInline and HymnInline are properly configured."""

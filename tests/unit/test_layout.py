@@ -27,12 +27,12 @@ class TestBaseLayout:
 
     def test_header_renders_nav_when_authenticated(self, authenticated_client):
         resp = authenticated_client.get(reverse("hymns:home")).content.decode()
-        assert ">Editor<" in resp
+        assert ">Fila de revisão<" in resp
         assert ">Contribuir<" in resp
 
     def test_header_hides_editor_for_anon(self, client):
         resp = client.get(reverse("hymns:home")).content.decode()
-        assert ">Editor<" not in resp
+        assert ">Fila de revisão<" not in resp
 
     def test_skip_link_present_for_a11y(self, client):
         resp = client.get(reverse("hymns:home")).content.decode()

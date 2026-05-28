@@ -26,8 +26,18 @@ class HymnBookVersionInline(admin.TabularInline):
 class HymnBookAdmin(admin.ModelAdmin):
     """Admin para Hinários."""
 
-    list_display = ["name", "intro_name", "owner_name", "owner_user", "hymn_count", "created_at"]
-    list_filter = ["created_at", "owner_name"]
+    list_display = [
+        "name",
+        "intro_name",
+        "owner_name",
+        "owner_user",
+        "priority",
+        "is_featured",
+        "hymn_count",
+        "created_at",
+    ]
+    list_filter = ["priority", "is_featured", "is_published", "created_at", "owner_name"]
+    list_editable = ["priority", "is_featured"]
     search_fields = ["name", "intro_name", "owner_name", "description"]
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ["id", "created_at", "updated_at", "hymn_count"]
@@ -44,6 +54,13 @@ class HymnBookAdmin(admin.ModelAdmin):
             "Proprietário",
             {
                 "fields": ["owner_name", "owner_user"],
+            },
+        ),
+        (
+            "Curadoria editorial",
+            {
+                "fields": ["priority", "is_featured"],
+                "description": "Prioridade da fila de revisão e destaque na home.",
             },
         ),
         (
