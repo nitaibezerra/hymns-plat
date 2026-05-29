@@ -601,6 +601,26 @@ html.dark .hymn-page { border-color: var(--color-rule); }
   transition: background 120ms;
 }
 .btn-primary-firmament:hover { background: var(--color-firmament-2); }
+/* Variante outline da primária — peso visual equivalente, hierarquia "par". */
+.btn-outline-firmament {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--color-firmament);
+  background: transparent;
+  color: var(--color-firmament);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.btn-outline-firmament:hover {
+  background: var(--color-firmament);
+  color: var(--color-bg);
+}
 
 /* ============================================================ */
 /* Tela 07 · Revisar Hino — Fase 2 v3                          */
@@ -996,17 +1016,49 @@ html.dark .hymn-page { border-color: var(--color-rule); }
   flex-direction: column;
   gap: 8px;
 }
-.metric-bar {
-  display: grid;
-  grid-template-columns: 32px 1fr 36px;
-  gap: 10px;
-  align-items: center;
+/* Cada bloco de métrica (Revisão formal / Completude) com eyebrow no topo. */
+.metric-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
-.metric-bar-label {
+.metric-section--review {
+  margin-bottom: 6px;
+}
+.metric-section-eyebrow {
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--color-ink-mute);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--color-rule-soft);
+  margin-bottom: 4px;
+}
+.metric-bar {
+  display: grid;
+  grid-template-columns: 110px 1fr 44px;
+  gap: 10px;
+  align-items: center;
+}
+/* REV ganha coluna extra para a contagem absoluta ("12 de 30"). */
+.metric-bar--rev {
+  grid-template-columns: 110px auto 1fr 44px;
+}
+.metric-bar-label {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-ink);
+}
+.metric-bar--rev .metric-bar-label {
+  font-weight: 500;
+  font-size: 14px;
+}
+.metric-bar-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  font-variant-numeric: tabular-nums;
 }
 .metric-bar-track {
   display: block;
@@ -1027,75 +1079,24 @@ html.dark .hymn-page { border-color: var(--color-rule); }
 }
 .metric-bar-pct {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--color-ink-soft);
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-/* === Última atividade — sparkline + linha mono === */
-.queue-card-activity {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-top: 14px;
-  border-top: 1px solid var(--color-rule-soft);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--color-ink-mute);
-  letter-spacing: 0.02em;
-}
-.queue-card-spark {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 3px;
-  width: 56px;
-  height: 16px;
-  flex-shrink: 0;
-}
-.queue-card-spark > i {
-  display: block;
-  width: 5px;
-  background: var(--color-gold);
-  border-radius: 1px;
-  opacity: 0.7;
-}
-.queue-card-spark > i:nth-child(1) { height: 35%; }
-.queue-card-spark > i:nth-child(2) { height: 60%; opacity: 0.4; }
-.queue-card-spark > i:nth-child(3) { height: 25%; }
-.queue-card-spark > i:nth-child(4) { height: 80%; }
-.queue-card-spark > i:nth-child(5) { height: 50%; opacity: 0.4; }
-.queue-card-spark > i:nth-child(6) { height: 90%; }
-.queue-card-spark > i:nth-child(7) { height: 65%; }
-.queue-card-activity-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.queue-card-activity-text strong {
-  color: var(--color-ink-soft);
-  font-weight: 500;
-}
-.queue-card-activity-when { flex-shrink: 0; }
-.queue-card-activity-empty {
-  padding-top: 0;
-  font-style: italic;
-  color: var(--color-ink-mute);
-}
-
-/* === Ações no rodapé do card === */
+/* === Ações no rodapé do card (pareadas — 1fr 1fr) === */
 .queue-card-actions {
   position: relative;
   z-index: 2; /* acima do ::after da stretched-link */
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
   align-items: stretch;
 }
 .queue-card-publish-form { display: contents; }
 .queue-card-actions .btn-primary-firmament,
-.queue-card-actions .btn-ghost-gold {
+.queue-card-actions .btn-outline-firmament {
   width: 100%;
   text-align: center;
 }

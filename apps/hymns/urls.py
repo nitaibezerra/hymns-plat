@@ -22,6 +22,11 @@ urlpatterns = [
         name="editor_quick_review",
     ),
     path(
+        "editor/hinarios/<slug:slug>/proximo-basico/",
+        editor_views.editor_next_incomplete,
+        name="editor_next_incomplete",
+    ),
+    path(
         "editor/hinos/<uuid:pk>/revisar/",
         editor_views.editor_revise_hymn,
         name="editor_revise_hymn",

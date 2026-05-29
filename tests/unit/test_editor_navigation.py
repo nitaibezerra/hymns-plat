@@ -1,8 +1,8 @@
 """
-Navegação editorial pós-design Fase 2:
+Navegação editorial pós-design Fase 2 (refinada no Fase 2.x):
 - Linha-toda-clicável na fila (`/editor/hinarios/`).
-- Botão "⚡ Revisão ágil" por linha na fila.
-- Botão "⚡ Revisão ágil" no header da tela do hinário.
+- Botão "⚡ Revisão básica" por linha na fila → `editor_next_incomplete`.
+- Botão "⚡ Revisão ágil" no header da tela do hinário (rota original mantida).
 """
 
 import pytest
@@ -33,9 +33,12 @@ class TestEditorHymnbookListNavigation:
         hb = hymn_book_factory(name="O Justiceiro")
         resp = authenticated_client.get(reverse("hymns:editor_hymnbook_list"))
         body = resp.content.decode()
-        quick_url = reverse("hymns:editor_quick_review", kwargs={"slug": hb.slug})
-        assert quick_url in body
-        assert "Revisão ágil" in body
+        # Fase 2.x refinement: o botão da fila vai para a "Revisão básica"
+        # (porta de entrada que pula direto para o primeiro hino incompleto)
+        # ao invés do quick_review na sequência rígida 1→N.
+        basic_url = reverse("hymns:editor_next_incomplete", kwargs={"slug": hb.slug})
+        assert basic_url in body
+        assert "Revisão básica" in body
 
 
 @pytest.mark.django_db

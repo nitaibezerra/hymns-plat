@@ -16,6 +16,7 @@ import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -122,43 +123,6 @@ def editor_hymnbook_list(request):
     qs = qs.order_by(*sort_map.get(sort, sort_map["least_reviewed"]))
     hymnbooks = list(qs)
 
-    # Última atividade por hinário (1 query, dict mapeado por hb.pk → dict).
-    book_ids = [hb.pk for hb in hymnbooks]
-    last_activity_by_book: dict = {}
-    if book_ids:
-        cutoff_7d = timezone.now() - timedelta(days=7)
-        latest_per_book: dict = {}
-        for rev in (
-            HymnRevision.objects.filter(hymn__hymn_book_id__in=book_ids)
-            .select_related("revised_by", "hymn", "hymn__hymn_book")
-            .order_by("-revised_at")
-        ):
-            bid = rev.hymn.hymn_book_id
-            if bid not in latest_per_book:
-                latest_per_book[bid] = rev
-            # Acumula contagem por revisor pra os últimos 7 dias.
-            if rev.revised_at >= cutoff_7d:
-                continue
-        # Para os hinários com revisão recente, conta hinos distintos
-        # revisados pelo último revisor nos últimos 7 dias.
-        for bid, rev in latest_per_book.items():
-            who = rev.revised_by
-            n = (
-                HymnRevision.objects.filter(
-                    hymn__hymn_book_id=bid,
-                    revised_by=who,
-                    revised_at__gte=cutoff_7d,
-                )
-                .values("hymn_id")
-                .distinct()
-                .count()
-            )
-            last_activity_by_book[bid] = {
-                "who": (who.username if who else "—"),
-                "when": rev.revised_at,
-                "n": n,
-            }
-
     # Stats inline: hinários · hinos pendentes · revisados 7d · P1 urgentes.
     visible_ids = list(_editor_visible_books(request.user).values_list("pk", flat=True))
     pending_hymns = (
@@ -182,10 +146,6 @@ def editor_hymnbook_list(request):
     )
 
     pending_audios_count = _pending_audios_for(request.user).count()
-
-    # Attach last_activity para o template sem precisar de filtros custom.
-    for hb in hymnbooks:
-        hb.last_activity = last_activity_by_book.get(hb.pk)
 
     return render(
         request,
@@ -287,14 +247,19 @@ def editor_quick_review(request, slug):
         form = QuickReviewForm(request.POST, instance=current)
         if form.is_valid():
             form.save()
-        # Avança independente de erros de form (erros simples num CharField
-        # aqui são pouco prováveis; se ocorrerem, fica visível no GET seguinte).
-        idx = hymns.index(current)
-        if idx + 1 < len(hymns):
-            next_h = hymns[idx + 1]
-            url = reverse("hymns:editor_quick_review", kwargs={"slug": hymnbook.slug})
-            return redirect(f"{url}?h={next_h.number}")
-        return redirect("hymns:editor_hymnbook_detail", slug=hymnbook.slug)
+        # Navega para o próximo hino ainda *incompleto* (estilo OU reps vazios),
+        # com wrap-around (mesma estratégia de `_next_pending_hymn`). Se nenhum
+        # restante, volta pro detail com flash.
+        incomplete_qs = hymnbook.hymns.filter(Q(style="") | Q(repetitions="")).exclude(pk=current.pk)
+        next_h = (
+            incomplete_qs.filter(number__gt=current.number).order_by("number").first()
+            or incomplete_qs.order_by("number").first()
+        )
+        if next_h is None:
+            messages.info(request, "Você completou estilo e repetições de todos os hinos deste hinário.")
+            return redirect("hymns:editor_hymnbook_detail", slug=hymnbook.slug)
+        url = reverse("hymns:editor_quick_review", kwargs={"slug": hymnbook.slug})
+        return redirect(f"{url}?h={next_h.number}")
 
     idx = hymns.index(current)
     prev_hymn = hymns[idx - 1] if idx > 0 else None
@@ -336,6 +301,26 @@ def editor_next_hymn(request, slug):
         messages.success(request, "Todos os hinos deste hinário estão revisados.")
         return redirect("hymns:editor_hymnbook_detail", slug=hymnbook.slug)
     return redirect("hymns:editor_revise_hymn", pk=pending.pk)
+
+
+@login_required
+def editor_next_incomplete(request, slug):
+    """Porta de entrada da "Revisão básica": pula direto para o primeiro hino
+    do hinário com `style` OU `repetitions` vazios, abrindo o `quick_review`
+    apontado para ele. Se todos os hinos têm os dois campos preenchidos,
+    redireciona ao `editor_hymnbook_detail` com mensagem flash.
+    """
+    hymnbook = get_object_or_404(HymnBook, slug=slug)
+    if not can_edit_hymnbook(request.user, hymnbook):
+        messages.error(request, "Você não tem permissão para revisar este hinário.")
+        return redirect("hymns:home")
+
+    incomplete = hymnbook.hymns.filter(Q(style="") | Q(repetitions="")).order_by("number").first()
+    if incomplete is None:
+        messages.info(request, "Todos os hinos deste hinário já têm estilo e repetições preenchidos.")
+        return redirect("hymns:editor_hymnbook_detail", slug=hymnbook.slug)
+    url = reverse("hymns:editor_quick_review", kwargs={"slug": hymnbook.slug})
+    return redirect(f"{url}?h={incomplete.number}")
 
 
 @login_required

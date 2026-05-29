@@ -1,7 +1,8 @@
-"""E2E para o Workspace Editorial (Fase 2.x).
+"""E2E para o Workspace Editorial (Fase 2.x, refinado).
 
 Cobre o redesign visual + comportamentais:
-- Card vertical com 4 micro-barras (REV / EST / REP / AUD)
+- Card vertical com métricas em 2 seções: REV (formal) + Completude
+  (Estilo/Repetições/Áudios) — todas mantêm o hook `data-metric=`
 - Badge de prioridade (P1/P2/P3) + glifo "em destaque" condicional
 - Stretched-link: clicar no card → vai para o detail; clicar nos botões
   internos → ações correspondentes (sem navegar pro detail)
@@ -89,9 +90,12 @@ class TestWorkspaceCardStructure:
         expect(pill).to_have_class("priority-pill priority-pill--p1")
         # Glifo de destaque (is_featured=True para este hinário)
         expect(card.locator("[data-featured-glyph]")).to_have_count(1)
-        # 4 micro-barras REV/EST/REP/AUD
+        # Métricas: REV (Revisão formal) + 3 de Completude
         for metric in ("rev", "est", "rep", "aud"):
             expect(card.locator(f"[data-metric='{metric}']")).to_be_visible()
+        # REV agora vive em sua própria seção (separada de Completude)
+        expect(card.locator(".metric-section--review [data-metric='rev']")).to_have_count(1)
+        expect(card.locator(".metric-section--completude [data-metric='rev']")).to_have_count(0)
 
     def test_p3_card_has_no_featured_glyph(self, authenticated_page, base_url):
         authenticated_page.goto(f"{base_url}/editor/hinarios/")
@@ -116,8 +120,9 @@ class TestWorkspaceCardStretchedLink:
         authenticated_page.wait_for_timeout(120)
         # `force=True` evita a interceptação do <form> de busca no header
         # sticky em viewports estreitos; o overlay ::after da stretched-link
-        # cobre toda a área do card e responde ao click sintético.
-        card.locator(".queue-card-activity").click(force=True)
+        # cobre toda a área do card e responde ao click sintético. Alvo
+        # estável: a seção de métricas (sempre presente).
+        card.locator("[data-queue-metrics]").click(force=True)
         expect(authenticated_page).to_have_url(f"{base_url}/editor/hinarios/{SEED_PREFIX}-p3/")
 
     def test_clicking_quick_review_button_goes_to_quick_review(self, authenticated_page, base_url):
