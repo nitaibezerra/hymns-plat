@@ -17,7 +17,8 @@ from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
 
-from .types import HymnAudioType, HymnBookType, HymnType
+from .mutations import Mutation
+from .types import HymnAudioType, HymnBookType, HymnType, UserType
 
 
 def _user(info: Info):
@@ -50,6 +51,11 @@ class Query:
         return hymn_models.Hymn.objects.filter(pk=pk, hymn_book__in=visible_books).first()
 
     @strawberry.field
+    def current_user(self, info: Info) -> Optional[UserType]:
+        user = _user(info)
+        return user if getattr(user, "is_authenticated", False) else None
+
+    @strawberry.field
     def global_stats(self) -> GlobalStats:
         """Mesmo cálculo de apps.hymns.api_views.api_global_stats."""
         cutoff = timezone.now() - timedelta(days=30)
@@ -66,4 +72,8 @@ class Query:
         )
 
 
-schema = strawberry.Schema(query=Query, types=[HymnBookType, HymnType, HymnAudioType])
+schema = strawberry.Schema(
+    query=Query,
+    mutation=Mutation,
+    types=[HymnBookType, HymnType, HymnAudioType, UserType],
+)

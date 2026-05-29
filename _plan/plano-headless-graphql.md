@@ -111,24 +111,37 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 
 **Objetivo:** expor mutations protegidas com a mesma session do Django, sem ainda ter cliente JS oficial.
 
+**Ciclos TDD (ordem de execução):**
+
+| Ciclo | RED (teste novo) | GREEN (mínimo pra passar) |
+|---|---|---|
+| 2.1 | `test_graphql_post_requires_csrf_token` + `test_graphql_post_succeeds_with_csrf` em `tests/unit/api/test_csrf.py` | Habilitar CSRF no `GraphQLView` (remover `@csrf_exempt` se houver; ou usar wrapper) |
+| 2.2 | `test_login_mutation_authenticates_valid_credentials`, `test_login_mutation_returns_error_for_invalid_credentials` | Mutation `login(username, password)` via `django.contrib.auth.authenticate` + `login` |
+| 2.3 | `test_current_user_returns_null_for_anon`, `test_current_user_returns_user_for_authenticated`, `test_logout_mutation_clears_session` | Query `currentUser` + mutation `logout` |
+| 2.4 | `test_set_review_status_editor_succeeds`, `test_set_review_status_anon_blocked`, `test_set_review_status_creates_revision` | Mutation `setReviewStatus(pk, status)` gateando por `can_review_any_hymnbook` |
+| 2.5 | `test_update_hymn_editor_can_change_title`, `test_update_hymn_blocks_non_editor`, `test_update_hymn_validates_input` | Mutation `updateHymn(pk, input)` reusando `HymnForm` |
+| 2.6 | `test_toggle_favorite_adds_for_authenticated`, `test_toggle_favorite_removes_existing`, `test_toggle_favorite_blocks_anon` | Mutation `toggleFavorite(hymnPk)` |
+| 2.7 | `test_cors_preflight_from_svelte_dev_origin`, `test_cors_blocks_untrusted_origin` | Adicionar `django-cors-headers` + config |
+
 **Arquivos a criar:**
-- `apps/api/mutations.py` — `Mutation` com:
-  - `loginWithPassword(username, password)` — chama `django.contrib.auth.login`, retorna user atual; **CSRF protege a request**.
-  - `logout()` — `django.contrib.auth.logout`.
-  - `updateHymn(pk, input: HymnInput)` — chama `can_edit_hymnbook` antes; usa o ModelForm existente em `apps/hymns/forms.py` para validação, **não duplica regra**.
-  - `setReviewStatus(pk, status)` — gateia por `can_review_any_hymnbook`; dispara o signal de revisão automaticamente (não precisa código extra — o `pre_save`/`post_save` em `apps/hymns/signals.py` já escreve `HymnRevision`).
-  - `toggleFavorite(hymnPk)` — autenticação obrigatória.
-- `apps/api/permissions.py` — decorator/extension Strawberry `@gate(check=can_edit_hymnbook)` que recebe o objeto e o `info.context.request.user`.
-- `apps/api/context.py` — context getter que injeta `request` e `user` em todo resolver.
-- `tests/unit/test_api_mutations.py` — login, logout, updateHymn (200 pra editor, 403 pra anon, 403 pra usuário comum).
-- `tests/unit/test_api_csrf.py` — POST sem CSRF token retorna 403; com token retorna 200.
+- `apps/api/mutations.py` — todas as mutations.
+- `apps/api/permissions.py` — helper `gate(user, check, *args)` que levanta `PermissionDenied` (traduzido pra GraphQL error pelo Strawberry).
+- `apps/api/context.py` — context getter (se necessário).
+- `tests/unit/api/test_csrf.py`, `test_auth_mutations.py`, `test_mutation_set_review_status.py`, `test_mutation_update_hymn.py`, `test_mutation_toggle_favorite.py`, `test_cors.py`.
 
 **Arquivos a editar:**
-- `config/settings/base.py` — `CORS_ALLOWED_ORIGINS = ["https://hinaria.com.br", "https://app.hinaria.com.br", "http://localhost:5173"]` (dev SvelteKit). Adicionar `django-cors-headers` no pyproject.
-- `config/settings/production.py` — `CSRF_COOKIE_DOMAIN = ".hinaria.com.br"`, `SESSION_COOKIE_DOMAIN = ".hinaria.com.br"`, `CSRF_TRUSTED_ORIGINS += ["https://app.hinaria.com.br"]`.
+- `pyproject.toml` — adicionar `django-cors-headers>=4.0,<5.0`.
+- `config/settings/base.py` — `CORS_ALLOWED_ORIGINS` em dev, middleware `corsheaders.middleware.CorsMiddleware` antes do `CommonMiddleware`.
+- `config/settings/production.py` — `CSRF_COOKIE_DOMAIN`, `SESSION_COOKIE_DOMAIN`, `CSRF_TRUSTED_ORIGINS` (deferred até Marco 7 se ainda não houver subdomínio `app`).
 - `apps/api/schema.py` — `Schema(query=Query, mutation=Mutation)`.
 
-**Decisão pendente nesse marco:** se o login web deve continuar via formulário Django renderizado (allauth) ou migrar pra mutation GraphQL desde já. **Recomendação: continuar via allauth no Marco 2** (login bonito existente), expor mutation só pra mobile no Marco 7+.
+**Decisão fixada:** o login web continua via formulário allauth renderizado pelo Django; a mutation `login` é adicionada **mesmo assim** porque (a) será usada pelo mobile no Marco 8 e (b) facilita E2E tests da SPA. Custo de manter é baixo.
+
+**Critério de aceitação:**
+- Todos os 7 ciclos verdes.
+- Suite completa continua verde.
+- Lint passa.
+- Smoke manual: `curl` com cookie de sessão consegue fazer mutation; sem cookie falha com erro de CSRF/auth.
 
 ### Marco 3 — SvelteKit skeleton + autenticação + listagem de hinários
 
