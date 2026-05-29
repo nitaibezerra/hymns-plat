@@ -1,0 +1,41 @@
+name: CI Web
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "web/**"
+      - "schema.graphql"
+      - ".github/workflows/ci-web.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Web Test & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "23"
+          cache: "pnpm"
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Type-check (svelte-check)
+        run: pnpm check
+
+      - name: Unit tests (vitest)
+        run: pnpm test
+
+      - name: Build (SvelteKit)
+        run: pnpm build

@@ -149,6 +149,38 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 
 **Repositório:** mesmo monorepo, novo diretório `web/` (sibling de `apps/`). `web/package.json` separado, `pnpm` como gerenciador.
 
+**Decisão de client GraphQL (fixada):** **@urql/svelte** em vez de Houdini. Razões: (a) mock de fetch é mais previsível em vitest do que mock dos stores Houdini — facilita TDD; (b) o mesmo client roda em React Native pro Marco 8 (Houdini é Svelte-only); (c) codegen via `graphql-codegen` é desacoplado do dev loop. Trade-off aceito: menos açúcar "Svelte-idiomático" no consumo de queries.
+
+**Ciclos TDD (ordem de execução):**
+
+| Ciclo | RED (teste) | GREEN (mínimo pra passar) |
+|---|---|---|
+| 3.1 | `tests/build.spec.ts` — `pnpm build` produz `.svelte-kit/output/` válido | Scaffold pnpm + SvelteKit + Vite + adapter-static (ou adapter-node) |
+| 3.2 | `src/lib/graphql/client.test.ts` — cliente configurado com URL correta + `credentials: include` | `src/lib/graphql/client.ts` com `createClient` do urql |
+| 3.3 | `tests/codegen.spec.ts` — `pnpm codegen` lê `../schema.graphql` e gera `src/lib/graphql/generated.ts` com tipos | `graphql-codegen.yml` + script no package.json |
+| 3.4 | `src/routes/+page.test.ts` — home renderiza `globalStats` (com client mockado) | `+page.ts` load fetch via urql + `+page.svelte` que renderiza |
+| 3.5 | `src/routes/hinarios/+page.test.ts` — lista hinários do mock | Página `/hinarios/` com query `hymnbooks` |
+| 3.6 | `tests/login.spec.ts` (Playwright) — submit do form chama mutation e seta sessão | Form de login chamando `login` mutation; redirect pós-login |
+
+**Arquivos a criar (essenciais):**
+- `web/package.json`, `web/svelte.config.js`, `web/vite.config.ts`, `web/tsconfig.json`.
+- `web/src/lib/graphql/client.ts` — `createClient({ url, fetchOptions: { credentials: 'include' } })`.
+- `web/src/lib/graphql/queries.ts` — queries SDL como const strings (gera tipos via codegen).
+- `web/src/routes/+layout.svelte` — header + link de login.
+- `web/src/routes/+page.svelte` + `+page.ts` — home: stats globais + 3 hinários publicados.
+- `web/src/routes/hinarios/+page.svelte` + `+page.ts` — lista completa.
+- `web/src/routes/login/+page.svelte` — form de login.
+- `web/graphql.config.yml` ou `web/codegen.config.ts` — config do `graphql-codegen`.
+- `web/playwright.config.ts` — apontando pra `localhost:5173`.
+- `web/tests/e2e/home.spec.ts` — Playwright básico.
+- `web/vitest.config.ts` + `web/src/setup-test.ts`.
+- Raiz: `pnpm-workspace.yaml` (opcional) + `Makefile` ou script unificado pra rodar Django + SvelteKit em paralelo.
+
+**Decisões fixadas:**
+- **Hosting:** Cloudflare Pages (mesmo ecossistema do Worker + R2). Adapter `@sveltejs/adapter-cloudflare`.
+- **Estratégia SSR/CSR:** SSR-first pro SEO (hinos são conteúdo público indexável). Modo `prerender` para páginas estáticas; CSR pra editor.
+- **CI:** workflow `ci-web.yml` adiciona dois jobs (Vitest + Playwright); o workflow Django atual não muda.
+
 **Arquivos a criar (essenciais):**
 - `web/package.json`, `web/svelte.config.js`, `web/vite.config.ts`, `web/tsconfig.json`.
 - `web/src/lib/graphql/client.ts` — `houdini` config apontando pra `http://localhost:8000/graphql/` em dev, `https://api.hinaria.com.br/graphql/` em prod. `credentials: 'include'` (manda cookies).
