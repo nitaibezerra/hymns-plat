@@ -51,7 +51,10 @@ class TestEditorHymnbookListView:
         resp = authenticated_client.get(reverse("hymns:editor_hymnbook_list"))
         assert resp.status_code == 302
 
-    def test_default_sort_least_reviewed_first(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_default_sort_groups_by_priority_then_name(self, authenticated_client, hymn_book_factory, hymn_factory):
+        """Default sort agora é priority (P1→P2→P3) e depois `name` asc.
+        Sem sort do usuário, ambos hinários caem em P3 (default do model),
+        então `name` decide → "Empty progress" antes de "Full"."""
         _make_editor(authenticated_client.user)
         full = hymn_book_factory(name="Full")
         h = hymn_factory(hymn_book=full, number=1)
@@ -64,15 +67,20 @@ class TestEditorHymnbookListView:
         slugs = [hb.slug for hb in resp.context["hymnbooks"]]
         assert slugs.index(empty_progress.slug) < slugs.index(full.slug)
 
-    def test_supports_most_reviewed_sort(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_supports_review_desc_sort(self, authenticated_client, hymn_book_factory, hymn_factory):
+        """Sort tri-state: `?sort=review:desc` → maior review_pct primeiro.
+        Filtra por uma mesma prioridade pra isolar do priority-primary."""
         _make_editor(authenticated_client.user)
-        full = hymn_book_factory(name="Full")
+        full = hymn_book_factory(name="Full", priority="P1")
         h = hymn_factory(hymn_book=full, number=1)
         _set_status(h, Hymn.ReviewStatus.REVIEWED)
-        empty_progress = hymn_book_factory(name="Empty progress")
+        empty_progress = hymn_book_factory(name="Empty progress", priority="P1")
         hymn_factory(hymn_book=empty_progress, number=1)
 
-        resp = authenticated_client.get(reverse("hymns:editor_hymnbook_list"), {"sort": "most_reviewed"})
+        resp = authenticated_client.get(
+            reverse("hymns:editor_hymnbook_list"),
+            {"sort": "review:desc", "priority": "P1"},
+        )
         slugs = [hb.slug for hb in resp.context["hymnbooks"]]
         assert slugs.index(full.slug) < slugs.index(empty_progress.slug)
 
