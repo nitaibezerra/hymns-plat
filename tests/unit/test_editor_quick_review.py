@@ -139,10 +139,33 @@ class TestEditorQuickReviewPOST:
         assert "style" in diff_keys
         assert "repetitions" in diff_keys
 
-    def test_post_at_last_hymn_redirects_to_detail(self, authenticated_client, hymn_book_factory, hymn_factory):
+    def test_post_at_last_hymn_wraps_to_earlier_incomplete(self, authenticated_client, hymn_book_factory, hymn_factory):
+        """Fase 2.x: o save+next agora pula pro próximo *incompleto* com
+        wrap-around — quando o último hino é salvo mas algum anterior ainda
+        está incompleto, redireciona para ele (não para o detail)."""
         hb, h1, h2 = self._setup(authenticated_client, hymn_book_factory, hymn_factory)
+        # h1 nasce vazio (style="" e repetitions="") no _setup.
         url = reverse("hymns:editor_quick_review", kwargs={"slug": hb.slug})
+        # POST no último hino (h2), deixando reps="" → h2 segue incompleto também,
+        # mas como excluímos pk atual, o único restante é h1.
         resp = authenticated_client.post(url + "?h=2", {"style": "Valsa", "repetitions": ""})
+        assert resp.status_code == 302
+        # Wrap-around → h1 (primeiro incompleto restante).
+        assert "h=1" in resp.url
+
+    def test_post_at_last_hymn_redirects_to_detail_when_no_other_incomplete(
+        self, authenticated_client, hymn_book_factory, hymn_factory
+    ):
+        """Quando o save resolve o último incompleto (todos completos),
+        redireciona para o detail editorial com mensagem."""
+        _make_editor(authenticated_client.user)
+        hb = hymn_book_factory(name="Quase pronto")
+        hymn_factory(hymn_book=hb, number=1, style="Marcha", repetitions="1-4")
+        h2 = hymn_factory(hymn_book=hb, number=2, style="", repetitions="1-4")
+        url = reverse("hymns:editor_quick_review", kwargs={"slug": hb.slug})
+        resp = authenticated_client.post(url + "?h=2", {"style": "Valsa", "repetitions": "1-4"})
+        h2.refresh_from_db()
+        assert h2.style == "Valsa"
         assert resp.status_code == 302
         assert resp.url == reverse("hymns:editor_hymnbook_detail", kwargs={"slug": hb.slug})
 

@@ -101,31 +101,27 @@
           </span>
         </header>
 
-        {# 4 micro-barras: REV / EST / REP / AUD #}
+        {# Métricas em DUAS seções: REV (flag formal) vs Completude (campos preenchidos) #}
         <div class="queue-card-metrics" data-queue-metrics>
-          <div class="metric-bar metric-bar--rev" data-metric="rev"><span class="metric-bar-label">REV</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ rev }}%;"></span></span><span class="metric-bar-pct">{{ rev }}%</span></div>
-          <div class="metric-bar" data-metric="est"><span class="metric-bar-label">EST</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ sty }}%;"></span></span><span class="metric-bar-pct">{{ sty }}%</span></div>
-          <div class="metric-bar" data-metric="rep"><span class="metric-bar-label">REP</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ rep }}%;"></span></span><span class="metric-bar-pct">{{ rep }}%</span></div>
-          <div class="metric-bar" data-metric="aud"><span class="metric-bar-label">AUD</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ aud }}%;"></span></span><span class="metric-bar-pct">{{ aud }}%</span></div>
+          <section class="metric-section metric-section--review">
+            <header class="metric-section-eyebrow">Revisão formal</header>
+            <div class="metric-bar metric-bar--rev" data-metric="rev">
+              <span class="metric-bar-label">Revisados</span>
+              <span class="metric-bar-count">{{ hb.reviewed_hymns|default:0 }} de {{ hb.total_hymns|default:0 }}</span>
+              <span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ rev }}%;"></span></span>
+              <span class="metric-bar-pct">{{ rev }}%</span>
+            </div>
+          </section>
+
+          <section class="metric-section metric-section--completude">
+            <header class="metric-section-eyebrow">Completude de conteúdo</header>
+            <div class="metric-bar" data-metric="est"><span class="metric-bar-label">Estilo</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ sty }}%;"></span></span><span class="metric-bar-pct">{{ sty }}%</span></div>
+            <div class="metric-bar" data-metric="rep"><span class="metric-bar-label">Repetições</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ rep }}%;"></span></span><span class="metric-bar-pct">{{ rep }}%</span></div>
+            <div class="metric-bar" data-metric="aud"><span class="metric-bar-label">Áudios</span><span class="metric-bar-track"><span class="metric-bar-fill" style="width: {{ aud }}%;"></span></span><span class="metric-bar-pct">{{ aud }}%</span></div>
+          </section>
         </div>
 
-        {# Última atividade — sparkline + linha mono compacta #}
-        <div class="queue-card-activity">
-          {% if hb.last_activity %}
-            <span class="queue-card-spark" aria-hidden="true">
-              <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-            </span>
-            <span class="queue-card-activity-text">
-              <strong>{{ hb.last_activity.who }}</strong>
-              revisou {{ hb.last_activity.n }} hino{{ hb.last_activity.n|pluralize }}
-            </span>
-            <span class="queue-card-activity-when">{{ hb.last_activity.when|timesince }} atrás</span>
-          {% else %}
-            <span class="queue-card-activity-empty">Sem atividade ainda</span>
-          {% endif %}
-        </div>
-
-        {# Ações: z-index:2 (em .queue-card-actions) faz a área clicável ficar à frente do overlay do título. #}
+        {# Ações pareadas (grid 1fr 1fr no CSS): mesma hierarquia visual. #}
         <div class="queue-card-actions">
           {% if hb.review_pct == 100 and not hb.is_published %}
             <form action="{% url 'hymns:hymnbook_publish' hb.slug %}" method="post" class="queue-card-publish-form">
@@ -135,11 +131,11 @@
           {% else %}
             <a href="{% url 'hymns:editor_next_hymn' hb.slug %}"
                class="btn-primary-firmament justify-center"
-               data-action="next">Revisar próximo →</a>
+               data-action="next">Revisão completa →</a>
           {% endif %}
-          <a href="{% url 'hymns:editor_quick_review' hb.slug %}"
-             class="btn-ghost-gold"
-             data-action="quick">⚡ Revisão ágil</a>
+          <a href="{% url 'hymns:editor_next_incomplete' hb.slug %}"
+             class="btn-outline-firmament justify-center"
+             data-action="quick">⚡ Revisão básica</a>
         </div>
       </article>
       {% endwith %}
