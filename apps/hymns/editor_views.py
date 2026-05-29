@@ -16,7 +16,7 @@ import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -95,6 +95,86 @@ def editor_reject_audio(request, pk):
     return redirect("hymns:editor_pending_audios")
 
 
+# ---------------------------------------------------------------------------
+# Sort tri-state: cada chip (Revisão / Estilo+Reps / Áudios / Recentes) cicla
+# off → asc → desc → off. URL serializada como `?sort=metric:dir,metric:dir`,
+# onde a ORDEM dos pares determina prioridade do ORDER BY (cliques mais antigos
+# vencem). Quando `priority=all`, prioridade vira sort primário (P1→P2→P3) e os
+# sorts do usuário viram tie-breakers.
+# ---------------------------------------------------------------------------
+
+SORT_METRICS = (
+    # (key, label-pra-chip)
+    ("review", "Revisão"),
+    ("comp", "Estilo + Reps"),
+    ("audio", "Áudios"),
+    ("recent", "Recentes"),
+)
+_SORT_KEYS = {k for k, _ in SORT_METRICS}
+_SORT_DIRS = {"asc", "desc"}
+
+
+def _parse_sort(raw: str) -> list[tuple[str, str]]:
+    """`review:asc,audio:desc` → [('review','asc'), ('audio','desc')].
+
+    Ignora tokens inválidos, mantém ordem de aparição, deduplica métricas
+    (1ª ocorrência vence). View defensiva: nunca levanta — URLs malformadas
+    caem para defaults.
+    """
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for chunk in (raw or "").split(","):
+        chunk = chunk.strip()
+        if ":" not in chunk:
+            continue
+        metric, direction = (s.strip().lower() for s in chunk.split(":", 1))
+        if metric in seen or metric not in _SORT_KEYS or direction not in _SORT_DIRS:
+            continue
+        seen.add(metric)
+        out.append((metric, direction))
+    return out
+
+
+def _toggle_sort(pairs: list[tuple[str, str]], metric: str) -> list[tuple[str, str]]:
+    """Tri-state cycle: off → asc → desc → off para `metric` dentro de `pairs`.
+
+    Quando `metric` não está em `pairs`, vai pro fim como `asc` (último clique
+    tem menor prioridade — o cliente espera "vou priorizar esta métrica menos
+    do que as que já cliquei").
+    """
+    for i, (m, d) in enumerate(pairs):
+        if m == metric:
+            if d == "asc":
+                new = list(pairs)
+                new[i] = (m, "desc")
+                return new
+            # d == "desc" → remove
+            return [p for j, p in enumerate(pairs) if j != i]
+    return list(pairs) + [(metric, "asc")]
+
+
+def _encode_sort(pairs: list[tuple[str, str]]) -> str:
+    return ",".join(f"{m}:{d}" for m, d in pairs)
+
+
+def _sort_expression(metric: str, direction: str):
+    """Mapeia `(metric, direction)` para um `OrderBy` que o ORM aceita.
+
+    Para "comp" (Estilo + Reps), combina os dois pcts já anotados via F sum
+    — manager garante zero como default, então a soma é always-numeric.
+    """
+    field_map = {
+        "review": F("review_pct"),
+        "audio": F("audio_pct"),
+        "comp": F("style_pct") + F("reps_pct"),
+        "recent": F("created_at"),
+    }
+    expr = field_map.get(metric)
+    if expr is None:
+        return None
+    return expr.asc() if direction == "asc" else expr.desc()
+
+
 @login_required
 def editor_hymnbook_list(request):
     from datetime import timedelta
@@ -105,22 +185,25 @@ def editor_hymnbook_list(request):
         messages.error(request, "Você não tem acesso ao workspace do editor.")
         return redirect("hymns:home")
 
-    # Query params: sort e priority são independentes e combináveis.
-    # Invalid values caem para defaults (sem 4xx — view defensiva).
-    sort = request.GET.get("sort") or "least_reviewed"
+    sort_pairs = _parse_sort(request.GET.get("sort") or "")
     priority = request.GET.get("priority") or "all"
 
     qs = _editor_visible_books(request.user).with_review_progress()
     if priority in HymnBook.Priority.values:
         qs = qs.filter(priority=priority)
 
-    sort_map = {
-        "least_reviewed": ("review_pct", "name"),
-        "most_reviewed": ("-review_pct", "name"),
-        "recent": ("-created_at",),
-        "least_audios": ("audio_pct", "name"),
-    }
-    qs = qs.order_by(*sort_map.get(sort, sort_map["least_reviewed"]))
+    # ORDER BY: sorts do usuário em ordem de clique, depois `name` como
+    # tie-breaker estável. Quando `priority=all`, a prioridade do hinário
+    # vira sort PRIMÁRIO (P1 antes de P2 antes de P3) para que o editor veja
+    # urgência no topo — os sorts do usuário viram secundários.
+    user_sorts = [_sort_expression(m, d) for m, d in sort_pairs]
+    user_sorts = [e for e in user_sorts if e is not None]
+    order_args: list = []
+    if priority == "all":
+        order_args.append("priority")  # CharField P1/P2/P3 — asc = P1 primeiro
+    order_args.extend(user_sorts)
+    order_args.append("name")
+    qs = qs.order_by(*order_args)
     hymnbooks = list(qs)
 
     # Stats inline: hinários · hinos pendentes · revisados 7d · P1 urgentes.
@@ -147,13 +230,68 @@ def editor_hymnbook_list(request):
 
     pending_audios_count = _pending_audios_for(request.user).count()
 
+    # Pré-monta as 4 chips de sort com seu estado atual + href de toggle.
+    # Pré-montar no Python evita ifs encadeados no template e mantém o cycle
+    # off→asc→desc→off como única fonte da verdade.
+    pairs_index = {m: (i, d) for i, (m, d) in enumerate(sort_pairs)}
+    sort_chips = []
+    multi = len(sort_pairs) >= 2
+    for key, label in SORT_METRICS:
+        idx_dir = pairs_index.get(key)
+        state = idx_dir[1] if idx_dir else "off"
+        position = (idx_dir[0] + 1) if (idx_dir and multi) else None
+        toggled = _toggle_sort(sort_pairs, key)
+        encoded = _encode_sort(toggled)
+        qs_params = []
+        if encoded:
+            qs_params.append(f"sort={encoded}")
+        if priority != "all":
+            qs_params.append(f"priority={priority}")
+        href = "?" + "&".join(qs_params) if qs_params else "?"
+        sort_chips.append(
+            {
+                "key": key,
+                "label": label,
+                "state": state,  # "off" | "asc" | "desc"
+                "position": position,  # int ou None
+                "href": href,
+            }
+        )
+
+    # Priority chips: filter mutualmente-exclusivo. Reset preserva `sort`.
+    encoded_sort = _encode_sort(sort_pairs)
+    priority_chips = []
+    for value, label, dot in (
+        ("all", "Todas", None),
+        ("P1", "P1 Urgente", "vermilion"),
+        ("P2", "P2 Atenção", "gold"),
+        ("P3", "P3", None),
+    ):
+        qs_params = []
+        if value != "all":
+            qs_params.append(f"priority={value}")
+        if encoded_sort:
+            qs_params.append(f"sort={encoded_sort}")
+        href = "?" + "&".join(qs_params) if qs_params else "?"
+        priority_chips.append(
+            {
+                "value": value,
+                "label": label,
+                "dot": dot,
+                "active": priority == value,
+                "href": href,
+            }
+        )
+
     return render(
         request,
         "hymns/editor/hymnbook_list.html",
         {
             "hymnbooks": hymnbooks,
-            "sort": sort,
+            "sort_pairs": sort_pairs,
+            "sort_chips": sort_chips,
             "priority": priority,
+            "priority_chips": priority_chips,
             "stats": {
                 "books": len(visible_ids),
                 "pending_hymns": pending_hymns,
@@ -162,19 +300,6 @@ def editor_hymnbook_list(request):
             },
             "resume": resume,
             "pending_audios_count": pending_audios_count,
-            # Pares (value, label, dot_color_hint) para os chips de filtro.
-            "sort_options": [
-                ("least_reviewed", "Menos revisados"),
-                ("most_reviewed", "Mais revisados"),
-                ("least_audios", "Menos áudios"),
-                ("recent", "Recém adicionados"),
-            ],
-            "priority_options": [
-                ("all", "Todas", None),
-                ("P1", "P1 Urgente", "vermilion"),
-                ("P2", "P2 Atenção", "gold"),
-                ("P3", "P3", None),
-            ],
         },
     )
 

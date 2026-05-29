@@ -101,8 +101,8 @@ def main() -> None:
         # nome → URL relativa
         ("01-workspace-list", "/editor/hinarios/"),
         ("02-workspace-list-priority-p1", "/editor/hinarios/?priority=P1"),
-        ("03-workspace-list-sort-least-audios", "/editor/hinarios/?sort=least_audios"),
-        ("04-workspace-list-combined", "/editor/hinarios/?priority=P1&sort=least_audios"),
+        ("03-workspace-list-sort-audio-asc", "/editor/hinarios/?sort=audio:asc"),
+        ("04-workspace-list-combined", "/editor/hinarios/?priority=P1&sort=audio:asc"),
         ("05-hymnbook-detail-with-staff-strip", f"/hinarios/{book_slug}/"),
         ("06-hymn-detail-no-origem", f"/hinos/{hymn_pk}/"),
         ("07-revise-hymn-no-ocr-toggle", f"/editor/hinos/{hymn_pk}/revisar/"),

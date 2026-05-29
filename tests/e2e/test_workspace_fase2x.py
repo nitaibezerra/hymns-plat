@@ -6,7 +6,7 @@ Cobre o redesign visual + comportamentais:
 - Badge de prioridade (P1/P2/P3) + glifo "em destaque" condicional
 - Stretched-link: clicar no card → vai para o detail; clicar nos botões
   internos → ações correspondentes (sem navegar pro detail)
-- Filtros independentes/combináveis: ?sort=least_audios e ?priority=P1
+- Filtros tri-state: ?sort=audio:asc,review:desc e ?priority=P1
 - Chips de filtro têm estado ativo aplicado pelo server
 - KPI "P1 Urgente" no header
 
@@ -158,13 +158,12 @@ class TestWorkspaceFiltersChips:
         expect(authenticated_page.locator(f"[data-queue-card][data-slug='{SEED_PREFIX}-p3']")).to_have_count(0)
 
     def test_combined_priority_and_sort_preserved_in_links(self, authenticated_page, base_url):
-        authenticated_page.goto(f"{base_url}/editor/hinarios/?sort=least_audios&priority=P1")
-        # Verifica que o chip de sort ativo aponta para um link que preserva ?priority=P1
-        # (e vice-versa) — interleave correto entre as duas dimensões.
-        sort_chip = authenticated_page.locator(".priority-chip.is-active", has_text="Menos áudios")
-        expect(sort_chip).to_be_visible()
-        # Verifica permanência do filtro priority via link de outro chip de sort
-        other_sort = authenticated_page.locator(".priority-chip", has_text="Recém adicionados")
+        authenticated_page.goto(f"{base_url}/editor/hinarios/?sort=audio:asc&priority=P1")
+        # Sort chips são tri-state (.sort-chip); o de áudio fica ativo ASC.
+        active_sort = authenticated_page.locator(".sort-chip.is-active.is-asc", has_text="Áudios")
+        expect(active_sort).to_be_visible()
+        # Outro chip (não ativo) gera link que preserva priority=P1
+        other_sort = authenticated_page.locator(".sort-chip", has_text="Recentes")
         href = other_sort.get_attribute("href") or ""
         assert "priority=P1" in href, f"link deveria preservar priority=P1 — got {href!r}"
 

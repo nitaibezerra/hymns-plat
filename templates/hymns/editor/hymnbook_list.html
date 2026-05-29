@@ -47,21 +47,31 @@
     </a>
   {% endif %}
 
-  {# === Filtros: ORDENAR + PRIORIDADE, duas dimensões combináveis === #}
-  <div class="mt-8 flex items-center gap-3 flex-wrap text-sm">
-    <span class="label-mono">Ordenar:</span>
-    {% for value, label in sort_options %}
-      <a href="?sort={{ value }}{% if priority and priority != 'all' %}&priority={{ priority }}{% endif %}"
-         class="priority-chip {% if sort == value %}is-active{% endif %}">{{ label }}</a>
+  {# === Filtros: ORDENAR (tri-state, combinável) + PRIORIDADE (exclusivo) === #}
+  <div class="mt-8 flex items-center gap-3 flex-wrap text-sm" data-sort-row>
+    <span class="label-mono">Ordenar por:</span>
+    {% for chip in sort_chips %}
+      <a href="{{ chip.href }}"
+         class="sort-chip {% if chip.state != 'off' %}is-active is-{{ chip.state }}{% endif %}"
+         data-sort-key="{{ chip.key }}"
+         data-sort-state="{{ chip.state }}"
+         {% if chip.position %}data-sort-position="{{ chip.position }}"{% endif %}
+         aria-pressed="{% if chip.state != 'off' %}true{% else %}false{% endif %}"
+         title="{% if chip.state == 'off' %}Ordenar por {{ chip.label }} (do menor para o maior){% elif chip.state == 'asc' %}{{ chip.label }} — do menor para o maior. Clique para inverter{% else %}{{ chip.label }} — do maior para o menor. Clique para desativar{% endif %}">
+        <span class="sort-chip-label">{{ chip.label }}</span>
+        {% if chip.state == 'asc' %}<span class="sort-chip-dir" aria-hidden="true">↑</span>
+        {% elif chip.state == 'desc' %}<span class="sort-chip-dir" aria-hidden="true">↓</span>{% endif %}
+        {% if chip.position %}<span class="sort-chip-pos" aria-hidden="true">{{ chip.position }}</span>{% endif %}
+      </a>
     {% endfor %}
     <span class="ml-auto label-mono">{{ hymnbooks|length }} hinário{{ hymnbooks|length|pluralize }}</span>
   </div>
-  <div class="mt-3 flex items-center gap-3 flex-wrap text-sm">
+  <div class="mt-3 flex items-center gap-3 flex-wrap text-sm" data-priority-row>
     <span class="label-mono">Prioridade:</span>
-    {% for value, label, dot in priority_options %}
-      <a href="?priority={{ value }}{% if sort and sort != 'least_reviewed' %}&sort={{ sort }}{% endif %}"
-         class="priority-chip {% if priority == value %}is-active{% endif %}"
-         {% if dot %}data-dot="{{ dot }}"{% endif %}>{{ label }}</a>
+    {% for chip in priority_chips %}
+      <a href="{{ chip.href }}"
+         class="priority-chip {% if chip.active %}is-active{% endif %}"
+         {% if chip.dot %}data-dot="{{ chip.dot }}"{% endif %}>{{ chip.label }}</a>
     {% endfor %}
   </div>
 

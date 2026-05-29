@@ -196,7 +196,7 @@ def search_extras(page: Page, result: Result) -> None:
 def editor_list_extras(page: Page, result: Result) -> None:
     log_check(result, "H1 'Fila de revisão'", page.locator("h1 >> text=Fila de revisão").first.is_visible())
     log_check(result, "Stats inline 3 números", page.locator("dt:has-text('Hinários')").first.is_visible())
-    log_check(result, "Toggle ordenação 3 pílulas", page.locator("a[href*='sort=least_reviewed']").first.is_visible())
+    log_check(result, "Sort chips tri-state visíveis", page.locator(".sort-chip").count() >= 4)
     log_check(result, "Cards com barra de progresso", page.locator(".bg-gold").count() > 0)
 
 

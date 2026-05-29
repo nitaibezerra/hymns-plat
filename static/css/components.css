@@ -1158,6 +1158,70 @@ html.dark .hymn-page { border-color: var(--color-rule); }
 .priority-chip[data-dot="gold"]::before { background: var(--color-gold); }
 .priority-chip.is-active[data-dot]::before { background: var(--color-bg); }
 
+/* --- Sort chip (tri-state: off / asc / desc) ---------------------------
+ * Cada chip independente. Off é outline neutro (mesmo visual de priority-chip
+ * off). Active fica destacado em ink; ASC usa firmament (azul: "menor → maior")
+ * e DESC usa rust (vermelho: "maior → menor") para reforço cromático sutil
+ * dos sentidos. Badge de posição (1, 2, 3) aparece só quando ≥2 chips ativos.
+ */
+.sort-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-rule);
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.sort-chip:hover {
+  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+  color: var(--color-ink);
+}
+.sort-chip.is-active {
+  background: var(--color-ink);
+  color: var(--color-bg);
+  border-color: var(--color-ink);
+}
+.sort-chip.is-asc {
+  background: var(--color-firmament);
+  border-color: var(--color-firmament);
+}
+.sort-chip.is-desc {
+  background: var(--color-rust);
+  border-color: var(--color-rust);
+}
+.sort-chip-label {
+  /* nada além do que já vem do flexbox — só dá nome estável ao texto */
+}
+.sort-chip-dir {
+  display: inline-block;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+.sort-chip-pos {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-cream) 25%, transparent);
+  color: var(--color-cream);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
 /* =====================================================
  * CTA pill "Fila de revisão" no header (editor-only).
  * Substitui o item de nav central — vive ao lado do search e do sino.
