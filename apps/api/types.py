@@ -97,6 +97,22 @@ class HymnType:
         )
 
     @strawberry.field
+    def siblings_with_same_number(self, info: Info) -> list["HymnType"]:
+        """Outros hinos com o mesmo `number` em hinários `visible_to(user)`.
+
+        Espelha a disambiguação que o monolito faz no detalhe do hino (links
+        "este número aparece também em…"). Exclui o próprio hino.
+        """
+        user = _user_from_info(info)
+        visible_books = hymn_models.HymnBook.objects.visible_to(user)
+        return list(
+            hymn_models.Hymn.objects.filter(number=self.number, hymn_book__in=visible_books)
+            .exclude(pk=self.pk)
+            .select_related("hymn_book")
+            .order_by("hymn_book__name")
+        )
+
+    @strawberry.field
     def audios(self, info: Info, approved_only: bool = True) -> list["HymnAudioType"]:
         """Áudios deste hino com gating de visibilidade.
 
