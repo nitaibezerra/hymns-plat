@@ -9,6 +9,8 @@ e tipos de apoio (`UserProfileType`, `NotificationType`, `HeatmapBucketType`).
 
 from __future__ import annotations
 
+import enum
+
 import strawberry
 import strawberry_django
 from django.db.models import Count, Q
@@ -156,3 +158,20 @@ class UserType:
     id: strawberry.auto
     username: strawberry.auto
     email: strawberry.auto
+
+
+@strawberry.enum
+class SearchKind(enum.Enum):
+    """Filtro de tipo para `Query.search`."""
+
+    ALL = "all"
+    HYMN = "hymn"
+    HYMNBOOK = "hymnbook"
+
+
+@strawberry.type
+class SearchResultsType:
+    """Resultados heterogêneos da busca (hinos e/ou hinários)."""
+
+    hymns: list[HymnType]
+    hymnbooks: list[HymnBookType]
