@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ActivityHeatmap from "$lib/components/ActivityHeatmap.svelte";
   import ProfileHeader from "$lib/components/ProfileHeader.svelte";
   import ProfileUploads from "$lib/components/ProfileUploads.svelte";
 
@@ -19,6 +20,23 @@
       followingCount={data.userProfile.followingCount}
       currentUser={data.currentUser}
     />
+
+    <section class="activity">
+      <h2>Trabalho editorial · último ano</h2>
+      <ActivityHeatmap buckets={data.userProfile.activityHeatmap} />
+    </section>
+
     <ProfileUploads audios={data.userProfile.uploadedAudios} />
   {/if}
 </section>
+
+<style>
+  .activity {
+    margin-top: 2rem;
+  }
+  .activity h2 {
+    font-family: var(--font-display, serif);
+    font-size: 1.5rem;
+    margin: 0 0 1rem;
+  }
+</style>
