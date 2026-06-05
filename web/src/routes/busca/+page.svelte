@@ -1,18 +1,19 @@
 <script lang="ts">
   /**
-   * Marco 4.G — Ciclos 4G.2 + 4G.3 + 4G.4.
+   * Marco 4.G — Busca (ciclos 4G.2…4G.5).
    *
    * Três estados de render:
    *   - SEM `query` ⇒ placeholder "Digite pra buscar hinos ou hinários".
    *   - COM `query` e zero resultados ⇒ card "Nenhum resultado".
    *   - COM `query` e resultados ⇒ seções "Hinos" + "Hinários" com contagem
-   *     (cada seção some quando o grupo correspondente está vazio).
-   *
-   * O input mantém o termo (`data.query`) pré-populado em SSR.
+   *     (cada seção some quando o grupo correspondente está vazio). Cada
+   *     resultado é um `<a href>` semântico (`/hinos/<id>` ou
+   *     `/hinarios/<slug>`), navegável por teclado e link-amigável.
    *
    * Busca reativa: digitação atualiza `inputValue`; um `$effect` agenda
    * `goto('/busca?q=...', {keepFocus: true})` após 300ms ociosos, evitando
-   * disparar uma query GraphQL a cada tecla.
+   * disparar uma query GraphQL a cada tecla. O `<form>` GET tradicional
+   * continua funcionando como fallback (a11y / no-JS).
    */
   import { untrack } from "svelte";
 
@@ -90,10 +91,12 @@
             </h2>
             <ul class="mt-3 space-y-3">
               {#each hymns as h (h.id)}
-                <li data-testid="search-hymn-result" class="p-5">
-                  <p class="label-mono">HINO</p>
-                  <p class="font-display text-2xl">{String(h.number).padStart(2, "0")}</p>
-                  <p class="font-display text-xl">{h.title}</p>
+                <li data-testid="search-hymn-result">
+                  <a href={`/hinos/${h.id}`} class="block p-5">
+                    <p class="label-mono">HINO</p>
+                    <p class="font-display text-2xl">{String(h.number).padStart(2, "0")}</p>
+                    <p class="font-display text-xl">{h.title}</p>
+                  </a>
                 </li>
               {/each}
             </ul>
@@ -107,9 +110,11 @@
             </h2>
             <ul class="mt-3 space-y-3">
               {#each hymnbooks as b (b.id)}
-                <li data-testid="search-hymnbook-result" class="p-5">
-                  <p class="label-mono">HINÁRIO</p>
-                  <p class="font-display text-xl">{b.name}</p>
+                <li data-testid="search-hymnbook-result">
+                  <a href={`/hinarios/${b.slug}`} class="block p-5">
+                    <p class="label-mono">HINÁRIO</p>
+                    <p class="font-display text-xl">{b.name}</p>
+                  </a>
                 </li>
               {/each}
             </ul>
