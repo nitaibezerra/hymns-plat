@@ -9,13 +9,18 @@
  *   - Echo do termo em `data.query` para o componente pré-popular o input.
  */
 
-import { render, screen } from "@testing-library/svelte";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/svelte";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import Page from "./+page.svelte";
 import { _loadSearch } from "./+page";
 
 import type { SearchData } from "./+page";
+
+const gotoMock = vi.fn();
+vi.mock("$app/navigation", () => ({
+  goto: (...args: unknown[]) => gotoMock(...args),
+}));
 
 function fakeFetch<T>(payload: T, status = 200) {
   return vi.fn().mockResolvedValue(
@@ -170,5 +175,51 @@ describe("busca render: estado inicial (sem query)", () => {
     );
     render(Page, { props: { data } });
     expect(screen.queryByTestId("search-placeholder")).toBeNull();
+  });
+});
+
+describe("busca: input com debounce de 300ms", () => {
+  beforeEach(() => {
+    gotoMock.mockReset();
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("não chama goto a cada tecla — espera 300ms ociosos", async () => {
+    render(Page, { props: { data: dataWith("", [], []) } });
+    const input = screen.getByTestId("search-input") as HTMLInputElement;
+
+    await fireEvent.input(input, { target: { value: "e" } });
+    await fireEvent.input(input, { target: { value: "es" } });
+    await fireEvent.input(input, { target: { value: "est" } });
+    await fireEvent.input(input, { target: { value: "estr" } });
+
+    // Antes de 300ms ociosos, goto ainda não foi chamado.
+    expect(gotoMock).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(299);
+    expect(gotoMock).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(2);
+    expect(gotoMock).toHaveBeenCalledTimes(1);
+    expect(gotoMock).toHaveBeenCalledWith(
+      "/busca?q=estr",
+      expect.objectContaining({ keepFocus: true }),
+    );
+  });
+
+  it("limpando o input chama goto com /busca (sem ?q)", async () => {
+    render(Page, { props: { data: dataWith("estrela", [], []) } });
+    const input = screen.getByTestId("search-input") as HTMLInputElement;
+
+    await fireEvent.input(input, { target: { value: "" } });
+    vi.advanceTimersByTime(300);
+
+    expect(gotoMock).toHaveBeenCalledWith(
+      "/busca",
+      expect.objectContaining({ keepFocus: true }),
+    );
   });
 });
