@@ -1,10 +1,27 @@
-/* Marco 4.B — Ciclo 4B.1.
+/* Marco 4.B — Ciclos 4B.1 + 4B.2.
  *
- * CSS root do shell headless. Tailwind 4 é carregado via `@import "tailwindcss"`
- * (substitui o trio `@tailwind base; @tailwind components; @tailwind utilities`
- * do Tailwind 3). O processamento via `@tailwindcss/postcss` está em
- * `postcss.config.js`.
+ * CSS root do shell headless.
  *
- * Ciclos 4B.2 (fontes) e 4B.3 (tokens de cor) vão preencher este arquivo. */
+ * - Tailwind 4 carregado via `@import "tailwindcss"` (substitui o trio
+ *   `@tailwind base/components/utilities` do Tailwind 3).
+ * - Três famílias tipográficas self-hosted via @fontsource/* (preferimos
+ *   evitar Google Fonts CDN — CSP estrito + zero requisição externa para
+ *   tipografia). As três famílias espelham o monolito Django.
+ *
+ * Ciclo 4B.3 vai preencher os tokens de cor. */
+
+@import "@fontsource/cormorant-garamond/400.css";
+@import "@fontsource/cormorant-garamond/500.css";
+@import "@fontsource/cormorant-garamond/600.css";
+@import "@fontsource/cormorant-garamond/700.css";
+
+@import "@fontsource/source-serif-4/400.css";
+@import "@fontsource/source-serif-4/500.css";
+@import "@fontsource/source-serif-4/600.css";
+
+@import "@fontsource/inter-tight/400.css";
+@import "@fontsource/inter-tight/500.css";
+@import "@fontsource/inter-tight/600.css";
+@import "@fontsource/inter-tight/700.css";
 
 @import "tailwindcss";
