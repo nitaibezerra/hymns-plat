@@ -140,4 +140,19 @@ describe("HymnCarousel", () => {
       expect(track.getAttribute("data-reduced-motion")).toBe("false");
     });
   });
+
+  describe("top progress bar (4D.9)", () => {
+    it("largura reflete (idx+1) / N * 100%", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const bar = screen.getByTestId("carousel-progress");
+      // 1/3 ~= 33.3%
+      expect(bar.getAttribute("style") ?? "").toMatch(/width:\s*33\.3/);
+      await fireEvent.keyDown(window, { key: "ArrowRight" });
+      // 2/3 ~= 66.6%
+      expect(bar.getAttribute("style") ?? "").toMatch(/width:\s*66\.6/);
+      await fireEvent.keyDown(window, { key: "ArrowRight" });
+      // 3/3 = 100%
+      expect(bar.getAttribute("style") ?? "").toMatch(/width:\s*100/);
+    });
+  });
 });
