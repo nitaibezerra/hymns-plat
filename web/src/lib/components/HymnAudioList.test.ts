@@ -16,7 +16,7 @@ import { get } from "svelte/store";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import HymnAudioList from "./HymnAudioList.svelte";
-import { audioState } from "$lib/stores/audio";
+import { audioPlayer, audioState } from "$lib/stores/audio";
 
 const APPROVED_AUDIO = {
   id: "a-1",
@@ -38,7 +38,7 @@ const PENDING_AUDIO = {
 
 describe("HymnAudioList — 4E.5", () => {
   beforeEach(() => {
-    audioState.set({ currentTrack: null, isPlaying: false, currentTime: 0 });
+    audioPlayer.reset();
   });
 
   it("renderiza um item por áudio aprovado", () => {
