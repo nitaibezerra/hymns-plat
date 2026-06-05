@@ -8,6 +8,7 @@
    *   - corrido: <HymnCorrido />  (todos os hinos em coluna)
    *   - carrossel: <HymnCarousel /> (1 slide por viewport, reader focus)
    */
+  import HymnCorrido from "$lib/components/HymnCorrido.svelte";
   import HymnIndex from "$lib/components/HymnIndex.svelte";
   import type { PageData } from "./$types";
 
@@ -25,6 +26,8 @@
     </header>
     {#if data.mode === "indice"}
       <HymnIndex hymns={data.hymnbook.hymns} />
+    {:else if data.mode === "corrido"}
+      <HymnCorrido hymns={data.hymnbook.hymns} />
     {/if}
   {/if}
 </section>
