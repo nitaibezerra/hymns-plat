@@ -171,3 +171,24 @@ export const NOTIFICATIONS_QUERY = `
     }
   }
 `;
+
+export const HYMN_DETAIL_QUERY = `
+  query HymnDetail($pk: ID!) {
+    hymn(pk: $pk) {
+      id
+      number
+      title
+      reviewStatus
+      previousInBook { id number title }
+      nextInBook { id number title }
+      siblingsWithSameNumber { id number title }
+      audios {
+        id
+        url
+        waveformPeaks
+        durationSeconds
+        uploadedBy { id username }
+      }
+    }
+  }
+`;
