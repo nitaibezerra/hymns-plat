@@ -35,6 +35,9 @@
       .trim();
   }
 
+  // currentUser chega do +layout.ts (Marco 4.B). Quando truthy, é editor/admin —
+  // o resolver `hymnbooks` já filtrou visibilidade; aqui só marcamos visualmente
+  // os hinários não publicados para deixar claro que estão em rascunho.
   const isEditor = $derived(data.currentUser !== null);
   const normalizedQuery = $derived(normalize(query));
   const filtered = $derived(
