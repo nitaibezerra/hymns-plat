@@ -50,10 +50,12 @@ describe("ActivityHeatmap", () => {
     expect(fill2).not.toEqual(fill1);
   });
 
-  it("expõe title com data e count para acessibilidade/tooltip", () => {
+  it("expõe label acessível com data e count para tooltip/leitor de tela", () => {
     const data = buckets([3]);
-    render(ActivityHeatmap, { props: { buckets: data } });
-    expect(screen.getByTitle(/2025-01-01.*3/)).toBeInTheDocument();
+    const { container } = render(ActivityHeatmap, { props: { buckets: data } });
+    const cell = container.querySelector("rect[data-bucket-cell]");
+    expect(cell?.getAttribute("aria-label")).toMatch(/2025-01-01.*3/);
+    expect(cell?.getAttribute("data-title")).toMatch(/2025-01-01.*3/);
   });
 
   it("renderiza estado vazio quando todos os buckets têm count 0", () => {
