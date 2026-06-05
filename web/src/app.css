@@ -1,0 +1,10 @@
+/* Marco 4.B — Ciclo 4B.1.
+ *
+ * CSS root do shell headless. Tailwind 4 é carregado via `@import "tailwindcss"`
+ * (substitui o trio `@tailwind base; @tailwind components; @tailwind utilities`
+ * do Tailwind 3). O processamento via `@tailwindcss/postcss` está em
+ * `postcss.config.js`.
+ *
+ * Ciclos 4B.2 (fontes) e 4B.3 (tokens de cor) vão preencher este arquivo. */
+
+@import "tailwindcss";
