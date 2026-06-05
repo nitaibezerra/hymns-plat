@@ -53,6 +53,23 @@ export const HOURLY_FEATURED_QUERY = `
   }
 `;
 
+export const HYMNBOOK_DETAIL_QUERY = `
+  query HymnBookDetail($slug: String!) {
+    hymnbook(slug: $slug) {
+      id
+      name
+      slug
+      isPublished
+      hymns {
+        id
+        number
+        title
+        body
+      }
+    }
+  }
+`;
+
 export const CURRENT_USER_QUERY = `
   query CurrentUser {
     currentUser {
