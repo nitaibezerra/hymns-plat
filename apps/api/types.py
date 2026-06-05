@@ -55,6 +55,12 @@ class HymnBookType:
             audios_approved=audios_approved,
         )
 
+    @strawberry.field
+    def hymns(self) -> list["HymnType"]:
+        """Coleção de hinos deste hinário ordenada por `number` (mesma ordem
+        do sumário/corrido/carrossel no monolito)."""
+        return list(hymn_models.Hymn.objects.filter(hymn_book=self).order_by("number"))
+
 
 ReviewStatus = strawberry.enum(hymn_models.Hymn.ReviewStatus, name="ReviewStatus")
 
