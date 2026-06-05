@@ -124,4 +124,20 @@ describe("HymnCarousel", () => {
       expect(dotsAfter[0].getAttribute("aria-current")).toBe("false");
     });
   });
+
+  describe("prefers-reduced-motion (4D.8)", () => {
+    it("marca data-reduced-motion='true' quando o usuário pediu menos movimento", () => {
+      setMatchMedia(true);
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const track = screen.getByTestId("carousel-track");
+      expect(track.getAttribute("data-reduced-motion")).toBe("true");
+    });
+
+    it("marca data-reduced-motion='false' por padrão", () => {
+      setMatchMedia(false);
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const track = screen.getByTestId("carousel-track");
+      expect(track.getAttribute("data-reduced-motion")).toBe("false");
+    });
+  });
 });
