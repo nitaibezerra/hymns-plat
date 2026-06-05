@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ProfileHeader from "$lib/components/ProfileHeader.svelte";
+
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
@@ -10,6 +12,11 @@
   {:else if !data.userProfile}
     <p data-testid="empty">Usuário não encontrado.</p>
   {:else}
-    <h1>{data.userProfile.user.username}</h1>
+    <ProfileHeader
+      user={data.userProfile.user}
+      followersCount={data.userProfile.followersCount}
+      followingCount={data.userProfile.followingCount}
+      currentUser={data.currentUser}
+    />
   {/if}
 </section>

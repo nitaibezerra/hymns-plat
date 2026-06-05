@@ -1,16 +1,14 @@
 /**
- * Marco 4.H — Ciclo 4H.1.
+ * Marco 4.H — Ciclos 4H.1 a 4H.3.
  *
- * Load function da página de perfil do usuário. Comportamentos:
- * - chama `userProfile(username)` no GraphQL passando `params.username`
- * - retorna o `userProfile` no payload
- * - retorna `userProfile = null` se backend devolver null
- * - propaga erros via `data.error`
+ * Load function da página de perfil + renderização da página.
  */
 
+import { render, screen } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
 import { _loadProfile } from "./+page";
+import Page from "./+page.svelte";
 
 function fakeFetch<T>(payload: T, status = 200) {
   return vi.fn().mockResolvedValue(
@@ -65,5 +63,75 @@ describe("perfil/[username] load function", () => {
     const result = await _loadProfile({ fetch: fetchFn, params: { username: "ana" } });
     expect(result.userProfile).toBeNull();
     expect(result.error).toMatch(/HTTP 500/);
+  });
+});
+
+function buildData(overrides: Record<string, unknown> = {}) {
+  return {
+    userProfile: {
+      user: { id: "u1", username: "ana", email: "ana@example.com" },
+      followersCount: 12,
+      followingCount: 3,
+      uploadedAudios: [],
+      activityHeatmap: [],
+    },
+    currentUser: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+describe("perfil/[username] página", () => {
+  it("renderiza ProfileHeader com nome, contagens e iniciais (sem avatar)", () => {
+    render(Page, { props: { data: buildData() } });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/ana/i);
+    expect(screen.getByTestId("profile-followers-count")).toHaveTextContent("12");
+    expect(screen.getByTestId("profile-following-count")).toHaveTextContent("3");
+    expect(screen.getByTestId("profile-avatar")).toHaveTextContent(/AN/);
+  });
+
+  it("mostra botão Seguir quando há currentUser autenticado diferente do perfil", () => {
+    render(Page, {
+      props: {
+        data: buildData({ currentUser: { id: "u2", username: "joao", email: "j@x" } }),
+      },
+    });
+    expect(screen.getByRole("button", { name: /seguir/i })).toBeInTheDocument();
+  });
+
+  it("não mostra botão Seguir no próprio perfil", () => {
+    render(Page, {
+      props: {
+        data: buildData({ currentUser: { id: "u1", username: "ana", email: "ana@example.com" } }),
+      },
+    });
+    expect(screen.queryByRole("button", { name: /seguir/i })).toBeNull();
+  });
+
+  it("não mostra botão Seguir quando anônimo", () => {
+    render(Page, { props: { data: buildData({ currentUser: null }) } });
+    expect(screen.queryByRole("button", { name: /seguir/i })).toBeNull();
+  });
+
+  it("renderiza ProfileUploads com a grid de áudios uploaded", () => {
+    const audios = [
+      {
+        id: "a1",
+        url: "/m/1.mp3",
+        durationSeconds: 120,
+        waveformPeaks: [1, 2, 3],
+        uploadedBy: { id: "u1", username: "ana", email: "ana@example.com" },
+      },
+      {
+        id: "a2",
+        url: "/m/2.mp3",
+        durationSeconds: 60,
+        waveformPeaks: [],
+        uploadedBy: { id: "u1", username: "ana", email: "ana@example.com" },
+      },
+    ];
+    render(Page, { props: { data: buildData({ userProfile: { ...buildData().userProfile, uploadedAudios: audios } }) } });
+    const items = screen.getAllByTestId("profile-upload-item");
+    expect(items).toHaveLength(2);
   });
 });
