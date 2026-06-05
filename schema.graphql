@@ -1,3 +1,9 @@
+"""Date (isoformat)"""
+scalar Date
+
+"""Date with time (isoformat)"""
+scalar DateTime
+
 type GlobalStats {
   hymnbooks: Int!
   hymns: Int!
@@ -5,8 +11,23 @@ type GlobalStats {
   activeReviewers: Int!
 }
 
+type HeatmapBucketType {
+  date: Date!
+  count: Int!
+}
+
 type HymnAudioType {
   id: UUID!
+  waveformPeaks: [Int!]!
+  url: String!
+  durationSeconds: Float
+  uploadedBy: UserType
+}
+
+type HymnBookStatsType {
+  hymnsTotal: Int!
+  hymnsReviewed: Int!
+  audiosApproved: Int!
 }
 
 type HymnBookType {
@@ -14,6 +35,8 @@ type HymnBookType {
   name: String!
   slug: String!
   isPublished: Boolean!
+  stats: HymnBookStatsType!
+  hymns: [HymnType!]!
 }
 
 type HymnType {
@@ -21,6 +44,10 @@ type HymnType {
   number: Int!
   title: String!
   reviewStatus: ReviewStatus!
+  previousInBook: HymnType
+  nextInBook: HymnType
+  siblingsWithSameNumber: [HymnType!]!
+  audios(approvedOnly: Boolean! = true): [HymnAudioType!]!
 }
 
 input HymnUpdateInput {
@@ -56,6 +83,16 @@ type NotFoundError {
   message: String!
 }
 
+type NotificationType {
+  id: UUID!
+  notificationType: String!
+  title: String!
+  message: String!
+  link: String!
+  isRead: Boolean!
+  createdAt: DateTime!
+}
+
 type PermissionDeniedError {
   message: String!
 }
@@ -65,6 +102,10 @@ type Query {
   hymnbook(slug: String!): HymnBookType
   hymn(pk: ID!): HymnType
   currentUser: UserType
+  userProfile(username: String!): UserProfileType
+  notifications(unreadOnly: Boolean! = false): [NotificationType!]!
+  hourlyFeatured: [HymnBookType!]!
+  search(q: String!, kind: SearchKind! = ALL): SearchResultsType!
   globalStats: GlobalStats!
 }
 
@@ -72,6 +113,17 @@ enum ReviewStatus {
   NOT_REVIEWED
   IN_REVIEW
   REVIEWED
+}
+
+enum SearchKind {
+  ALL
+  HYMN
+  HYMNBOOK
+}
+
+type SearchResultsType {
+  hymns: [HymnType!]!
+  hymnbooks: [HymnBookType!]!
 }
 
 union SetReviewStatusResult = HymnType | PermissionDeniedError | NotFoundError
@@ -85,6 +137,16 @@ type ToggleFavoriteSuccess {
 scalar UUID
 
 union UpdateHymnResult = HymnType | PermissionDeniedError | NotFoundError | ValidationError
+
+type UserProfileType {
+  user: UserType!
+  followersCount: Int!
+  followingCount: Int!
+  uploadedAudios: [HymnAudioType!]!
+  followers(first: Int! = 20, offset: Int! = 0): [UserType!]!
+  following(first: Int! = 20, offset: Int! = 0): [UserType!]!
+  activityHeatmap(days: Int! = 365): [HeatmapBucketType!]!
+}
 
 type UserType {
   id: ID!
