@@ -81,6 +81,22 @@ class HymnType:
     review_status: ReviewStatus
 
     @strawberry.field
+    def previous_in_book(self) -> "HymnType | None":
+        """Hino imediatamente anterior (mesmo hinário) por `number`."""
+        return (
+            hymn_models.Hymn.objects.filter(hymn_book=self.hymn_book, number__lt=self.number)
+            .order_by("-number")
+            .first()
+        )
+
+    @strawberry.field
+    def next_in_book(self) -> "HymnType | None":
+        """Hino imediatamente posterior (mesmo hinário) por `number`."""
+        return (
+            hymn_models.Hymn.objects.filter(hymn_book=self.hymn_book, number__gt=self.number).order_by("number").first()
+        )
+
+    @strawberry.field
     def audios(self, info: Info, approved_only: bool = True) -> list["HymnAudioType"]:
         """Áudios deste hino com gating de visibilidade.
 
