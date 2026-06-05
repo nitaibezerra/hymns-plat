@@ -91,3 +91,51 @@ describe("+page.svelte (lista de hinários)", () => {
     expect(screen.queryAllByTestId("hymnbook-card")).toHaveLength(0);
   });
 });
+
+describe("+page.svelte — badge rascunho (ciclo 4C.5)", () => {
+  // Hinário NÃO publicado só chega na lista se o resolver `hymnbooks` autorizou
+  // (i.e. user é editor/admin). A page apenas decide se renderiza o badge —
+  // não duplica a regra de visibilidade.
+  const STATS = { hymnsTotal: 5, hymnsReviewed: 2, audiosApproved: 0 };
+  const draftBook = {
+    id: "9",
+    name: "Rascunho do Daime",
+    slug: "rascunho-daime",
+    isPublished: false,
+    stats: STATS,
+  };
+  const publishedBook = {
+    id: "10",
+    name: "O Cruzeiro",
+    slug: "cruzeiro",
+    isPublished: true,
+    stats: STATS,
+  };
+
+  it("usuário anônimo NÃO vê badge mesmo se rascunho aparecer na lista", () => {
+    render(Page, {
+      props: {
+        data: { hymnbooks: [draftBook, publishedBook], error: null, currentUser: null },
+      },
+    });
+    expect(screen.queryByTestId("draft-badge")).toBeNull();
+  });
+
+  it("editor autenticado vê badge 'rascunho' nos hinários não publicados", () => {
+    render(Page, {
+      props: {
+        data: {
+          hymnbooks: [draftBook, publishedBook],
+          error: null,
+          currentUser: { id: "u1", username: "editor", email: "e@x.com" },
+        },
+      },
+    });
+    const badges = screen.getAllByTestId("draft-badge");
+    expect(badges).toHaveLength(1);
+    expect(badges[0].textContent?.toLowerCase()).toContain("rascunho");
+    // o badge está no card do draft, não no card publicado.
+    const draftCard = badges[0].closest("[data-testid='hymnbook-card']");
+    expect(draftCard?.textContent).toMatch(/rascunho do daime/i);
+  });
+});
