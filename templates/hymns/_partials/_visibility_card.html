@@ -1,0 +1,43 @@
+{% comment %}
+Card-checkbox para `is_published` (moss) ou `is_featured` (gold).
+
+Uso:
+  {% include 'hymns/_partials/_visibility_card.html' with field=form.is_published variant="published" %}
+  {% include 'hymns/_partials/_visibility_card.html' with field=form.is_featured variant="featured" %}
+{% endcomment %}
+{% with checked=field.value %}
+{% if variant == "published" %}
+<label class="flex gap-3 items-start px-4 py-3.5 rounded-lg cursor-pointer transition-colors {% if checked %}border-[1.5px] border-moss bg-moss/[0.09]{% else %}border-[1.5px] border-rule bg-cream{% endif %}">
+  <input type="checkbox" name="{{ field.html_name }}" {% if checked %}checked{% endif %} class="mt-0.5 w-[18px] h-[18px] accent-moss">
+  <span class="flex-1">
+    <span class="font-display text-[14px] font-semibold flex items-center gap-1.5 {% if checked %}text-moss{% else %}text-ink{% endif %}">
+      {% if checked %}Publicado{% else %}Rascunho (não publicado){% endif %}
+    </span>
+    <span class="font-serif text-[12px] text-ink-mute leading-snug">
+      {% if checked %}visível publicamente em hinaria.com.br{% else %}oculto do público — só editores veem{% endif %}
+    </span>
+  </span>
+</label>
+{% else %}
+<label class="flex gap-3 items-start px-4 py-3.5 rounded-lg cursor-pointer transition-colors {% if checked %}border-[1.5px] border-gold bg-gold/[0.10]{% else %}border-[1.5px] border-rule bg-cream{% endif %}">
+  <input type="checkbox" name="{{ field.html_name }}" {% if checked %}checked{% endif %} class="mt-0.5 w-[18px] h-[18px] accent-gold">
+  <span class="flex-1">
+    <span class="font-display text-[14px] font-semibold flex items-center gap-1.5 {% if checked %}text-gold{% else %}text-ink{% endif %}">
+      {% if checked %}
+        <svg viewBox="0 0 32 32" width="13" height="13" aria-hidden="true">
+          <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M16 5 L16 27 M5 16 L27 16 M8 8 L24 24 M24 8 L8 24" />
+            <circle cx="16" cy="16" r="3" fill="currentColor" stroke="none" />
+          </g>
+        </svg>
+      {% endif %}
+      Em destaque na home
+    </span>
+    <span class="font-serif text-[12px] text-ink-mute leading-snug">entra no sorteio dos 6 cards da home</span>
+  </span>
+</label>
+{% endif %}
+{% endwith %}
+{% if field.errors %}
+  <p class="font-mono text-[11.5px] text-rust mt-1.5 tracking-wide">{{ field.errors.0 }}</p>
+{% endif %}

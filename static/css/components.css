@@ -438,6 +438,11 @@ html.dark .hymn-page { border-color: var(--color-rule); }
   color: var(--color-ink);
   border-color: var(--color-ink-soft);
 }
+.shortcut-pill.is-active {
+  background: color-mix(in oklab, var(--color-gold) 15%, var(--color-bg));
+  border-color: var(--color-gold);
+  color: color-mix(in oklab, var(--color-gold) 80%, var(--color-ink));
+}
 .shortcut-pill svg { flex-shrink: 0; }
 
 /* Suggestion chips: top-N valores comuns sob inputs Repetições/Estilo. */
