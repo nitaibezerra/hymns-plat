@@ -16,9 +16,10 @@ from django.utils import timezone
 from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
+from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
 
 from .mutations import Mutation
-from .types import HymnAudioType, HymnBookType, HymnType, UserType
+from .types import HymnAudioType, HymnBookType, HymnType, SearchKind, SearchResultsType, UserType
 
 
 def _user(info: Info):
@@ -54,6 +55,23 @@ class Query:
     def current_user(self, info: Info) -> Optional[UserType]:
         user = _user(info)
         return user if getattr(user, "is_authenticated", False) else None
+
+    @strawberry.field
+    def search(self, info: Info, q: str, kind: SearchKind = SearchKind.ALL) -> SearchResultsType:
+        """Busca unificada hinos/hinários.
+
+        Reusa `apps.hymns.search.build_*_search_qs` (FTS + trigram no Postgres)
+        — mesma lógica de `apps/hymns/views.py::search_view`. `kind` zera o
+        bucket que não foi pedido. Visibilidade segue `HymnBook.visible_to`.
+        """
+        user = _user(info)
+        hymns: list = []
+        hymnbooks: list = []
+        if kind in (SearchKind.ALL, SearchKind.HYMN):
+            hymns = list(build_hymn_search_qs(q, user)[:50])
+        if kind in (SearchKind.ALL, SearchKind.HYMNBOOK):
+            hymnbooks = list(build_book_search_qs(q, user)[:25])
+        return SearchResultsType(hymns=hymns, hymnbooks=hymnbooks)
 
     @strawberry.field
     def global_stats(self) -> GlobalStats:
