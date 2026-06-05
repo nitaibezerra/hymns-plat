@@ -71,7 +71,7 @@
       ry={2}
       fill={colorFor(count, maxCount)}
       aria-label={label}
-      title={label}
+      data-title={label}
     ></rect>
   {/each}
 </svg>
