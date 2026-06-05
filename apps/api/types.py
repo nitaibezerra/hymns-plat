@@ -184,7 +184,7 @@ class HeatmapBucketType:
 
     Mesma forma do JSON exposto por `apps/users/api_views.py::api_user_heatmap`."""
 
-    date: str
+    date: datetime.date
     count: int
 
 
@@ -246,3 +246,32 @@ class UserProfileType:
             .order_by("-created_at")[offset : offset + first]
         )
         return [row.followed for row in rows]
+
+    @strawberry.field
+    def activity_heatmap(self, days: int = 365) -> list[HeatmapBucketType]:
+        """Heatmap diário de revisões editoriais nos últimos `days` dias.
+
+        Espelha `apps/users/api_views.py::api_user_heatmap`: agrega HymnRevision
+        por `TruncDate(revised_at)` e preenche dias sem atividade com count=0.
+        """
+        from django.db.models import Count
+        from django.db.models.functions import TruncDate
+
+        days = max(0, min(days, 366 * 5))
+        today = datetime.date.today()
+        start = today - datetime.timedelta(days=days)
+        rows = (
+            hymn_models.HymnRevision.objects.filter(revised_by=self.user, revised_at__date__gte=start)
+            .annotate(day=TruncDate("revised_at"))
+            .values("day")
+            .annotate(count=Count("id"))
+            .order_by("day")
+        )
+        by_day = {row["day"]: row["count"] for row in rows}
+        return [
+            HeatmapBucketType(
+                date=start + datetime.timedelta(days=offset),
+                count=by_day.get(start + datetime.timedelta(days=offset), 0),
+            )
+            for offset in range(days + 1)
+        ]
