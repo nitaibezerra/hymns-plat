@@ -221,3 +221,27 @@ class UserProfileType:
     @strawberry.field
     def uploaded_audios(self) -> list[HymnAudioType]:
         return list(hymn_models.HymnAudio.objects.filter(uploaded_by=self.user).order_by("-created_at"))
+
+    @strawberry.field
+    def followers(self, first: int = 20, offset: int = 0) -> list[UserType]:
+        """Página de seguidores (mais recentes primeiro). `first` é capado em 100."""
+        first = max(0, min(first, 100))
+        offset = max(0, offset)
+        rows = (
+            user_models.UserFollow.objects.filter(followed=self.user)
+            .select_related("follower")
+            .order_by("-created_at")[offset : offset + first]
+        )
+        return [row.follower for row in rows]
+
+    @strawberry.field
+    def following(self, first: int = 20, offset: int = 0) -> list[UserType]:
+        """Página de quem o usuário segue (mais recentes primeiro). `first` é capado em 100."""
+        first = max(0, min(first, 100))
+        offset = max(0, offset)
+        rows = (
+            user_models.UserFollow.objects.filter(follower=self.user)
+            .select_related("followed")
+            .order_by("-created_at")[offset : offset + first]
+        )
+        return [row.followed for row in rows]
