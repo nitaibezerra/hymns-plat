@@ -9,6 +9,7 @@ e tipos de apoio (`UserProfileType`, `NotificationType`, `HeatmapBucketType`).
 
 from __future__ import annotations
 
+import datetime
 import enum
 
 import strawberry
@@ -187,17 +188,17 @@ class HeatmapBucketType:
     count: int
 
 
-@strawberry.type
+@strawberry_django.type(user_models.Notification)
 class NotificationType:
     """Item da feed de notificações do usuário autenticado."""
 
-    id: strawberry.ID
+    id: strawberry.auto
     notification_type: str
     title: str
     message: str
     link: str
     is_read: bool
-    created_at: str
+    created_at: datetime.datetime
 
 
 @strawberry.type
