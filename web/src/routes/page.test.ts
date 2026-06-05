@@ -21,7 +21,7 @@ interface RecordedRequest {
 
 function makeFetchSequence(payloads: Array<{ payload: unknown; status?: number }>) {
   const calls: RecordedRequest[] = [];
-  const fn = vi.fn(async (_url: string, init?: RequestInit) => {
+  const fn: typeof globalThis.fetch = vi.fn(async (_input, init) => {
     const body = typeof init?.body === "string" ? init.body : "";
     calls.push({ body });
     const next = payloads.shift();
@@ -30,7 +30,7 @@ function makeFetchSequence(payloads: Array<{ payload: unknown; status?: number }
       status: next.status ?? 200,
       headers: { "Content-Type": "application/json" },
     });
-  });
+  }) as typeof globalThis.fetch;
   return { fn, calls };
 }
 
@@ -143,6 +143,7 @@ describe("+page.svelte (home)", () => {
     stats: { hymnbooks: 7, hymns: 200, audios: 50, activeReviewers: 3 },
     featured: FEATURED_PAYLOAD.data.hourlyFeatured,
     error: null,
+    currentUser: null,
   };
 
   it("renderiza bloco hero com slogan e CTA 'Explorar hinários'", () => {
@@ -179,7 +180,7 @@ describe("+page.svelte (home)", () => {
   it("mostra mensagem de erro quando stats falham", () => {
     render(Page, {
       props: {
-        data: { stats: null, featured: [], error: "HTTP 500" },
+        data: { stats: null, featured: [], error: "HTTP 500", currentUser: null },
       },
     });
     expect(screen.getByTestId("error")).toHaveTextContent(/HTTP 500/);
