@@ -42,6 +42,25 @@ export const CURRENT_USER_QUERY = `
   }
 `;
 
+export const SEARCH_QUERY = `
+  query Search($q: String!, $kind: SearchKind = ALL) {
+    search(q: $q, kind: $kind) {
+      hymns {
+        id
+        number
+        title
+        reviewStatus
+      }
+      hymnbooks {
+        id
+        name
+        slug
+        isPublished
+      }
+    }
+  }
+`;
+
 export const LOGIN_MUTATION = `
   mutation Login($username: String!, $password: String!) {
     login(username: $username, password: $password) {
