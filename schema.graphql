@@ -44,6 +44,7 @@ type HymnType {
   number: Int!
   title: String!
   reviewStatus: ReviewStatus!
+  body: String!
   previousInBook: HymnType
   nextInBook: HymnType
   siblingsWithSameNumber: [HymnType!]!
