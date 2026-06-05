@@ -9,9 +9,11 @@
  * deve esperar uma terminar pra começar a outra.
  */
 
+import { render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
 import { _loadHome } from "./+page";
+import Page from "./+page.svelte";
 
 interface RecordedRequest {
   body: string;
@@ -133,5 +135,53 @@ describe("home load function", () => {
     const result = await _loadHome({ fetch: fn });
     expect(result.stats).toBeNull();
     expect(result.error).toMatch(/HTTP 500/);
+  });
+});
+
+describe("+page.svelte (home)", () => {
+  const baseData = {
+    stats: { hymnbooks: 7, hymns: 200, audios: 50, activeReviewers: 3 },
+    featured: FEATURED_PAYLOAD.data.hourlyFeatured,
+    error: null,
+  };
+
+  it("renderiza bloco hero com slogan e CTA 'Explorar hinários'", () => {
+    render(Page, { props: { data: baseData } });
+    const hero = screen.getByTestId("home-hero");
+    expect(hero).toBeInTheDocument();
+    expect(hero.textContent).toMatch(/com firmeza/i);
+    const cta = within(hero).getByRole("link", { name: /explorar hinários/i });
+    expect(cta.getAttribute("href")).toBe("/hinarios");
+  });
+
+  it("aplica font-display no título do hero", () => {
+    render(Page, { props: { data: baseData } });
+    const heroTitle = screen.getByTestId("home-hero-title");
+    expect(heroTitle.className).toMatch(/font-display/);
+  });
+
+  it("renderiza grid com os 6 hinários em destaque", () => {
+    render(Page, { props: { data: baseData } });
+    const grid = screen.getByTestId("home-featured-grid");
+    const cards = within(grid).getAllByTestId("hymnbook-card");
+    expect(cards).toHaveLength(6);
+  });
+
+  it("mostra os stats globais no hero", () => {
+    render(Page, { props: { data: baseData } });
+    const hero = screen.getByTestId("home-hero");
+    expect(within(hero).getByTestId("stat-hymnbooks")).toHaveTextContent("7");
+    expect(within(hero).getByTestId("stat-hymns")).toHaveTextContent("200");
+    expect(within(hero).getByTestId("stat-audios")).toHaveTextContent("50");
+    expect(within(hero).getByTestId("stat-reviewers")).toHaveTextContent("3");
+  });
+
+  it("mostra mensagem de erro quando stats falham", () => {
+    render(Page, {
+      props: {
+        data: { stats: null, featured: [], error: "HTTP 500" },
+      },
+    });
+    expect(screen.getByTestId("error")).toHaveTextContent(/HTTP 500/);
   });
 });
