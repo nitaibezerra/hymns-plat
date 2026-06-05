@@ -204,33 +204,369 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 
 ### Marco 4 — Paridade read-only com a web atual
 
-**Objetivo:** todas as rotas de leitura existentes funcionando no SvelteKit.
+**Objetivo:** todas as rotas de leitura do monolito Django reescritas em SvelteKit com paridade visual ≥95%, consumindo só GraphQL.
 
-**Rotas a portar (read-only):**
-- `/` (home)
-- `/hinarios/` (lista)
-- `/hinarios/<slug>/?mode=indice|corrido|carrossel` (detalhe + 3 modos)
-- `/hinarios/<slug>/<numero>/` (hino individual)
-- `/buscar/?q=...`
-- `/usuarios/<username>/`, `/usuarios/<username>/seguindo/`, `/usuarios/<username>/seguidores/`
-- `/notificacoes/`
+**Mapa do que precisa portar (referência ao código atual em `/Users/nitai/dev/hyms-platform/hymns-plat/`):**
 
-**Componentes-chave a criar:**
-- `web/src/lib/components/AudioPlayer.svelte` — player global persistente em `+layout.svelte`. Recebe `waveform_peaks` via prop, renderiza SVG (porta `static/js/audio-player.js`).
-- `web/src/lib/components/HymnCarousel.svelte` — Reader Focus (porta `static/js/hymn-carousel.js`); keyboard nav, dot pagination, `prefers-reduced-motion`.
-- `web/src/lib/components/HymnBody.svelte` — bloco `width: max-content` centralizado.
-- `web/src/lib/styles/design-tokens.css` — copiar tokens de `static/css/design-tokens.css`.
-- `web/src/app.css` — Tailwind 4 (não CDN; build de verdade), com 3 famílias tipográficas (Cormorant Garamond, Source Serif 4, Inter Tight).
+| Rota Django | View | Template | JS associado |
+|---|---|---|---|
+| `/` | `views.home_view` (linha 315) | `templates/hymns/home.html` (72 LOC) | — |
+| `/hinarios/` | `views.HymnBookListView` (74) | `templates/hymns/hymnbook_list.html` (40 LOC) | — |
+| `/hinarios/<slug>/?mode=indice|corrido|carrossel` | `views.HymnBookDetailView` (86) | `hymnbook_detail.html` (129 LOC) | `static/js/hymn-carousel.js` (159 LOC) |
+| `/hinarios/<slug>/ler/` | `views.HymnBookReadView` (126) | `hymnbook_read.html` (83 LOC) | `hymn-read-sync.js` (87 LOC) |
+| `/hinos/<uuid:pk>/` | `views.HymnDetailView` (164) | `hymn_detail.html` (147 LOC) | — |
+| `/busca/?q=...` | `views.search_view` (203) | `search.html` (84 LOC) | — |
+| `/perfil/<username>/` | `users.views.profile_view` | `users/profile.html` (144 LOC) | — |
+| `/perfil/<username>/seguidores/` | `users.views_social.followers_list` | `users/followers_list.html` (116 LOC) | `social.js` (parcial, 274 LOC) |
+| `/perfil/<username>/seguindo/` | `users.views_social.following_list` | `users/following_list.html` (113 LOC) | `social.js` (parcial) |
+| `/notificacoes/` | `users.views_social.notifications_list` | `users/notifications.html` (99 LOC) | — |
+| Player global persistente | `templates/hymns/_player_global.html` (143 LOC) + `_audio_player.html` (66 LOC) | — | `static/js/audio-player.js` (155) + `static/js/player.js` (513 LOC) |
 
-**Schema GraphQL — extensões necessárias:**
-- `HymnBookType.hymns(filter, order)` retornando connection.
-- `HymnType.audios(approvedOnly=True)`.
-- `Query.search(q, type=ALL|HYMN|HYMNBOOK)` — porta lógica de `apps/hymns/views.py::search`.
-- `Query.userProfile(username)` com `followers`, `following`, `uploads`.
+**Helpers Python de leitura que precisam virar resolvers/campos GraphQL:**
+- `_annotate_card_counts(queryset)` — conta hinos/áudios por hinário (já reusável; só precisa entrar como `HymnBookType.stats`).
+- `_hourly_featured(visible_qs, n=6)` — seleção determinística por hora (já existe; vira resolver `Query.hourlyFeatured`).
+- `search_view`: usa `UnaccentFunc` + `Func("trigram_similar")` no Postgres — não migrar pra Python, expor via resolver que **chama** o queryset (a lógica continua no DB).
+- `HymnDetailView.get_context_data`: monta "anterior/próximo no hinário" e "outros hinários com mesmo número" — virar resolvers `HymnType.previousInBook` / `nextInBook` / `siblingsWithSameNumber`.
 
-**Critério de aceitação:**
-- Visual diff (Playwright screenshots) entre Django atual e SvelteKit MVP mostra paridade ≥ 95% das telas read-only.
-- Pin de tipografia (`tests/unit/test_typography_setup.py`) tem equivalente no `web/tests/unit/typography.spec.ts`.
+**Estratégia de fatiamento — Marco 4 vira 9 sub-marcos** (4-5 semanas é grande demais pra um único ciclo). Cada sub-marco é uma PR fechada com base no anterior:
+
+#### Sub-marco 4.A — Extensões de schema GraphQL (read-only) — ~1 semana, branch `feat/headless-marco4a-schema`
+
+**Ciclos TDD (em `apps/api/`):**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 4A.1 | `test_hymnbook_type_exposes_stats_field` (paridade com `_annotate_card_counts`) | `HymnBookType.stats: HymnBookStatsType` (`hymnsTotal`, `hymnsReviewed`, `audiosApproved`) |
+| 4A.2 | `test_hymnbook_hymns_field_returns_ordered_by_number` | `HymnBookType.hymns: list[HymnType]` com ordering default |
+| 4A.3 | `test_hymn_audios_filters_approved_for_anon`, `test_hymn_audios_returns_pending_for_owner_or_editor` | `HymnType.audios(approvedOnly: bool = True): list[HymnAudioType]` gateando por user |
+| 4A.4 | `test_hymn_audio_exposes_waveform_peaks_and_url` | `HymnAudioType.waveformPeaks: list[int]`, `url: str`, `durationSeconds: float`, `uploadedBy: UserType` |
+| 4A.5 | `test_hymn_previous_and_next_in_book_returns_neighbors` | `HymnType.previousInBook: HymnType | None`, `nextInBook: HymnType | None` |
+| 4A.6 | `test_hymn_siblings_with_same_number_returns_other_books` | `HymnType.siblingsWithSameNumber: list[HymnType]` (respeitando `visible_to(user)`) |
+| 4A.7 | `test_search_query_returns_hymns_matching_title_trigram`, `test_search_filters_by_visibility` | `Query.search(q: str, kind: SearchKind = ALL): SearchResultsType` reusando o queryset de `search_view` |
+| 4A.8 | `test_hourly_featured_returns_six_visible_hymnbooks` | `Query.hourlyFeatured: list[HymnBookType]` |
+| 4A.9 | `test_user_profile_returns_user_with_counts_and_uploads` | `Query.userProfile(username): UserProfileType` com `followersCount`, `followingCount`, `uploadedAudios` |
+| 4A.10 | `test_user_followers_and_following_lists`, `test_followers_paginated` | `UserProfileType.followers(first: Int, after: String)` / `following(...)` connections |
+| 4A.11 | `test_notifications_returns_for_current_user_only`, `test_notifications_unread_filter` | `Query.notifications(unreadOnly: bool = False): list[NotificationType]` |
+| 4A.12 | `test_user_heatmap_returns_daily_counts` (paridade com `api_user_heatmap`) | `UserProfileType.activityHeatmap(days: Int = 365): list[HeatmapBucketType]` |
+| 4A.13 | `test_schema_graphql_snapshot_is_up_to_date` | Atualizar `schema.graphql` committado |
+
+**Arquivos a criar/editar:**
+- Estender `apps/api/types.py` com `HymnBookStatsType`, `SearchResultsType`, `SearchKind` enum, `UserProfileType`, `NotificationType`, `HeatmapBucketType`.
+- Estender `apps/api/schema.py` (`Query` ganha 6 campos novos).
+- `tests/unit/api/test_query_search.py`, `test_query_user_profile.py`, `test_query_notifications.py`, `test_hymn_neighbors.py`, `test_hymn_audio_visibility.py`.
+- Atualizar `schema.graphql` no root.
+
+**Critério de aceitação 4.A:** todos os 13 ciclos verdes; SDL committada bate com `export_schema`; lint passa.
+
+---
+
+#### Sub-marco 4.B — Layout shell + design tokens + tipografia — ~3-4 dias, branch `feat/headless-marco4b-shell`
+
+**Ciclos TDD (em `web/`):**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 4B.1 | `tests/unit/typography.spec.ts` — 3 famílias tipográficas estão configuradas no Tailwind (font-display, font-serif, font-sans) | Tailwind 4 + `tailwind.config.ts` com Cormorant Garamond / Source Serif 4 / Inter Tight |
+| 4B.2 | `tests/unit/typography.spec.ts` — fontes auto-hospedadas (não Google Fonts CDN) carregam via @fontsource | Instalar `@fontsource/cormorant-garamond`, `@fontsource/source-serif-4`, `@fontsource/inter-tight` |
+| 4B.3 | `tests/unit/design-tokens.spec.ts` — variáveis CSS de cor (`--color-bg`, `--color-text`, etc.) presentes no `app.css` | Portar `static/css/design-tokens.css` para `web/src/app.css` |
+| 4B.4 | `tests/unit/components/Header.test.ts` — header renderiza nav links, brand "hinária", botão de tema | `web/src/lib/components/Header.svelte` |
+| 4B.5 | `tests/unit/components/Header.test.ts` — botão de tema alterna data-theme="dark" no `<html>` | `web/src/lib/components/ThemeToggle.svelte` + `useTheme` store persistido em `localStorage` |
+| 4B.6 | `tests/unit/components/Header.test.ts` — quando `currentUser` está autenticado, exibe avatar e link pro perfil; senão, link de login | Header consome `data.currentUser` do layout load |
+| 4B.7 | `tests/unit/+layout.test.ts` — `_loadLayout` busca `currentUser` no GraphQL e propaga pra todas as páginas | `web/src/routes/+layout.ts` + `+layout.svelte` |
+| 4B.8 | `tests/unit/components/Footer.test.ts` — footer com créditos e link pra repo | `web/src/lib/components/Footer.svelte` |
+
+**Arquivos a criar:**
+- `web/tailwind.config.ts`, `web/postcss.config.js`, `web/src/app.css` (Tailwind 4 imports + tokens + 3 famílias).
+- `web/src/lib/components/{Header,Footer,ThemeToggle}.svelte`.
+- `web/src/lib/stores/theme.ts`.
+- `web/src/routes/+layout.svelte` e `+layout.ts` (substituem placeholders do Marco 3).
+
+**Critério de aceitação 4.B:** vitest 100% verde; `pnpm build` ainda passa; rodando `pnpm dev` o shell aparece em `/` com header e footer corretos.
+
+---
+
+#### Sub-marco 4.C — Home + lista de hinários (paridade visual) — ~3-4 dias, branch `feat/headless-marco4c-home-list`
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 4C.1 | `routes/+page.test.ts` — home carrega `hourlyFeatured` + `globalStats` | Estender `_loadHome` pra incluir `hourlyFeatured` |
+| 4C.2 | `routes/+page.test.ts` — renderiza 6 cards de hinário com counts (stats) | `web/src/lib/components/HymnbookCard.svelte` + render no `+page.svelte` |
+| 4C.3 | `routes/+page.test.ts` — renderiza bloco hero com slogan + CTA | Hero copiado de `home.html` (sem novo conteúdo) |
+| 4C.4 | `routes/hinarios/+page.test.ts` — lista exibe todos os hinários publicados com filtro por busca local | Já parcialmente feito no Marco 3; só adicionar filtro de input |
+| 4C.5 | `routes/hinarios/+page.test.ts` — usuário editor vê hinários não publicados com badge "rascunho" | Resolver `hymnbooks` já retorna; adicionar UI condicional |
+| 4C.6 | Playwright `tests/e2e/home.spec.ts` — abre `/` com Postgres seedado, conta cards | Smoke E2E (rodando contra Django dev local) |
+
+**Critério de aceitação 4.C:** vitest verde; visual diff vs `hymns-plat` home mostra diferenças cosméticas apenas (≤5%); E2E verde.
+
+---
+
+#### Sub-marco 4.D — Detalhe do hinário (3 modos: índice/corrido/carrossel) — ~1 semana, branch `feat/headless-marco4d-hymnbook-detail`
+
+Modo é dirigido por URL (`?mode=`), como hoje (decisão preservada de CLAUDE.md "Reading modes for a hymnbook are URL-driven, not JS-toggled").
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 4D.1 | `routes/hinarios/[slug]/+page.test.ts` — load carrega hinário com `hymns` populado | Rota dinâmica `[slug]/+page.{ts,svelte}` |
+| 4D.2 | mode `indice` renderiza lista numerada com link pra cada hino | Componente `HymnIndex.svelte` |
+| 4D.3 | mode `corrido` renderiza todos os hinos em coluna, com `HymnBody` centralizado | Componente `HymnCorrido.svelte` + `HymnBody.svelte` (`width: max-content`, página de cantador) |
+| 4D.4 | mode inválido (`?mode=foo`) cai pra `indice` (paridade com whitelist do Django) | Validação no load function |
+| 4D.5 | `HymnCarousel.test.ts` — renderiza 1 slide por viewport (one slide visible) | `web/src/lib/components/HymnCarousel.svelte` (porta de `static/js/hymn-carousel.js`) |
+| 4D.6 | `HymnCarousel.test.ts` — setas ←/→ no teclado navegam, Esc volta pra `?mode=indice` | Listeners de keyboard + `goto()` |
+| 4D.7 | `HymnCarousel.test.ts` — dot pagination atualiza ao trocar slide | Dots como `<button>` + `aria-current` |
+| 4D.8 | `HymnCarousel.test.ts` — respeita `prefers-reduced-motion` (sem transição) | Media query check |
+| 4D.9 | `HymnCarousel.test.ts` — progress bar no topo reflete posição (slide N de M) | Computed progress |
+| 4D.10 | toggle pills entre modos são `<a href="?mode=...">` (não botões JS) — back/forward funciona | Component `ModeTogglePills.svelte` |
+| 4D.11 | Playwright `tests/e2e/hymnbook-carousel.spec.ts` — abre carrossel, navega com setas, sai com Esc | E2E |
+
+**Componentes-chave a criar (em `web/src/lib/components/`):**
+- `HymnBody.svelte` — bloco `width: max-content` centralizado dentro do wrapper, versos left-aligned (página-de-cantador). Compartilhado por corrido/carrossel/hymn_detail (mesma regra do CLAUDE.md).
+- `HymnCarousel.svelte` — Reader Focus completo: chrome fixa (top progress bar + counter + prev/next + dot pagination), keyboard nav, `prefers-reduced-motion`.
+- `HymnIndex.svelte`, `HymnCorrido.svelte`, `ModeTogglePills.svelte`.
+
+**Critério de aceitação 4.D:** vitest verde; carrossel idêntico ao do Django em screenshot Playwright (≤5% diff); navegação por teclado funciona; modes deep-linkáveis.
+
+---
+
+#### Sub-marco 4.E — Hino individual + vizinhos + irmãos por número — ~3 dias, branch `feat/headless-marco4e-hymn-detail`
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 4E.1 | `routes/hinos/[pk]/+page.test.ts` — load busca hino com `previousInBook`, `nextInBook`, `siblingsWithSameNumber` | Rota `[pk]/+page.{ts,svelte}` |
+| 4E.2 | renderiza letra usando `HymnBody` | Reuso |
+| 4E.3 | renderiza navegação "anterior/próximo" no hinário com `<a>` (sem JS) | Links pra `?prev` / `?next` |
+| 4E.4 | renderiza "outros hinários com mesmo número" como lista de cards | Componente `SiblingHymnsList.svelte` |
+| 4E.5 | renderiza lista de áudios aprovados com player inline | `HymnAudioList.svelte` |
+| 4E.6 | quando usuário é o uploader OU editor, vê áudios pendentes com badge | UI condicional |
+
+**Critério de aceitação 4.E:** vitest verde; visual diff ≤5%.
+
+---
+
+#### Sub-marco 4.F — Player global persistente — ~4-5 dias, branch `feat/headless-marco4f-player`
+
+Este é o motor da "feature destravada pelo SPA": o player não pode reiniciar ao navegar (problema central do Django atual).
+
+**Decisões:**
+- O player vive como **store global** (`audioPlayer` store em `web/src/lib/stores/audio.ts`) + componente singleton no `+layout.svelte` (fica fora do `{@render children()}`).
+- Integração com [Media Session API](https://developer.mozilla.org/en-US/docs/Web/API/Media_Session_API) (controles do lock screen / smart watches).
+- **Não** porta `static/js/player.js` (513 LOC, lógica espalhada). Reescreve do zero usando o store; usa `static/js/audio-player.js` (155 LOC) como referência só pra rendering da waveform.
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 4F.1 | `stores/audio.test.ts` — `play(audio)` seta `currentAudio` e `isPlaying=true` | Store mínimo |
+| 4F.2 | `stores/audio.test.ts` — `togglePlay()` alterna, `seek(t)` atualiza posição | Métodos do store |
+| 4F.3 | `stores/audio.test.ts` — fechar/abrir o player não interrompe `<audio>` (instância única no DOM) | Singleton via `+layout.svelte` |
+| 4F.4 | `components/AudioPlayer.test.ts` — renderiza waveform SVG de `peaks` (paridade com `audio-player.js`) | Componente renderiza barras SVG |
+| 4F.5 | `components/AudioPlayer.test.ts` — clique na waveform faz seek pra posição correspondente | Handler de click com `getBoundingClientRect` |
+| 4F.6 | `components/AudioPlayer.test.ts` — botões play/pause/prev/next funcionam | Bindings |
+| 4F.7 | `components/AudioPlayer.test.ts` — fila de reprodução (próximo áudio do hino, próximo hino) | Queue no store |
+| 4F.8 | `components/AudioPlayer.test.ts` — Media Session API registra metadata (title, artist) | `navigator.mediaSession.metadata = ...` |
+| 4F.9 | `e2e/player-persists.spec.ts` (Playwright) — toca áudio em `/hinos/X/`, navega pra `/hinarios/`, áudio continua tocando | E2E crítico |
+| 4F.10 | `e2e/player-persists.spec.ts` — player tem visual sticky no bottom; dismiss via X esconde mas mantém áudio | UI |
+
+**Componentes a criar:**
+- `web/src/lib/stores/audio.ts` (store + tipos + queue logic).
+- `web/src/lib/components/AudioPlayer.svelte` (singleton; renderiza barra fixa no bottom).
+- `web/src/lib/components/Waveform.svelte` (SVG puro, recebe `peaks`).
+- `web/src/lib/components/PlayButton.svelte` (botão pequeno embutível em listas de áudio).
+
+**Critério de aceitação 4.F:** vitest verde; **E2E "player persiste em navegação" verde** (este é o teste-âncora do refactor — se falha, o refactor não vale a pena).
+
+---
+
+#### Sub-marco 4.G — Busca — ~2-3 dias, branch `feat/headless-marco4g-search`
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 4G.1 | `routes/busca/+page.test.ts` — load com `?q=...` chama `search` GraphQL | `+page.{ts,svelte}` + form |
+| 4G.2 | renderiza resultados agrupados (hinos / hinários) | Render |
+| 4G.3 | `?q=` vazio mostra placeholder/instrução | Render condicional |
+| 4G.4 | input tem debounce de 300ms (não dispara query a cada tecla) | `debounce` do `$effect` |
+| 4G.5 | clique em resultado navega; query é preservada no histórico | `goto` com `keepFocus` |
+
+**Critério de aceitação 4.G:** vitest verde; UX similar ao Django mas com filtragem client-side reativa.
+
+---
+
+#### Sub-marco 4.H — Perfis + notificações — ~3-4 dias, branch `feat/headless-marco4h-profiles`
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 4H.1 | `routes/perfil/[username]/+page.test.ts` — load busca `userProfile` | `[username]/+page.{ts,svelte}` |
+| 4H.2 | renderiza header com avatar, nome, contagem de seguidores/seguindo, botão "seguir" (se !self) | `ProfileHeader.svelte` |
+| 4H.3 | renderiza grid de áudios uploaded | `ProfileUploads.svelte` |
+| 4H.4 | renderiza heatmap de atividade (paridade com `api_user_heatmap`) | `ActivityHeatmap.svelte` (SVG 53×7 grid) |
+| 4H.5 | `routes/perfil/[username]/seguidores/+page.test.ts` — lista paginada | Rota + componente |
+| 4H.6 | `routes/perfil/[username]/seguindo/+page.test.ts` — lista paginada | Rota + componente |
+| 4H.7 | `routes/notificacoes/+page.test.ts` — load busca notificações do current user | Rota + render |
+| 4H.8 | filtro `não lidas` via query string `?unread=1` | Filtro |
+| 4H.9 | redireciona pra `/login?next=/notificacoes/` se anônimo | Guard no load |
+
+**Critério de aceitação 4.H:** vitest verde; heatmap visualmente equivalente.
+
+---
+
+#### Sub-marco 4.I — Visual diff sistemático vs Django — ~2 dias, branch `feat/headless-marco4i-visual-diff`
+
+**Ciclos:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 4I.1 | `tests/e2e/visual-parity.spec.ts` — pra cada rota da tabela, tira screenshot do SvelteKit (port 5173) e do Django (port 9000); diff ≤5% | Playwright snapshot matcher |
+| 4I.2 | Pin de tipografia em web (`tests/unit/typography.spec.ts`) bate com `tests/unit/test_typography_setup.py` do Django | Snapshot dos `font-family` resolvidos |
+
+**Pré-requisito de infra:** o E2E precisa subir Django (port 9000) + SvelteKit (port 5173) lado a lado contra o mesmo Postgres. Adicionar `web/scripts/dev-fullstack.sh` que sobe ambos (ou `docker-compose.dev.yml`).
+
+**Critério de aceitação 4.I:** ≥95% das rotas da tabela com diff ≤5%; restante documentado em `_plan/marco4-diff-notes.md` (diferenças intencionais).
+
+---
+
+**Critério de aceitação geral do Marco 4:**
+- Todos os sub-marcos 4.A-4.I com CI verde (rodado integradamente na branch-mãe).
+- Demo gravada: navegar pelo SvelteKit em `:5173` cobrindo todas as rotas da tabela enquanto o player toca ininterrupto.
+- Tabela final de paridade (pin no PR description) com % de diff por rota.
+
+**Esforço estimado revisado:** 4-5 semanas em série, **~2-3 semanas com paralelização por subagentes** (ver "Estratégia de execução com subagentes" abaixo).
+
+---
+
+## Política de consolidação de PRs
+
+**Princípio:** sub-marcos existem pra **disciplina de TDD e planejamento**, não pra serem PRs separados. Cada sub-marco continua sendo uma sequência de commits (1 por ciclo TDD) num branch local; o que vai pra `main` é um PR por Marco semântico.
+
+**Histórico (Marcos 1-3) — o que fazer com o que já está aberto:**
+- PR #51 (Marco 1) tem auto-merge → aguardar fechar; `main` ganha 1 commit squash com Marco 1.
+- PR #52 (Marco 2) já foi mergeado no branch do Marco 1 — não vai virar PR separado contra `main`.
+- PR #53 (Marco 3) foi rebaseado sobre Marco 1, então contém Marco 2 + Marco 3. Renomear título do PR pra refletir ("Marcos 2 + 3: mutations + auth + SvelteKit skeleton"). Auto-merge fecha → `main` ganha 1 commit squash com Marcos 2+3.
+- **Resultado retroativo:** 2 commits em `main` (Marco 1; Marcos 2+3), não 3 PRs.
+
+**Daqui pra frente — 1 PR por Marco como regra:**
+
+| Marco | PRs contra `main` | Justificativa |
+|---|---|---|
+| Marco 4 | **2 PRs** (4.A schema + 4.B-I SPA) | Schema é backend isolado, contrato discreto; SPA é monolítica |
+| Marco 5 | **1 PR** | CRUD editorial é coeso; backend e frontend andam juntos |
+| Marco 6 | **1 PR** | PWA offline é uma feature transversal — rollback unitário tem que ser possível |
+| Marco 7 | **1 PR** | Cutover é cirurgia única |
+
+**Total daqui em diante: 5 PRs** (Marco 4 split + Marcos 5, 6, 7 individuais), em vez dos ~30 do plano original (1 PR por sub-marco).
+
+**Mecânica de cada PR:**
+- Branch base: `main` (sem stacked PRs).
+- Branch-mãe do Marco: `feat/headless-marco<N>` (ou `marco4-schema` e `marco4-spa` no caso de Marco 4).
+- Cada sub-marco vira **uma seção do PR description** com sua tabela de ciclos TDD + lista dos commits que cobrem essa seção. Revisor (você) varre por sub-marco; merge é único squash.
+- Auto-merge ativado imediatamente após criar a PR (memória `feedback_auto_merge`).
+- CI roda contra a soma de tudo — sub-marco quebrado **dentro** da branch-mãe não passa: a disciplina é rodar `pnpm test && pnpm check && uv run pytest` localmente a cada ciclo.
+
+**Trade-offs aceitos:**
+- ✅ Menos overhead de revisão, menos CI runs caros, `main` com histórico semântico claro.
+- ❌ PRs maiores (Marco 4 SPA chega a ~3k LOC). Mitigação: revisão guiada pelas seções de sub-marco no PR description.
+- ❌ Rollback granular (sub-marco isolado) requer `git revert <commit-range>`, não `revert <PR>`. Aceito porque sub-marcos dentro de um Marco são interdependentes na prática.
+
+---
+
+## Estratégia de execução com subagentes
+
+**Princípio:** cada sub-marco é uma **unidade autocontida e testável** — ideal pra delegação a um subagente. O subagente recebe um briefing fechado, opera em git worktree isolado, e só conclui quando todos os testes + lint estão verdes.
+
+**Tipo de subagente:** `general-purpose` (workhorse) com `isolation: "worktree"`. Cada subagente recebe uma cópia git isolada do repo — sem conflitos com trabalho paralelo.
+
+**Contrato de cada subagente (briefing fechado):**
+1. **Escopo:** identificador do sub-marco (ex: "4.D — Detalhe do hinário, 3 modos").
+2. **Branch:** nome do branch a criar a partir da base indicada.
+3. **Tabela de ciclos TDD:** copiada literalmente do plano. O subagente percorre na ordem: RED → GREEN → commit → próximo.
+4. **Arquivos a criar/editar:** lista explícita.
+5. **Critério de "concluído":**
+   - Todos os ciclos da tabela com commit.
+   - `pnpm test && pnpm check && pnpm build` no `web/` verdes (ou `uv run pytest tests/unit/api/ && uv run black --check . && uv run isort --check-only . && uv run ruff check .` em sub-marcos backend).
+   - Lint passa.
+   - Subagente **NÃO** abre PR; apenas garante a branch verde e reporta o SHA final. O coordenador (eu) faz o merge na branch-mãe.
+6. **Restrições fixas:**
+   - PT-BR em strings de usuário.
+   - Sem `--no-verify`.
+   - Sem `git push --force`.
+   - Reusar helpers existentes (`can_edit_hymnbook`, `_is_editor_or_admin`, `HymnForm`, etc.) em vez de reescrever.
+   - Se um teste falhar de forma irrecuperável (ex: precisa de decisão de design), pausar e reportar — não improvisar.
+
+**Plano de paralelização do Marco 4:**
+
+Análise de dependências:
+- **4.A** (schema GraphQL): backend puro. Sem dependências. Bloqueia 4.C-4.H (codegen do cliente lê SDL).
+- **4.B** (layout shell + tokens + tipografia): frontend puro. Sem dependências do schema novo (usa só queries do Marco 1-3). **Pode rodar paralelo com 4.A**.
+- **4.C, 4.D, 4.E, 4.G, 4.H** (rotas read-only): cada uma toca rotas/componentes disjuntos. Dependem de 4.A (SDL) e 4.B (shell). **Podem rodar todas em paralelo**.
+- **4.F** (player global persistente): modifica `+layout.svelte` (mesmo arquivo de 4.B). **Sequencial após 4.B**; **paralelo com 4.C-4.H** se 4.B já estiver mergeado.
+- **4.I** (visual diff E2E): precisa de tudo. **Sequencial no fim**.
+
+**Linha do tempo proposta:**
+
+```
+Tempo →    Semana 1         Semana 2              Semana 3
+          ┌─────────┐
+4.A ─────►│ schema  │
+          └─────────┘
+          ┌─────────┐
+4.B ─────►│ shell   │
+          └─────────┘
+                    ┌──────────────┐
+4.C ───────────────►│ home + lista │
+                    └──────────────┘
+                    ┌──────────────┐
+4.D ───────────────►│ hinário 3mod │
+                    └──────────────┘
+                    ┌──────────────┐
+4.E ───────────────►│ hino único   │
+                    └──────────────┘
+                    ┌──────────────┐
+4.F ───────────────►│ player       │
+                    └──────────────┘
+                    ┌──────────────┐
+4.G ───────────────►│ busca        │
+                    └──────────────┘
+                    ┌──────────────┐
+4.H ───────────────►│ perfis+notif │
+                    └──────────────┘
+                                   ┌──────────┐
+4.I ──────────────────────────────►│ diff E2E │
+                                   └──────────┘
+```
+
+**Fases de execução (sob coordenação do agente principal):**
+
+| Fase | Subagentes paralelos | Branches base | Critério pra avançar |
+|---|---|---|---|
+| **F1** (1 semana) | 4.A + 4.B | `main` | Ambos branches verdes e mergeados em `feat/headless-marco4-base` |
+| **F2** (~1 semana) | 4.C + 4.D + 4.E + 4.F + 4.G + 4.H | `feat/headless-marco4-base` | Todas as 6 branches verdes |
+| **F3** (~3 dias) | Merge das 6 branches em `feat/headless-marco4-spa`; resolver conflitos (esperados em `+layout.svelte` por 4.F) | — | Branch unificada verde |
+| **F4** (~2 dias) | 4.I (sequencial, sozinho) na branch unificada | `feat/headless-marco4-spa` | Visual diff ≥95% |
+| **F5** | Abrir 2 PRs contra `main`: schema e SPA | — | Auto-merge fecha ambos |
+
+**Ganho estimado:** F1+F2+F3+F4 ≈ 2,5-3 semanas vs. 4-5 semanas sequenciais.
+
+**Riscos da paralelização:**
+- **Conflitos de merge na F3.** Mitigação: 4.B (shell) cria slots/placeholders para player (4.F) e cards (4.C). Cada sub-marco frontend toca arquivos disjuntos por contrato (tabelas TDD já desenharam isso).
+- **Schema do 4.A muda durante 4.B**: 4.B não depende de schema novo, então não é afetado. 4.C-4.H pegam o SDL definitivo após 4.A mergeado.
+- **Subagente travado em decisão de design.** Mitigação: critério 6 do contrato (pausar e reportar). Coordenador resolve, atualiza briefing, re-spawna se necessário.
+- **Custo de tokens.** 6 subagentes simultâneos em F2 ≈ 6× contexto. Aceitável pela aceleração.
+
+**Coordenação prática (agente principal, isto é, eu):**
+- F1: 2 chamadas `Agent` em paralelo num único turno (4.A + 4.B).
+- F2: 6 chamadas `Agent` em paralelo num único turno.
+- Entre fases: verificar branches (`git log`, `pnpm test`, `pytest`), resolver conflitos manualmente, abrir PRs.
+- **NÃO** delegar a abertura de PRs aos subagentes — fica no agente principal pra controle e aplicação do auto-merge.
+
+**Marcos 5+ usam o mesmo padrão**, ajustado pela coesão do marco. Marco 5 (CRUD editorial) tem menos paralelização possível porque mutations compartilham mais código; provável split: 2 subagentes (backend mutations + frontend editor UI). Marco 6 (offline PWA) é predominantemente sequencial (service worker + Dexie + Workbox são uma stack acoplada).
 
 ### Marco 5 — CRUD editorial + permissões
 
