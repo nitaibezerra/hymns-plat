@@ -175,3 +175,49 @@ class SearchResultsType:
 
     hymns: list[HymnType]
     hymnbooks: list[HymnBookType]
+
+
+@strawberry.type
+class HeatmapBucketType:
+    """Bucket diário do heatmap "Trabalho editorial · último ano".
+
+    Mesma forma do JSON exposto por `apps/users/api_views.py::api_user_heatmap`."""
+
+    date: str
+    count: int
+
+
+@strawberry.type
+class NotificationType:
+    """Item da feed de notificações do usuário autenticado."""
+
+    id: strawberry.ID
+    notification_type: str
+    title: str
+    message: str
+    link: str
+    is_read: bool
+    created_at: str
+
+
+@strawberry.type
+class UserProfileType:
+    """Agregado de perfil público: usuário + contagens + paginações + heatmap.
+
+    Usado pela tela `/u/[username]` do SPA, com paridade conceitual ao
+    `user_detail.html` + `api_user_heatmap` do monolito.
+    """
+
+    user: UserType
+
+    @strawberry.field
+    def followers_count(self) -> int:
+        return user_models.UserFollow.objects.filter(followed=self.user).count()
+
+    @strawberry.field
+    def following_count(self) -> int:
+        return user_models.UserFollow.objects.filter(follower=self.user).count()
+
+    @strawberry.field
+    def uploaded_audios(self) -> list[HymnAudioType]:
+        return list(hymn_models.HymnAudio.objects.filter(uploaded_by=self.user).order_by("-created_at"))
