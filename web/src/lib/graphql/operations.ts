@@ -28,6 +28,27 @@ export const HYMNBOOKS_QUERY = `
       name
       slug
       isPublished
+      stats {
+        hymnsTotal
+        hymnsReviewed
+        audiosApproved
+      }
+    }
+  }
+`;
+
+export const HOURLY_FEATURED_QUERY = `
+  query HourlyFeatured {
+    hourlyFeatured {
+      id
+      name
+      slug
+      isPublished
+      stats {
+        hymnsTotal
+        hymnsReviewed
+        audiosApproved
+      }
     }
   }
 `;
