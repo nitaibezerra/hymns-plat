@@ -37,4 +37,15 @@ describe("/hinarios/[slug] página", () => {
       expect(links[1].getAttribute("href")).toBe("/hinos/h-2");
     });
   });
+
+  describe("modo corrido (4D.3)", () => {
+    it("renderiza todos os hinos em coluna usando HymnBody", () => {
+      render(Page, { props: { data: { ...sampleData, mode: "corrido" } } });
+      const items = screen.getAllByTestId("hymn-corrido-item");
+      expect(items).toHaveLength(2);
+      expect(items[0].textContent ?? "").toContain("Verso 1");
+      expect(items[0].textContent ?? "").toContain("Verso 2");
+      expect(items[1].textContent ?? "").toContain("Linha A");
+    });
+  });
 });
