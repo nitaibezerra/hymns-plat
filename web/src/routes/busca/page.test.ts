@@ -223,3 +223,42 @@ describe("busca: input com debounce de 300ms", () => {
     );
   });
 });
+
+describe("busca: links semânticos nos resultados", () => {
+  it("resultado de hino vira <a href> para /hinos/<id>", () => {
+    const data = dataWith(
+      "estrela",
+      [{ id: "h1", number: 5, title: "Estrela Brilhante", reviewStatus: "REVIEWED" }],
+      [],
+    );
+    render(Page, { props: { data } });
+
+    const item = screen.getByTestId("search-hymn-result");
+    const link = item.querySelector("a");
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute("href")).toBe("/hinos/h1");
+  });
+
+  it("resultado de hinário vira <a href> para /hinarios/<slug>", () => {
+    const data = dataWith(
+      "cruzeiro",
+      [],
+      [{ id: "b1", name: "O Cruzeiro", slug: "cruzeiro", isPublished: true }],
+    );
+    render(Page, { props: { data } });
+
+    const item = screen.getByTestId("search-hymnbook-result");
+    const link = item.querySelector("a");
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute("href")).toBe("/hinarios/cruzeiro");
+  });
+
+  it("form action preserva /busca para que a query fique na URL após submit", () => {
+    const data = dataWith("estrela", [], []);
+    render(Page, { props: { data } });
+    const form = screen.getByTestId("search-form") as HTMLFormElement;
+    expect(form.getAttribute("action")).toBe("/busca");
+    expect(form.getAttribute("method")?.toLowerCase()).toBe("get");
+    expect((screen.getByTestId("search-input") as HTMLInputElement).name).toBe("q");
+  });
+});
