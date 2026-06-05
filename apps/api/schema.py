@@ -18,9 +18,10 @@ from strawberry.types import Info
 from apps.hymns import models as hymn_models
 from apps.hymns.featured import hourly_featured
 from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
+from apps.users import models as user_models
 
 from .mutations import Mutation
-from .types import HymnAudioType, HymnBookType, HymnType, SearchKind, SearchResultsType, UserType
+from .types import HymnAudioType, HymnBookType, HymnType, SearchKind, SearchResultsType, UserProfileType, UserType
 
 
 def _user(info: Info):
@@ -56,6 +57,14 @@ class Query:
     def current_user(self, info: Info) -> Optional[UserType]:
         user = _user(info)
         return user if getattr(user, "is_authenticated", False) else None
+
+    @strawberry.field
+    def user_profile(self, username: str) -> Optional[UserProfileType]:
+        """Perfil público do usuário (`None` se username não existir)."""
+        user = user_models.User.objects.filter(username=username).first()
+        if user is None:
+            return None
+        return UserProfileType(user=user)
 
     @strawberry.field
     def hourly_featured(self, info: Info) -> list[HymnBookType]:
