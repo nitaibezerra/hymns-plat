@@ -1,5 +1,6 @@
 <script lang="ts">
   import ProfileHeader from "$lib/components/ProfileHeader.svelte";
+  import ProfileUploads from "$lib/components/ProfileUploads.svelte";
 
   import type { PageData } from "./$types";
 
@@ -18,5 +19,6 @@
       followingCount={data.userProfile.followingCount}
       currentUser={data.currentUser}
     />
+    <ProfileUploads audios={data.userProfile.uploadedAudios} />
   {/if}
 </section>
