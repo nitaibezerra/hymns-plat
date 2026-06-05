@@ -1,48 +1,77 @@
 <script lang="ts">
   /**
-   * Marco 4.E — Ciclo 4E.5.
+   * Marco 4.F — PlayButton.
    *
-   * Botão de play mínimo: dispara `audioPlayer.play(track)` do stub
-   * `$lib/stores/audio`. A impl real do player (queue, waveform animado,
-   * Media Session API) vem no sub-marco 4.F — aqui apenas garantimos que
-   * a UI do detalhe consegue empurrar uma `AudioTrack` pro store global.
+   * Botão "tocar este hino" reutilizável. Vive desacoplado do AudioPlayer:
+   * a única responsabilidade é traduzir um click em
+   * `audioPlayer.play(track)` ou `audioPlayer.togglePlay()` conforme o
+   * estado atual do store.
+   *
+   * 4.E (página do hino) e 4.D (página do hinário) podem importar este
+   * componente direto, sem reimplementar lógica de "esta faixa já está
+   * tocando? Então só toggle".
    */
-  import { audioPlayer, type AudioTrack } from "$lib/stores/audio";
+  import { audioPlayer, audioState, type AudioTrack } from "$lib/stores/audio";
 
-  let { track }: { track: AudioTrack } = $props();
+  type Props = {
+    track: AudioTrack;
+    /** Rótulo customizável (default: "Tocar"). */
+    label?: string;
+  };
 
-  function onPlay(): void {
-    audioPlayer.play(track);
+  let { track, label = "Tocar" }: Props = $props();
+
+  let player = $derived($audioState);
+  let isActive = $derived(player.currentTrack?.id === track.id);
+  let isPlayingThis = $derived(isActive && player.isPlaying);
+  let ariaLabel = $derived(isPlayingThis ? `Pausar ${track.title}` : `${label} ${track.title}`);
+
+  function handleClick() {
+    if (isActive) {
+      audioPlayer.togglePlay();
+    } else {
+      audioPlayer.play(track);
+    }
   }
 </script>
 
 <button
   type="button"
   class="play-button"
+  class:active={isActive}
   data-testid="play-button"
-  aria-label={`Tocar ${track.title}`}
-  onclick={onPlay}
+  aria-label={ariaLabel}
+  aria-pressed={isPlayingThis}
+  onclick={handleClick}
 >
-  <span aria-hidden="true">▶</span>
-  <span>Tocar</span>
+  {#if isPlayingThis}
+    <span aria-hidden="true">❚❚</span>
+  {:else}
+    <span aria-hidden="true">▶</span>
+  {/if}
 </button>
 
 <style>
   .play-button {
     align-items: center;
     background: var(--color-accent);
-    border: none;
-    border-radius: 999px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-pill, 9999px);
     color: var(--color-bg);
     cursor: pointer;
     display: inline-flex;
-    font-family: var(--font-sans);
-    font-size: 0.875rem;
-    font-weight: 600;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
+    font-family: inherit;
+    font-size: 0.9375rem;
+    height: 2.25rem;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    width: 2.25rem;
   }
   .play-button:hover {
-    filter: brightness(0.95);
+    filter: brightness(1.05);
+  }
+  .play-button.active {
+    box-shadow: 0 0 0 2px var(--color-accent);
   }
 </style>

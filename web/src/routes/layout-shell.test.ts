@@ -1,22 +1,15 @@
 /**
  * Marco 4.B — Ciclo 4B.8.
- *
- * `+layout.svelte` é o shell visual que envolve TODAS as páginas:
- *
- *   - <Header /> recebe `currentUser` do `+layout.ts` (ciclo 4B.7).
- *   - <Footer /> fica sempre presente.
- *   - {@render children()} é renderizado dentro de um wrapper
- *     `data-testid="content-area"` (slot que `Sub-marco 4.C` vai mirar
- *     para inserir cards de listagem).
- *   - `data-testid="player-slot"` é um slot fixo no bottom da página
- *     onde `Sub-marco 4.F` (player global) vai montar; permanece vazio
- *     neste marco.
+ * Marco 4.F — Atualizado: o `player-slot` agora hospeda o singleton
+ * `<AudioPlayer />`. Os testes do shell (4B) continuam válidos; este
+ * arquivo ganha um teste extra cobrindo a presença do componente.
  */
 
 import { render, screen } from "@testing-library/svelte";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import Layout from "./+layout.svelte";
+import { audioPlayer } from "$lib/stores/audio";
 
 const ANON_DATA = { currentUser: null };
 const USER_DATA = {
@@ -24,6 +17,13 @@ const USER_DATA = {
 };
 
 describe("+layout.svelte (shell)", () => {
+  beforeEach(() => {
+    audioPlayer.reset();
+  });
+  afterEach(() => {
+    audioPlayer.reset();
+  });
+
   it("renderiza Header e Footer", () => {
     render(Layout, { props: { data: ANON_DATA, children: undefined } });
     expect(screen.getByTestId("site-header")).toBeInTheDocument();
@@ -35,9 +35,23 @@ describe("+layout.svelte (shell)", () => {
     expect(screen.getByTestId("content-area")).toBeInTheDocument();
   });
 
-  it("renderiza o slot do player fixed-bottom (vazio neste marco)", () => {
+  it("renderiza o slot do player fixed-bottom", () => {
     render(Layout, { props: { data: ANON_DATA, children: undefined } });
     expect(screen.getByTestId("player-slot")).toBeInTheDocument();
+  });
+
+  it("monta o <AudioPlayer /> singleton dentro do player-slot (4F)", () => {
+    // Há uma faixa ativa → o componente deve renderizar a barra visível
+    // dentro do <aside data-testid="player-slot">.
+    audioPlayer.play({
+      id: "audio-x",
+      url: "https://example.test/x.mp3",
+      title: "Faixa X",
+    });
+    render(Layout, { props: { data: ANON_DATA, children: undefined } });
+    const slot = screen.getByTestId("player-slot");
+    const bar = screen.getByTestId("audio-player-bar");
+    expect(slot.contains(bar)).toBe(true);
   });
 
   it("repassa currentUser pro Header (mostra avatar quando autenticado)", () => {
