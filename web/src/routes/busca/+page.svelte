@@ -1,10 +1,12 @@
 <script lang="ts">
   /**
-   * Marco 4.G — Ciclo 4G.2.
+   * Marco 4.G — Ciclos 4G.2 + 4G.3.
    *
-   * Renderiza resultados agrupados em duas seções: Hinos e Hinários. Cada
-   * seção mostra a contagem do grupo e some quando vazia. Quando há `query`
-   * mas zero resultados em ambos os grupos, mostra um card "nenhum resultado".
+   * Três estados de render:
+   *   - SEM `query` ⇒ placeholder "Digite pra buscar hinos ou hinários".
+   *   - COM `query` e zero resultados ⇒ card "Nenhum resultado".
+   *   - COM `query` e resultados ⇒ seções "Hinos" + "Hinários" com contagem
+   *     (cada seção some quando o grupo correspondente está vazio).
    *
    * O input mantém o termo (`data.query`) pré-populado em SSR.
    */
@@ -40,7 +42,12 @@
     <button type="submit" class="rounded-full px-5 py-2 text-sm">Buscar</button>
   </form>
 
-  {#if hasQuery}
+  {#if !hasQuery}
+    <div data-testid="search-placeholder" class="mt-10 p-10 text-center">
+      <p class="font-display text-2xl">Comece pela busca.</p>
+      <p class="mt-2">Digite pra buscar hinos ou hinários — título, trecho da letra ou autor.</p>
+    </div>
+  {:else}
     {#if totalResults === 0}
       <div data-testid="search-empty" class="mt-10 p-10 text-center">
         Nenhum resultado para "{data.query}". Tente outros termos.
