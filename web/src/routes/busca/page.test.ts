@@ -9,9 +9,13 @@
  *   - Echo do termo em `data.query` para o componente pré-popular o input.
  */
 
+import { render, screen } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
+import Page from "./+page.svelte";
 import { _loadSearch } from "./+page";
+
+import type { SearchData } from "./+page";
 
 function fakeFetch<T>(payload: T, status = 200) {
   return vi.fn().mockResolvedValue(
@@ -81,5 +85,64 @@ describe("busca load function", () => {
     expect(result.results).toEqual({ hymns: [], hymnbooks: [] });
     expect(result.error).toMatch(/HTTP 500/);
     expect(result.query).toBe("foo");
+  });
+});
+
+function dataWith(
+  query: string,
+  hymns: SearchData["results"]["hymns"],
+  hymnbooks: SearchData["results"]["hymnbooks"],
+) {
+  return { currentUser: null, query, results: { hymns, hymnbooks }, error: null };
+}
+
+describe("busca render: resultados agrupados", () => {
+  it("renderiza seções 'Hinos' e 'Hinários' com contagens", () => {
+    const data = dataWith(
+      "estrela",
+      [
+        { id: "h1", number: 1, title: "Estrela Brilhante", reviewStatus: "REVIEWED" },
+        { id: "h2", number: 12, title: "Estrela do Norte", reviewStatus: "NOT_REVIEWED" },
+      ],
+      [
+        { id: "b1", name: "O Cruzeiro", slug: "cruzeiro", isPublished: true },
+      ],
+    );
+
+    render(Page, { props: { data } });
+
+    const hymnsSection = screen.getByTestId("search-section-hymns");
+    expect(hymnsSection).toBeInTheDocument();
+    expect(hymnsSection).toHaveTextContent(/hinos/i);
+    expect(hymnsSection).toHaveTextContent("2");
+
+    const hymnbooksSection = screen.getByTestId("search-section-hymnbooks");
+    expect(hymnbooksSection).toBeInTheDocument();
+    expect(hymnbooksSection).toHaveTextContent(/hinários/i);
+    expect(hymnbooksSection).toHaveTextContent("1");
+
+    expect(screen.getAllByTestId("search-hymn-result")).toHaveLength(2);
+    expect(screen.getAllByTestId("search-hymnbook-result")).toHaveLength(1);
+    expect(screen.getByText("Estrela Brilhante")).toBeInTheDocument();
+    expect(screen.getByText("O Cruzeiro")).toBeInTheDocument();
+  });
+
+  it("omite seção quando o grupo correspondente está vazio", () => {
+    const data = dataWith(
+      "cruzeiro",
+      [],
+      [{ id: "b1", name: "O Cruzeiro", slug: "cruzeiro", isPublished: true }],
+    );
+
+    render(Page, { props: { data } });
+
+    expect(screen.queryByTestId("search-section-hymns")).toBeNull();
+    expect(screen.getByTestId("search-section-hymnbooks")).toBeInTheDocument();
+  });
+
+  it("mostra mensagem 'nenhum resultado' quando ambos grupos vazios mas há query", () => {
+    const data = dataWith("xyz", [], []);
+    render(Page, { props: { data } });
+    expect(screen.getByTestId("search-empty")).toHaveTextContent(/nenhum resultado/i);
   });
 });
