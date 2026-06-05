@@ -21,7 +21,16 @@ from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
 from apps.users import models as user_models
 
 from .mutations import Mutation
-from .types import HymnAudioType, HymnBookType, HymnType, SearchKind, SearchResultsType, UserProfileType, UserType
+from .types import (
+    HymnAudioType,
+    HymnBookType,
+    HymnType,
+    NotificationType,
+    SearchKind,
+    SearchResultsType,
+    UserProfileType,
+    UserType,
+)
 
 
 def _user(info: Info):
@@ -65,6 +74,25 @@ class Query:
         if user is None:
             return None
         return UserProfileType(user=user)
+
+    @strawberry.field
+    def notifications(self, info: Info, unread_only: bool = False) -> list[NotificationType]:
+        """Feed de notificações do usuário autenticado.
+
+        Anônimo recebe erro de permissão (não há `notifications` global). É
+        uma queries com efeito de "self-read", então faz sentido como
+        exception (não union) — o cliente nunca vai querer renderizar feed
+        sem login.
+        """
+        user = _user(info)
+        if not getattr(user, "is_authenticated", False):
+            from graphql import GraphQLError
+
+            raise GraphQLError("Autenticação necessária para listar notificações.")
+        qs = user_models.Notification.objects.filter(recipient=user)
+        if unread_only:
+            qs = qs.filter(is_read=False)
+        return list(qs.order_by("-created_at"))
 
     @strawberry.field
     def hourly_featured(self, info: Info) -> list[HymnBookType]:
