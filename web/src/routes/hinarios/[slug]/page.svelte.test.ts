@@ -16,7 +16,11 @@ vi.mock("$app/navigation", () => ({
   goto: vi.fn(),
 }));
 
-const sampleData: HymnbookDetailData = {
+// `PageData` extends `LayoutData` em SvelteKit, então o componente espera
+// `currentUser` também. O load function só define os campos do +page.ts;
+// `currentUser` é injetado pelo runtime do SvelteKit.
+const sampleData: HymnbookDetailData & { currentUser: null } = {
+  currentUser: null,
   hymnbook: {
     id: "hb-1",
     name: "O Justiceiro",
