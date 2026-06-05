@@ -13,6 +13,13 @@
 <section class="notifications-page" data-testid="notifications-page">
   <header>
     <h1>Notificações</h1>
+    <p class="toggle">
+      {#if data.unreadOnly}
+        <a href="/notificacoes/?unread=0" data-testid="toggle-all">Todas</a>
+      {:else}
+        <a href="/notificacoes/?unread=1" data-testid="toggle-unread">Apenas não lidas</a>
+      {/if}
+    </p>
   </header>
 
   {#if data.error}
@@ -60,6 +67,17 @@
     font-family: var(--font-display, serif);
     font-size: 2rem;
     margin: 0;
+  }
+  .toggle {
+    margin: 0;
+  }
+  .toggle a {
+    color: var(--color-accent, #b58d3e);
+    font-size: 0.875rem;
+    text-decoration: none;
+  }
+  .toggle a:hover {
+    text-decoration: underline;
   }
   .list {
     display: grid;
