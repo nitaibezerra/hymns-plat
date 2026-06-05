@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Marco 4.G — Ciclos 4G.2 + 4G.3.
+   * Marco 4.G — Ciclos 4G.2 + 4G.3 + 4G.4.
    *
    * Três estados de render:
    *   - SEM `query` ⇒ placeholder "Digite pra buscar hinos ou hinários".
@@ -9,8 +9,18 @@
    *     (cada seção some quando o grupo correspondente está vazio).
    *
    * O input mantém o termo (`data.query`) pré-populado em SSR.
+   *
+   * Busca reativa: digitação atualiza `inputValue`; um `$effect` agenda
+   * `goto('/busca?q=...', {keepFocus: true})` após 300ms ociosos, evitando
+   * disparar uma query GraphQL a cada tecla.
    */
+  import { untrack } from "svelte";
+
+  import { goto } from "$app/navigation";
+
   import type { PageData } from "./$types";
+
+  const DEBOUNCE_MS = 300;
 
   let { data }: { data: PageData } = $props();
 
@@ -18,6 +28,25 @@
   let hymnbooks = $derived(data.results.hymnbooks);
   let totalResults = $derived(hymns.length + hymnbooks.length);
   let hasQuery = $derived(data.query.length > 0);
+
+  // `$state` é inicializado uma vez com a query SSR; depois fica controlado
+  // pelo input. A navegação reativa (effect abaixo) sincroniza com a URL.
+  // eslint-disable-next-line svelte/no-immutable-reactive-statements
+  let inputValue = $state<string>(untrack(() => data.query));
+
+  $effect(() => {
+    const value = inputValue;
+    // Só dispara navegação se o valor mudou em relação ao que já está na URL.
+    if (value === data.query) return;
+
+    const handle = setTimeout(() => {
+      const trimmed = value.trim();
+      const target = trimmed === "" ? "/busca" : `/busca?q=${encodeURIComponent(trimmed)}`;
+      goto(target, { keepFocus: true, replaceState: false, noScroll: true });
+    }, DEBOUNCE_MS);
+
+    return () => clearTimeout(handle);
+  });
 </script>
 
 <section data-testid="search" class="max-w-5xl mx-auto px-6 py-10">
@@ -33,7 +62,7 @@
     <input
       type="search"
       name="q"
-      value={data.query}
+      bind:value={inputValue}
       placeholder="estrela brilhante…"
       class="flex-1 bg-transparent px-2 py-2 focus:outline-none"
       data-testid="search-input"
