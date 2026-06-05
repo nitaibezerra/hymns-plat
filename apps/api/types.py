@@ -12,9 +12,17 @@ from __future__ import annotations
 import strawberry
 import strawberry_django
 from django.db.models import Count, Q
+from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
+from apps.hymns.permissions import _is_editor_or_admin
 from apps.users import models as user_models
+
+
+def _user_from_info(info: Info):
+    """Atalho pra extrair `request.user` do contexto Strawberry."""
+    request = info.context["request"] if isinstance(info.context, dict) else info.context.request
+    return request.user
 
 
 @strawberry.type
@@ -71,6 +79,24 @@ class HymnType:
     number: strawberry.auto
     title: strawberry.auto
     review_status: ReviewStatus
+
+    @strawberry.field
+    def audios(self, info: Info, approved_only: bool = True) -> list["HymnAudioType"]:
+        """Áudios deste hino com gating de visibilidade.
+
+        - `approved_only=True` (default) sempre limita a `is_approved=True`,
+          mantendo o comportamento do player público.
+        - `approved_only=False` libera pendentes para quem pode ver: editor/admin
+          vê todos; uploader autenticado vê os próprios (+ aprovados de qualquer
+          um); anônimo segue restrito a aprovados.
+        """
+        user = _user_from_info(info)
+        base = hymn_models.HymnAudio.objects.filter(hymn=self)
+        if approved_only or not getattr(user, "is_authenticated", False):
+            return list(base.filter(is_approved=True).order_by("-created_at"))
+        if _is_editor_or_admin(user):
+            return list(base.order_by("-created_at"))
+        return list(base.filter(Q(is_approved=True) | Q(uploaded_by=user)).order_by("-created_at"))
 
 
 @strawberry_django.type(hymn_models.HymnAudio)
