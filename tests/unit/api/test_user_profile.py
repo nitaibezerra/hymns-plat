@@ -70,4 +70,53 @@ def test_user_profile_returns_null_when_user_not_found(client):
     assert data["data"]["userProfile"] is None
 
 
-# Ciclo 4A.10 — paginação followers/following: testes adicionados a seguir.
+def test_followers_paginated(client, user_factory):
+    from apps.users.models import UserFollow
+
+    target = user_factory(email="target@example.com")
+    followers = [user_factory(email=f"f{i}@example.com") for i in range(5)]
+    for f in followers:
+        UserFollow.objects.create(follower=f, followed=target)
+
+    data = gql(
+        client,
+        '{ userProfile(username: "target") { followers(first: 2) { username } } }',
+    )
+    assert "errors" not in data, data
+    first_page = [row["username"] for row in data["data"]["userProfile"]["followers"]]
+    assert len(first_page) == 2
+
+    data_next = gql(
+        client,
+        '{ userProfile(username: "target") { followers(first: 2, offset: 2) { username } } }',
+    )
+    assert "errors" not in data_next, data_next
+    second_page = [row["username"] for row in data_next["data"]["userProfile"]["followers"]]
+    assert len(second_page) == 2
+    assert set(first_page).isdisjoint(set(second_page)), (first_page, second_page)
+
+
+def test_following_paginated(client, user_factory):
+    from apps.users.models import UserFollow
+
+    target = user_factory(email="target@example.com")
+    targets = [user_factory(email=f"t{i}@example.com") for i in range(5)]
+    for t in targets:
+        UserFollow.objects.create(follower=target, followed=t)
+
+    data = gql(
+        client,
+        '{ userProfile(username: "target") { following(first: 3) { username } } }',
+    )
+    assert "errors" not in data, data
+    page = [row["username"] for row in data["data"]["userProfile"]["following"]]
+    assert len(page) == 3
+
+    data_next = gql(
+        client,
+        '{ userProfile(username: "target") { following(first: 3, offset: 3) { username } } }',
+    )
+    assert "errors" not in data_next, data_next
+    page_next = [row["username"] for row in data_next["data"]["userProfile"]["following"]]
+    assert len(page_next) == 2
+    assert set(page).isdisjoint(set(page_next))
