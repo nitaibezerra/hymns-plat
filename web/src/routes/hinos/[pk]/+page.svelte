@@ -18,9 +18,11 @@
    * via fallback no `HymnAudioList`.
    */
   import HymnBody from "$lib/components/HymnBody.svelte";
+  import HymnAudioList from "$lib/components/HymnAudioList.svelte";
   import SiblingHymnsList from "$lib/components/SiblingHymnsList.svelte";
 
   import type { PageData } from "./$types";
+  import type { LayoutUser } from "../../+layout";
 
   let { data }: { data: PageData } = $props();
 </script>
@@ -63,6 +65,15 @@
 
     {#if data.hymn.siblingsWithSameNumber.length > 0}
       <SiblingHymnsList siblings={data.hymn.siblingsWithSameNumber} />
+    {/if}
+
+    {#if data.hymn.audios.length > 0}
+      <HymnAudioList
+        audios={data.hymn.audios}
+        hymnTitle={data.hymn.title}
+        hymnNumber={data.hymn.number}
+        currentUser={(data.currentUser as LayoutUser | null) ?? null}
+      />
     {/if}
   {/if}
 </section>
