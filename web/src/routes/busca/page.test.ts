@@ -146,3 +146,29 @@ describe("busca render: resultados agrupados", () => {
     expect(screen.getByTestId("search-empty")).toHaveTextContent(/nenhum resultado/i);
   });
 });
+
+describe("busca render: estado inicial (sem query)", () => {
+  it("mostra placeholder explicando o que buscar quando q é vazio", () => {
+    const data = dataWith("", [], []);
+    render(Page, { props: { data } });
+
+    const placeholder = screen.getByTestId("search-placeholder");
+    expect(placeholder).toBeInTheDocument();
+    expect(placeholder).toHaveTextContent(/digite/i);
+    expect(placeholder).toHaveTextContent(/hinos|hinários/i);
+
+    expect(screen.queryByTestId("search-empty")).toBeNull();
+    expect(screen.queryByTestId("search-section-hymns")).toBeNull();
+    expect(screen.queryByTestId("search-section-hymnbooks")).toBeNull();
+  });
+
+  it("não mostra placeholder quando há query", () => {
+    const data = dataWith(
+      "estrela",
+      [{ id: "h1", number: 1, title: "Estrela Brilhante", reviewStatus: "REVIEWED" }],
+      [],
+    );
+    render(Page, { props: { data } });
+    expect(screen.queryByTestId("search-placeholder")).toBeNull();
+  });
+});
