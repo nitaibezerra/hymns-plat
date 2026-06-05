@@ -97,4 +97,31 @@ describe("HymnCarousel", () => {
       expect(gotoMock).toHaveBeenCalledWith("?mode=indice");
     });
   });
+
+  describe("dot pagination (4D.7)", () => {
+    it("renderiza um <button> por hino", () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const dots = screen.getAllByTestId("carousel-dot");
+      expect(dots).toHaveLength(3);
+      expect(dots[0].tagName).toBe("BUTTON");
+    });
+
+    it("dot do slide atual tem aria-current='true'", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const dots = screen.getAllByTestId("carousel-dot");
+      expect(dots[0].getAttribute("aria-current")).toBe("true");
+      expect(dots[1].getAttribute("aria-current")).toBe("false");
+    });
+
+    it("click no dot navega pro slide correspondente", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const dots = screen.getAllByTestId("carousel-dot");
+      await fireEvent.click(dots[2]);
+      const counter = screen.getByTestId("carousel-counter");
+      expect(counter.textContent ?? "").toMatch(/3\s*\/\s*3/);
+      const dotsAfter = screen.getAllByTestId("carousel-dot");
+      expect(dotsAfter[2].getAttribute("aria-current")).toBe("true");
+      expect(dotsAfter[0].getAttribute("aria-current")).toBe("false");
+    });
+  });
 });
