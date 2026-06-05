@@ -91,3 +91,66 @@ export const LOGIN_MUTATION = `
     }
   }
 `;
+
+export const USER_PROFILE_QUERY = `
+  query UserProfile($username: String!) {
+    userProfile(username: $username) {
+      user { id username email }
+      followersCount
+      followingCount
+      uploadedAudios {
+        id
+        url
+        durationSeconds
+        waveformPeaks
+        uploadedBy { id username email }
+      }
+      activityHeatmap(days: 365) {
+        date
+        count
+      }
+    }
+  }
+`;
+
+export const USER_FOLLOWERS_QUERY = `
+  query UserFollowers($username: String!, $first: Int!, $offset: Int!) {
+    userProfile(username: $username) {
+      user { id username email }
+      followersCount
+      followers(first: $first, offset: $offset) {
+        id
+        username
+        email
+      }
+    }
+  }
+`;
+
+export const USER_FOLLOWING_QUERY = `
+  query UserFollowing($username: String!, $first: Int!, $offset: Int!) {
+    userProfile(username: $username) {
+      user { id username email }
+      followingCount
+      following(first: $first, offset: $offset) {
+        id
+        username
+        email
+      }
+    }
+  }
+`;
+
+export const NOTIFICATIONS_QUERY = `
+  query Notifications($unreadOnly: Boolean!) {
+    notifications(unreadOnly: $unreadOnly) {
+      id
+      notificationType
+      title
+      message
+      link
+      isRead
+      createdAt
+    }
+  }
+`;
