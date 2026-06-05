@@ -102,6 +102,21 @@ class HymnType:
 @strawberry_django.type(hymn_models.HymnAudio)
 class HymnAudioType:
     id: strawberry.auto
+    waveform_peaks: list[int]
+
+    @strawberry.field
+    def url(self) -> str:
+        """URL pública do arquivo de áudio (FileField.url do backend ativo)."""
+        return self.audio_file.url if self.audio_file else ""
+
+    @strawberry.field
+    def duration_seconds(self) -> float | None:
+        """Duração em segundos (None se o backfill ainda não preencheu)."""
+        return float(self.duration) if self.duration is not None else None
+
+    @strawberry.field
+    def uploaded_by(self) -> "UserType | None":
+        return self.uploaded_by
 
 
 @strawberry_django.type(user_models.User)
