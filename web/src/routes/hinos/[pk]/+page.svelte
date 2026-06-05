@@ -18,6 +18,7 @@
    * via fallback no `HymnAudioList`.
    */
   import HymnBody from "$lib/components/HymnBody.svelte";
+  import SiblingHymnsList from "$lib/components/SiblingHymnsList.svelte";
 
   import type { PageData } from "./$types";
 
@@ -60,6 +61,9 @@
       <HymnBody body="" />
     </article>
 
+    {#if data.hymn.siblingsWithSameNumber.length > 0}
+      <SiblingHymnsList siblings={data.hymn.siblingsWithSameNumber} />
+    {/if}
   {/if}
 </section>
 
