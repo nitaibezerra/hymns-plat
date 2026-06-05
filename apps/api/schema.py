@@ -16,6 +16,7 @@ from django.utils import timezone
 from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
+from apps.hymns.featured import hourly_featured
 from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
 
 from .mutations import Mutation
@@ -55,6 +56,16 @@ class Query:
     def current_user(self, info: Info) -> Optional[UserType]:
         user = _user(info)
         return user if getattr(user, "is_authenticated", False) else None
+
+    @strawberry.field
+    def hourly_featured(self, info: Info) -> list[HymnBookType]:
+        """Hinários "em destaque" da home, com sample determinístico por hora.
+
+        Reusa `apps.hymns.featured.hourly_featured` — mesma seed/ordering
+        prevista pelo `_hourly_featured` do monolito (a versão do worktree
+        ainda não tem `is_featured`, então o helper devolve um sample puro)."""
+        visible_qs = hymn_models.HymnBook.objects.visible_to(_user(info))
+        return hourly_featured(visible_qs, n=6)
 
     @strawberry.field
     def search(self, info: Info, q: str, kind: SearchKind = SearchKind.ALL) -> SearchResultsType:
