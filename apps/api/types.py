@@ -84,6 +84,10 @@ class HymnType:
     review_status: ReviewStatus
 
     @strawberry.field
+    def body(self) -> str:
+        return self.text
+
+    @strawberry.field
     def previous_in_book(self) -> "HymnType | None":
         """Hino imediatamente anterior (mesmo hinário) por `number`."""
         return (
