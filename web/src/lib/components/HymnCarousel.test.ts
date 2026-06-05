@@ -9,7 +9,7 @@
  * Respeita `prefers-reduced-motion`.
  */
 
-import { render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HymnCarousel from "./HymnCarousel.svelte";
@@ -66,6 +66,35 @@ describe("HymnCarousel", () => {
       render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
       const counter = screen.getByTestId("carousel-counter");
       expect(counter.textContent ?? "").toMatch(/1\s*\/\s*3/);
+    });
+  });
+
+  describe("teclado (4D.6)", () => {
+    it("ArrowRight avança o slide e atualiza o counter", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const counter = screen.getByTestId("carousel-counter");
+      expect(counter.textContent ?? "").toMatch(/1\s*\/\s*3/);
+      await fireEvent.keyDown(window, { key: "ArrowRight" });
+      expect(counter.textContent ?? "").toMatch(/2\s*\/\s*3/);
+    });
+
+    it("ArrowLeft volta um slide (sem ir abaixo de 1)", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      await fireEvent.keyDown(window, { key: "ArrowRight" });
+      await fireEvent.keyDown(window, { key: "ArrowRight" });
+      await fireEvent.keyDown(window, { key: "ArrowLeft" });
+      const counter = screen.getByTestId("carousel-counter");
+      expect(counter.textContent ?? "").toMatch(/2\s*\/\s*3/);
+      await fireEvent.keyDown(window, { key: "ArrowLeft" });
+      await fireEvent.keyDown(window, { key: "ArrowLeft" });
+      await fireEvent.keyDown(window, { key: "ArrowLeft" });
+      expect(counter.textContent ?? "").toMatch(/1\s*\/\s*3/);
+    });
+
+    it("Esc dispara goto('?mode=indice')", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      await fireEvent.keyDown(window, { key: "Escape" });
+      expect(gotoMock).toHaveBeenCalledWith("?mode=indice");
     });
   });
 });
