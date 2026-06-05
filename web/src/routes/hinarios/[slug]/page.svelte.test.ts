@@ -6,10 +6,15 @@
  */
 
 import { render, screen } from "@testing-library/svelte";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import Page from "./+page.svelte";
 import type { HymnbookDetailData } from "./+page";
+
+// HymnCarousel usa `goto` do SvelteKit; precisa de mock no ambiente jsdom.
+vi.mock("$app/navigation", () => ({
+  goto: vi.fn(),
+}));
 
 const sampleData: HymnbookDetailData = {
   hymnbook: {
@@ -46,6 +51,29 @@ describe("/hinarios/[slug] página", () => {
       expect(items[0].textContent ?? "").toContain("Verso 1");
       expect(items[0].textContent ?? "").toContain("Verso 2");
       expect(items[1].textContent ?? "").toContain("Linha A");
+    });
+  });
+
+  describe("toggle pills (4D.10)", () => {
+    it("são âncoras (não buttons) com href ?mode=...", () => {
+      render(Page, { props: { data: sampleData } });
+      const indice = screen.getByRole("link", { name: /índice/i });
+      const corrido = screen.getByRole("link", { name: /corrido/i });
+      const carrossel = screen.getByRole("link", { name: /carrossel/i });
+      expect(indice.tagName).toBe("A");
+      expect(corrido.tagName).toBe("A");
+      expect(carrossel.tagName).toBe("A");
+      expect(indice.getAttribute("href")).toBe("?mode=indice");
+      expect(corrido.getAttribute("href")).toBe("?mode=corrido");
+      expect(carrossel.getAttribute("href")).toBe("?mode=carrossel");
+    });
+
+    it("link do modo ativo tem aria-current='page'", () => {
+      render(Page, { props: { data: { ...sampleData, mode: "corrido" } } });
+      const corrido = screen.getByRole("link", { name: /corrido/i });
+      const indice = screen.getByRole("link", { name: /índice/i });
+      expect(corrido.getAttribute("aria-current")).toBe("page");
+      expect(indice.getAttribute("aria-current")).toBeNull();
     });
   });
 });
