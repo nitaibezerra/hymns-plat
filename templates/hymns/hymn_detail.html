@@ -2,6 +2,28 @@
 {% load hymn_extras %}
 
 {% block title %}{{ hymn.title }} · {{ hymn.hymn_book.name }}{% endblock %}
+{% block meta_description %}Hino {{ hymn.number }} "{{ hymn.title }}" do hinário {{ hymn.hymn_book.name }}{% if hymn.style %} ({{ hymn.style }}){% endif %}. {{ hymn.text|striptags|truncatechars:140 }}{% endblock %}
+{% block og_type %}article{% endblock %}
+{% block og_title %}{{ hymn.number }}. {{ hymn.title }} · {{ hymn.hymn_book.name }}{% endblock %}
+{% block og_description %}Hino "{{ hymn.title }}" do hinário {{ hymn.hymn_book.name }} — letra e áudio no Hinaria.{% endblock %}
+{% block twitter_description %}Hino "{{ hymn.title }}" do hinário {{ hymn.hymn_book.name }} no Hinaria.{% endblock %}
+{% block structured_data %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "MusicComposition",
+  "name": "{{ hymn.title|escapejs }}",
+  "inLanguage": "pt-BR",
+  "url": "{{ request.scheme }}://{{ request.get_host }}{{ request.path }}",
+  {% if hymn.style %}"musicCompositionForm": "{{ hymn.style|escapejs }}",{% endif %}
+  "isPartOf": {
+    "@type": "Book",
+    "name": "{{ hymn.hymn_book.name|escapejs }}",
+    "url": "{{ request.scheme }}://{{ request.get_host }}{{ hymn.hymn_book.get_absolute_url }}"
+  }
+}
+</script>
+{% endblock %}
 
 {% block content %}
 <section class="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between flex-wrap gap-4 text-sm" data-no-print

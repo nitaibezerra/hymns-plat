@@ -2,6 +2,30 @@
 {% load hymn_extras %}
 
 {% block title %}{{ hymnbook.name }}{% endblock %}
+{% block meta_description %}{% if hymnbook.description %}{{ hymnbook.description|striptags|truncatechars:160 }}{% else %}Hinário "{{ hymnbook.name }}" — {{ hymnbook.hymn_count }} hinos com letras e áudios no Portal de Hinários do Santo Daime.{% endif %}{% endblock %}
+{% block og_type %}article{% endblock %}
+{% block og_title %}{{ hymnbook.name }} · Hinaria{% endblock %}
+{% block og_description %}{% if hymnbook.description %}{{ hymnbook.description|striptags|truncatechars:160 }}{% else %}Hinário "{{ hymnbook.name }}" com {{ hymnbook.hymn_count }} hinos — letras e áudios.{% endif %}{% endblock %}
+{% block twitter_description %}Hinário "{{ hymnbook.name }}" — {{ hymnbook.hymn_count }} hinos no Hinaria.{% endblock %}
+{% block og_image %}{% if hymnbook.cover_image %}<meta property="og:image" content="{{ hymnbook.cover_image.url }}">{% endif %}{% endblock %}
+{% block structured_data %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Book",
+  "name": "{{ hymnbook.name|escapejs }}",
+  "bookFormat": "https://schema.org/EBook",
+  "inLanguage": "pt-BR",
+  "url": "{{ request.scheme }}://{{ request.get_host }}{{ request.path }}",
+  "numberOfPages": {{ hymnbook.hymn_count }},
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "Hinaria",
+    "url": "{{ request.scheme }}://{{ request.get_host }}/"
+  }
+}
+</script>
+{% endblock %}
 
 {% block content %}
 {% with accent=hymnbook.display_accent %}

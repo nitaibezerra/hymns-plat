@@ -96,6 +96,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.hymns.context_processors.editor_workspace",
+                "apps.core.context_processors.seo",
             ],
         },
     },
@@ -178,6 +179,11 @@ WAGTAILADMIN_BASE_URL = "http://localhost:8000"
 # Base URL to use when referring to full URLs within the Wagtail admin backend
 # e.g. in notification emails. Don't include '/admin' or a trailing slash
 BASE_URL = "http://localhost:8000"
+
+# SEO / Webmaster tools — tokens das meta tags de verificação de propriedade.
+# Vazios em dev (a tag não renderiza); definidos via env em produção.
+GOOGLE_SITE_VERIFICATION = env("GOOGLE_SITE_VERIFICATION", default="")
+BING_SITE_VERIFICATION = env("BING_SITE_VERIFICATION", default="")
 
 # Redis & Celery settings
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
