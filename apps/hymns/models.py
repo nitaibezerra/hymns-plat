@@ -110,6 +110,11 @@ class HymnBook(models.Model):
     def __str__(self):
         return self.name
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        return reverse("hymns:hymnbook_detail", kwargs={"slug": self.slug})
+
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name)
@@ -255,6 +260,11 @@ class Hymn(models.Model):
 
     def __str__(self):
         return f"{self.hymn_book.name} - {self.number}. {self.title}"
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        return reverse("hymns:hymn_detail", kwargs={"pk": self.pk})
 
     @property
     def full_title(self):
