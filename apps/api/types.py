@@ -127,6 +127,13 @@ class HymnType:
     id: strawberry.auto
     number: strawberry.auto
     title: strawberry.auto
+    style: strawberry.auto
+    repetitions: strawberry.auto
+    extra_instructions: strawberry.auto
+    offered_to: strawberry.auto
+    section: strawberry.auto
+    source: strawberry.auto
+    ocr_text: strawberry.auto
     review_status: ReviewStatus
 
     @strawberry.field

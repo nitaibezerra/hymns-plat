@@ -23,7 +23,7 @@ from strawberry.types import Info
 from django.utils import timezone
 
 from apps.hymns import models as hymn_models
-from apps.hymns.forms import HymnBookForm, HymnForm
+from apps.hymns.forms import HymnBookForm, HymnForm, QuickReviewForm
 from apps.hymns.permissions import (
     _is_editor_or_admin,
     can_create_hymnbook,
@@ -371,6 +371,31 @@ class Mutation:
         pk_str = str(hymn.pk)
         hymn.delete()
         return DeleteResult(ok=True, deleted_id=pk_str)
+
+    @strawberry.mutation(name="quickReviewHymn")
+    def quick_review_hymn(
+        self, info: Info, pk: strawberry.ID, style: str, repetitions: str
+    ) -> Annotated[
+        Union[HymnType, PermissionDeniedError, NotFoundError, ValidationError],
+        strawberry.union("QuickReviewHymnResult"),
+    ]:
+        """Revisão ágil (paridade com `editor_quick_review`): só `style` e
+        `repetitions`. NUNCA toca `review_status` — manter REVIEWED exige a
+        mutation completa. Signal `_create_hymn_revision_on_edit` grava a
+        HymnRevision automaticamente."""
+        user = _request(info).user
+        hymn = hymn_models.Hymn.objects.filter(pk=pk).first()
+        if hymn is None:
+            return NotFoundError()
+        if not can_edit_hymnbook(user, hymn.hymn_book):
+            return PermissionDeniedError()
+
+        form = QuickReviewForm(data={"style": style, "repetitions": repetitions}, instance=hymn)
+        if not form.is_valid():
+            field, errors = next(iter(form.errors.items()))
+            return ValidationError(message=errors[0], field=field)
+        form.save()
+        return hymn
 
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[

@@ -76,6 +76,13 @@ type HymnType {
   id: UUID!
   number: Int!
   title: String!
+  style: String!
+  repetitions: String!
+  extraInstructions: String!
+  offeredTo: String!
+  section: String!
+  source: String!
+  ocrText: String!
   reviewStatus: ReviewStatus!
   body: String!
   previousInBook: HymnType
@@ -118,6 +125,7 @@ type Mutation {
   updateHymnBookEditorial(slug: String!, priority: String, isFeatured: Boolean): UpdateHymnBookEditorialResult!
   createHymn(hymnbookSlug: String!, input: HymnInput!): CreateHymnResult!
   deleteHymn(pk: ID!): DeleteHymnResult!
+  quickReviewHymn(pk: ID!, style: String!, repetitions: String!): QuickReviewHymnResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 
@@ -157,6 +165,8 @@ type Query {
   search(q: String!, kind: SearchKind! = ALL): SearchResultsType!
   globalStats: GlobalStats!
 }
+
+union QuickReviewHymnResult = HymnType | PermissionDeniedError | NotFoundError | ValidationError
 
 enum ReviewStatus {
   NOT_REVIEWED
