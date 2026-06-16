@@ -28,6 +28,172 @@ def _user_from_info(info: Info):
     return request.user
 
 
+@strawberry.input
+class HymnBookInput:
+    """Payload de criação/edição de HymnBook — espelha `HymnBookForm.Meta.fields`."""
+
+    name: str
+    owner_name: str
+    intro_name: str | None = strawberry.UNSET
+    description: str | None = strawberry.UNSET
+
+
+@strawberry.input
+class SortInput:
+    """Par ordenado `(coluna, direção)` para ordenação multi-key.
+
+    Colunas suportadas em queries editoriais: `review_pct`, `name`, `priority`,
+    `created_at`. Direções: `"asc"` ou `"desc"`. Colunas inválidas são
+    ignoradas pelo resolver (não erro — degradação silenciosa)."""
+
+    column: str
+    direction: str
+
+
+@strawberry.input
+class AudioReviewInput:
+    """Decisão de revisão de áudio (paridade com `editor_hymn_audio_review`).
+
+    `isMatch` é obrigatório (True/False). Quando False, mismatchReason vira
+    relevante. Quando True, qualityRating e qualityObservations podem
+    enriquecer a nota."""
+
+    is_match: bool
+    quality_rating: int | None = strawberry.UNSET
+    quality_observations: list[str] | None = strawberry.UNSET
+    mismatch_reason: str | None = strawberry.UNSET
+
+
+@strawberry.input
+class HymnInput:
+    """Payload de criação/edição de Hymn — espelha `HymnForm.Meta.fields` (subset
+    obrigatório). `received_at` continua só via `updateHymn` do Marco 2."""
+
+    number: int
+    title: str
+    text: str
+    style: str | None = strawberry.UNSET
+    repetitions: str | None = strawberry.UNSET
+    extra_instructions: str | None = strawberry.UNSET
+    offered_to: str | None = strawberry.UNSET
+    section: str | None = strawberry.UNSET
+
+
+@strawberry.type
+class PublishReadinessCheckType:
+    """Item da lista de pré-condições retornada por `publish_readiness`."""
+
+    key: str
+    label: str
+    ok: bool
+
+
+@strawberry.type
+class PublishReadinessType:
+    """Snapshot completo de `publish_readiness(hymnbook)`."""
+
+    can_publish: bool
+    checks: list[PublishReadinessCheckType]
+
+
+@strawberry.type
+class InlineDiffTokenType:
+    """Token de uma linha do `_compute_inline_diff`. `kind` ∈
+    {eq, sub, add, del}; `text`/`sub`/`add` preenchidos conforme o kind."""
+
+    kind: str
+    text: str | None = None
+    sub: str | None = None
+    add: str | None = None
+
+
+@strawberry.type
+class InlineDiffLineType:
+    """Linha do diff: `kind` ∈ {eq, replace, add, del}; `tokens` é a
+    decomposição por palavra (só preenchida em kind=replace)."""
+
+    kind: str
+    tokens: list[InlineDiffTokenType]
+
+
+@strawberry.type
+class InlineDiffType:
+    """Diff completo entre `Hymn.ocr_text` e `Hymn.text`."""
+
+    lines: list[InlineDiffLineType]
+    changes: int
+    adds: int
+    dels: int
+
+
+@strawberry_django.type(hymn_models.HymnRevision)
+class HymnRevisionType:
+    """Trilha de auditoria de revisões editoriais (paridade com `HymnRevision`)."""
+
+    id: strawberry.auto
+    previous_status: str
+    new_status: str
+    change_summary: str
+    field_diff: strawberry.scalars.JSON
+
+    @strawberry.field
+    def revised_at(self) -> datetime.datetime:
+        return self.revised_at
+
+    @strawberry.field
+    def revised_by(self) -> "UserType | None":
+        return self.revised_by
+
+
+@strawberry_django.type(hymn_models.OCRTask)
+class OCRTaskType:
+    """Snapshot de uma OCRTask (status + progresso + resultado)."""
+
+    id: strawberry.auto
+    status: str
+    current_page: int
+    total_pages: int
+    error_message: str
+    pdf_filename: str
+    result_data: strawberry.scalars.JSON
+
+    @strawberry.field
+    def progress_pct(self) -> int:
+        return self.progress_pct
+
+
+@strawberry.type
+class EditorDashboardStatsType:
+    """Stats agregadas exibidas no dashboard do workspace (paridade com a
+    seção 'Stats inline' de `editor_hymnbook_list`)."""
+
+    total_hinarios: int
+    pending_hymns: int
+    recent_reviewed7d: int
+    p1_count: int
+    pending_audios_count: int
+    resume_hymn: "HymnType | None"
+
+
+@strawberry.type
+class PublishResult:
+    """Resultado de `publishHymnBook`. `ok=True` quando publicação foi
+    bem-sucedida; `failedChecks` lista as labels dos checks que falharam
+    (mesma string que `publish_readiness` retorna)."""
+
+    ok: bool
+    failed_checks: list[str]
+
+
+@strawberry.type
+class DeleteResult:
+    """Resultado de mutations destrutivas. `deletedId` permite o cliente
+    atualizar caches otimistas localmente."""
+
+    ok: bool
+    deleted_id: strawberry.ID | None = None
+
+
 @strawberry.type
 class HymnBookStatsType:
     """Contagens equivalentes às anotações dos cards (`_annotate_card_counts`)."""
@@ -43,6 +209,8 @@ class HymnBookType:
     name: strawberry.auto
     slug: strawberry.auto
     is_published: strawberry.auto
+    priority: strawberry.auto
+    is_featured: strawberry.auto
 
     @strawberry.field
     def stats(self) -> HymnBookStatsType:
@@ -72,6 +240,37 @@ class HymnBookType:
         do sumário/corrido/carrossel no monolito)."""
         return list(hymn_models.Hymn.objects.filter(hymn_book=self).order_by("number"))
 
+    @strawberry.field
+    def next_pending_hymn(self, current_pk: strawberry.ID | None = None) -> "HymnType | None":
+        """Próximo hino não-revisado (paridade com `_next_pending_hymn`).
+
+        Quando `current_pk` é fornecido, prefere hinos com `number` maior
+        (fluxo de fila linear). Sem `current_pk`, retorna o primeiro pendente.
+        """
+        qs = hymn_models.Hymn.objects.filter(hymn_book=self).exclude(
+            review_status=hymn_models.Hymn.ReviewStatus.REVIEWED
+        )
+        if current_pk is not None:
+            current = hymn_models.Hymn.objects.filter(pk=current_pk).first()
+            if current is not None:
+                qs = qs.exclude(pk=current.pk)
+                higher = qs.filter(number__gt=current.number).order_by("number").first()
+                if higher is not None:
+                    return higher
+        return qs.order_by("number").first()
+
+    @strawberry.field
+    def next_incomplete_hymn(self) -> "HymnType | None":
+        """Próximo hino sem style OU sem repetitions (paridade com `editor_next_incomplete`)."""
+        from django.db.models import Q
+
+        return (
+            hymn_models.Hymn.objects.filter(hymn_book=self)
+            .filter(Q(style="") | Q(repetitions=""))
+            .order_by("number")
+            .first()
+        )
+
 
 ReviewStatus = strawberry.enum(hymn_models.Hymn.ReviewStatus, name="ReviewStatus")
 
@@ -81,7 +280,62 @@ class HymnType:
     id: strawberry.auto
     number: strawberry.auto
     title: strawberry.auto
+    style: strawberry.auto
+    repetitions: strawberry.auto
+    extra_instructions: strawberry.auto
+    offered_to: strawberry.auto
+    section: strawberry.auto
+    source: strawberry.auto
+    ocr_text: strawberry.auto
     review_status: ReviewStatus
+
+    @strawberry.field
+    def inline_diff(self) -> InlineDiffType | None:
+        """Diff visual OCR×revisão. Vazio quando não há `ocr_text`."""
+        from apps.hymns.editor_views import _compute_inline_diff
+
+        raw = _compute_inline_diff(self.ocr_text or "", self.text or "")
+        if not raw.get("lines"):
+            return None
+        lines = []
+        for line in raw["lines"]:
+            tokens = [
+                InlineDiffTokenType(
+                    kind=tok["kind"],
+                    text=tok.get("text"),
+                    sub=tok.get("sub"),
+                    add=tok.get("add"),
+                )
+                for tok in line["tokens"]
+            ]
+            lines.append(InlineDiffLineType(kind=line["kind"], tokens=tokens))
+        return InlineDiffType(lines=lines, changes=raw["changes"], adds=raw["adds"], dels=raw["dels"])
+
+    @strawberry.field
+    def ocr_line_confidences(self) -> list[int]:
+        """Confiança por linha do OCR — heurística baseada em similaridade."""
+        from apps.hymns.editor_views import _compute_ocr_line_confidences
+
+        return _compute_ocr_line_confidences(self.ocr_text or "", self.text or "")
+
+    @strawberry.field
+    def revisions(self) -> list["HymnRevisionType"]:
+        """Histórico de revisões (mais recente primeiro)."""
+        return list(self.revisions.select_related("revised_by").order_by("-revised_at"))
+
+    @strawberry.field
+    def common_styles(self, top: int = 5) -> list[str]:
+        """Top-N estilos mais usados no hinário (sugestões para o editor)."""
+        from apps.hymns.editor_views import _common_field_values
+
+        return _common_field_values(self.hymn_book, "style", max(1, min(top, 50)))
+
+    @strawberry.field
+    def common_repetitions(self, top: int = 5) -> list[str]:
+        """Top-N padrões de repetição mais usados no hinário."""
+        from apps.hymns.editor_views import _common_field_values
+
+        return _common_field_values(self.hymn_book, "repetitions", max(1, min(top, 50)))
 
     @strawberry.field
     def body(self) -> str:
@@ -142,6 +396,12 @@ class HymnType:
 class HymnAudioType:
     id: strawberry.auto
     waveform_peaks: list[int]
+    title: strawberry.auto
+    is_approved: strawberry.auto
+    is_match: strawberry.auto
+    quality_rating: strawberry.auto
+    quality_observations: list[str]
+    mismatch_reason: strawberry.auto
 
     @strawberry.field
     def url(self) -> str:
@@ -250,6 +510,16 @@ class UserProfileType:
             .order_by("-created_at")[offset : offset + first]
         )
         return [row.followed for row in rows]
+
+    @strawberry.field
+    def is_followed_by_current_user(self, info: Info) -> bool:
+        """True se o `currentUser` segue esse perfil. Anônimo recebe False."""
+        viewer = _user_from_info(info)
+        if not getattr(viewer, "is_authenticated", False):
+            return False
+        if viewer == self.user:
+            return False
+        return user_models.UserFollow.objects.filter(follower=viewer, followed=self.user).exists()
 
     @strawberry.field
     def activity_heatmap(self, days: int = 365) -> list[HeatmapBucketType]:

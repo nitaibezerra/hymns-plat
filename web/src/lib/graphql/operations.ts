@@ -28,6 +28,73 @@ export const HYMNBOOKS_QUERY = `
       name
       slug
       isPublished
+      stats {
+        hymnsTotal
+        hymnsReviewed
+        audiosApproved
+      }
+    }
+  }
+`;
+
+export const HOURLY_FEATURED_QUERY = `
+  query HourlyFeatured {
+    hourlyFeatured {
+      id
+      name
+      slug
+      isPublished
+      stats {
+        hymnsTotal
+        hymnsReviewed
+        audiosApproved
+      }
+    }
+  }
+`;
+
+export const HYMNBOOK_DETAIL_QUERY = `
+  query HymnBookDetail($slug: String!) {
+    hymnbook(slug: $slug) {
+      id
+      name
+      slug
+      isPublished
+      hymns {
+        id
+        number
+        title
+        body
+      }
+    }
+  }
+`;
+
+export const CURRENT_USER_QUERY = `
+  query CurrentUser {
+    currentUser {
+      id
+      username
+      email
+    }
+  }
+`;
+
+export const SEARCH_QUERY = `
+  query Search($q: String!, $kind: SearchKind = ALL) {
+    search(q: $q, kind: $kind) {
+      hymns {
+        id
+        number
+        title
+        reviewStatus
+      }
+      hymnbooks {
+        id
+        name
+        slug
+        isPublished
+      }
     }
   }
 `;
@@ -48,6 +115,90 @@ export const LOGIN_MUTATION = `
       __typename
       ... on LoginSuccess { user { id username email } }
       ... on LoginError { message }
+    }
+  }
+`;
+
+export const USER_PROFILE_QUERY = `
+  query UserProfile($username: String!) {
+    userProfile(username: $username) {
+      user { id username email }
+      followersCount
+      followingCount
+      uploadedAudios {
+        id
+        url
+        durationSeconds
+        waveformPeaks
+        uploadedBy { id username email }
+      }
+      activityHeatmap(days: 365) {
+        date
+        count
+      }
+    }
+  }
+`;
+
+export const USER_FOLLOWERS_QUERY = `
+  query UserFollowers($username: String!, $first: Int!, $offset: Int!) {
+    userProfile(username: $username) {
+      user { id username email }
+      followersCount
+      followers(first: $first, offset: $offset) {
+        id
+        username
+        email
+      }
+    }
+  }
+`;
+
+export const USER_FOLLOWING_QUERY = `
+  query UserFollowing($username: String!, $first: Int!, $offset: Int!) {
+    userProfile(username: $username) {
+      user { id username email }
+      followingCount
+      following(first: $first, offset: $offset) {
+        id
+        username
+        email
+      }
+    }
+  }
+`;
+
+export const NOTIFICATIONS_QUERY = `
+  query Notifications($unreadOnly: Boolean!) {
+    notifications(unreadOnly: $unreadOnly) {
+      id
+      notificationType
+      title
+      message
+      link
+      isRead
+      createdAt
+    }
+  }
+`;
+
+export const HYMN_DETAIL_QUERY = `
+  query HymnDetail($pk: ID!) {
+    hymn(pk: $pk) {
+      id
+      number
+      title
+      reviewStatus
+      previousInBook { id number title }
+      nextInBook { id number title }
+      siblingsWithSameNumber { id number title }
+      audios {
+        id
+        url
+        waveformPeaks
+        durationSeconds
+        uploadedBy { id username }
+      }
     }
   }
 `;

@@ -14,7 +14,9 @@ from strawberry.django.views import GraphQLView
 
 from .schema import schema
 
-graphql_view = ensure_csrf_cookie(GraphQLView.as_view(schema=schema, graphql_ide="graphiql"))
+graphql_view = ensure_csrf_cookie(
+    GraphQLView.as_view(schema=schema, graphql_ide="graphiql", multipart_uploads_enabled=True)
+)
 
 urlpatterns = [
     path("graphql/", graphql_view, name="graphql"),
