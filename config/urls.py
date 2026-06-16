@@ -25,6 +25,8 @@ urlpatterns = [
         {"sitemaps": sitemaps},
         name="django.contrib.sitemaps.views.sitemap",
     ),
+    # GraphQL API (Marco 1 — headless refactor)
+    path("", include("apps.api.urls")),
     # Health check (Railway probe)
     path("", include("apps.core.urls")),
     # Users app URLs
