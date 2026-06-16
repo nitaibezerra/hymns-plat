@@ -234,31 +234,278 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 
 ### Marco 5 — CRUD editorial + permissões
 
-**Objetivo:** workspace `/editor/` reescrito no SvelteKit.
+**Objetivo:** expor todas as mutations editoriais via GraphQL e reescrever o workspace `/editor/` em SvelteKit, com paridade funcional completa ao Django atual (`editor_views.py`, `views.py`, `views_social.py`). Inclui CRUD de hinários e hinos, fluxo de revisão com diff visual OCR↔texto, aprovação de áudios, follow/unfollow e marcação de notificações.
 
-**Rotas a portar:**
-- `/editor/` (dashboard editor)
-- `/editor/hinarios/` (lista pra revisar)
-- `/editor/hinarios/<slug>/` (detalhe editorial)
-- `/editor/hinos/<pk>/revisar/` (formulário de revisão — a rota mais complexa, 310 LOC de template hoje)
-- `/editor/audios/pendentes/` (aprovação de áudios)
-- `/editor/quick-review/` (fluxo ágil)
-- Modais: histórico de revisões, drawer de áudio, formulários inline.
+**Escopo de 3 semanas com paralelização:** 1 semana backend (5.A) + 2 semanas frontend (5.B-5.E em paralelo).
 
-**Mutations a expor:**
-- `createHymnBook`, `updateHymnBook`, `publishHymnBook`, `deleteHymnBook`
-- `createHymn`, `updateHymn`, `deleteHymn`, `setReviewStatus`
-- `uploadAudio` (multipart via `strawberry.file_uploads.Upload`), `approveAudio`, `deleteAudio`
-- `followUser`, `unfollowUser`, `markNotificationRead`
+**Branch-mãe:** `feat/headless-marco5` (base: `feat/headless-marco4-spa`). **1 PR único** contra `development`.
 
-**Decisões:**
-- **OCR upload pipeline:** mantém endpoint REST atual (`apps/hymns/views.py::upload_pdf_ocr`). GraphQL não é bom pra streaming/multipart pesado. Frontend chama o REST e depois faz polling/subscription GraphQL pra status.
-- **Otimistic UI:** habilitar via houdini optimistic responses pra `setReviewStatus`, `toggleFavorite`, `approveAudio`.
+---
 
-**Critério de aceitação:**
-- Editor consegue criar hinário, adicionar hino, revisar, publicar, fazer upload de áudio — **tudo pelo SvelteKit**.
-- Signals de auditoria (`HymnRevision`) continuam disparando.
-- Permissões testadas: editor consegue, usuário comum recebe 403, anônimo recebe 401.
+**Mapa de rotas Django → SvelteKit:**
+
+| Rota Django | View/função (arquivo:linha) | Rota SvelteKit |
+|---|---|---|
+| `/hinarios/novo/` | `views.py:hymnbook_create_view` | `/editor/hinarios/novo/` |
+| `/hinarios/<slug>/editar/` | `views.py:hymnbook_edit_view` | `/editor/hinarios/[slug]/editar/` |
+| `/hinarios/<slug>/deletar/` | `views.py:hymnbook_delete_view` | modal inline (sem rota própria) |
+| `/hinarios/<slug>/publicar/` (POST) | `views.py:hymnbook_publish_view` | mutation + modal de checklist |
+| `/hinarios/<slug>/despublicar/` (POST) | `views.py:hymnbook_unpublish_view` | mutation `unpublishHymnBook` |
+| `/hinarios/<slug>/hinos/novo/` | `views.py:hymn_create_view` | `/editor/hinarios/[slug]/hinos/novo/` |
+| `/hinos/<pk>/editar/` | `views.py:hymn_edit_view` | `/editor/hinos/[pk]/editar/` |
+| `/hinos/<pk>/deletar/` | `views.py:hymn_delete_view` | modal inline |
+| `/hinos/<pk>/revisar/` (POST) | `views.py:revise_hymn_view` | mutation `updateHymn` + `setReviewStatus` |
+| `/editor/` | `editor_views.py:editor_hymnbook_list` | `/editor/` |
+| `/editor/hinarios/<slug>/` | `editor_views.py:editor_hymnbook_detail` | `/editor/hinarios/[slug]/` |
+| `/editor/hinos/<pk>/revisar/` | `editor_views.py:editor_revise_hymn` (~280 LOC) | `/editor/hinos/[pk]/revisar/` |
+| `/editor/hinarios/<slug>/revisao-agil/` | `editor_views.py:editor_quick_review` | `/editor/hinarios/[slug]/revisao-agil/` |
+| `/editor/audios/pendentes/` | `editor_views.py:editor_pending_audios` | `/editor/audios/pendentes/` |
+| `/hinos/<pk>/audios/upload/` | `views_social.py:upload_audio` | drawer lateral (sem rota própria) |
+| `/hinos/<pk>/historico/` | `views.py:hymn_history_view` | drawer lateral via `HymnType.revisions` |
+| `/perfil/<username>/seguir/` (POST) | `users/views_social.py:toggle_follow` | mutations `followUser`/`unfollowUser` |
+| `/notificacoes/<id>/lida/` (POST) | `users/views_social.py:mark_notification_read` | mutations `markNotificationRead`/`markAllNotificationsRead` |
+
+**Endpoints REST mantidos (não migrar para GraphQL):**
+- `upload_pdf_ocr` — streaming multipart OCR; frontend faz polling de `Query.ocrTask(id)`.
+- `editor_preview_render` (POST `/editor/preview/`) — renderiza `render_hymn_body_for_text` sem DB; REST puro, sem overhead de migração para GraphQL.
+
+---
+
+**Helpers/serviços a reusar (zero duplicação):**
+
+| Helper/serviço | Arquivo:função | Reuso no GraphQL |
+|---|---|---|
+| `can_create_hymnbook` | `permissions.py:27` | Chamado diretamente nas mutations |
+| `can_edit_hymnbook` | `permissions.py:32` | Idem |
+| `can_publish_hymnbook` | `permissions.py:37` | Idem |
+| `_is_editor_or_admin` | `permissions.py:18` | Via `gate()` em `apps/api/permissions.py` |
+| `_has_editor_access` | `editor_views.py:30` | Guard em resolvers do workspace editorial |
+| `_editor_visible_books` | `editor_views.py:43` | Resolver `Query.editorHymnbooks` |
+| `_pending_audios_for` | `editor_views.py:49` | Resolver `Query.pendingAudios` |
+| `_next_pending_hymn` | `editor_views.py:322` | Campo `HymnBookType.nextPendingHymn` |
+| `_parse_sort`/`_toggle_sort`/`_encode_sort` | `editor_views.py:117-157` | Portado para TypeScript no SvelteKit (sort é client-side via URL) |
+| `_sort_expression` | `editor_views.py:160` | Resolver `editorHymnbooks(sort: [SortInput])` constrói ORDER BY |
+| `publish_readiness` | `services/review.py:13` | Query `publishReadiness(slug)` + type `PublishReadinessType` |
+| `HymnForm` | `forms.py:38` | Mutations `createHymn`/`updateHymn` chamam `HymnForm(data, instance)` |
+| `HymnBookForm` | `forms.py:10` | Mutations `createHymnBook`/`updateHymnBook` |
+| `QuickReviewForm` | `forms.py:115` | Mutation `quickReviewHymn` |
+| `HymnAudioUploadForm` | `forms.py:279` | Mutation `uploadAudio` valida antes de salvar |
+| `_compute_inline_diff` | `editor_views.py:548` | Campo `HymnType.inlineDiff: InlineDiffType` |
+| `_compute_ocr_line_confidences` | `editor_views.py:622` | Campo `HymnType.ocrLineConfidences: [Int]` |
+| Signal `_create_hymn_revision_on_edit` | `signals.py:97` | Dispara automaticamente em qualquer `hymn.save()` — mutations não criam `HymnRevision` explicitamente |
+| Signal `_generate_waveform_for_audio` | `signals.py:144` | Dispara automaticamente após `audio.save()` na mutation `uploadAudio` |
+
+---
+
+**Decisões fixadas (não reavaliar):**
+
+- **OCR:** REST `upload_pdf_ocr` inalterado. SvelteKit chama `fetch('/ocr/upload/', {method:'POST', body: formData})` e faz polling de `Query.ocrTask(id)`. GraphQL expõe `OCRTaskType` com `status`, `progressPct`, `resultData`.
+- **Optimistic UI:** `setReviewStatus`, `toggleFavorite`, `approveAudio` — atualização local imediata via store, rollback em `onError`. Padrão @urql/svelte: `optimisticResponse` no cache.
+- **Autosave no editor de revisão:** `$effect` com debounce de 2s observa campos do formulário e dispara `updateHymn`. Autosave não redireciona — só atualiza `savedAt` no estado local.
+- **Preview do corpo do hino:** chama REST `POST /editor/preview/` direto (não via GraphQL); stateless e síncrono.
+- **Sort multi-critério do dashboard:** lógica `_parse_sort`/`_toggle_sort` migra para TypeScript. URL `?sort=review:asc,audio:desc` preservada. Resolver `Query.editorHymnbooks(sort: [SortInput!])` recebe lista ordenada e constrói `ORDER BY` via `_sort_expression`.
+- **`unpublishHymnBook`:** adicionada (view `hymnbook_unpublish_view` existe em `views.py:497` mas estava ausente no plano inicial).
+- **`reviewAudio`:** substitui REST `editor_hymn_audio_review`; aceita `isMatch`, `qualityRating`, `qualityObservations`, `mismatchReason`.
+- **`quickReviewHymn`:** atualiza só `style` e `repetitions` via `QuickReviewForm`; não toca em `review_status`.
+- **`updateHymnBookEditorial`:** atualiza `priority` e `is_featured`; restringe a `user.is_staff`.
+- **`markAllNotificationsRead`:** adicionada para bulk-mark (lógica presente em `notifications_list` que já faz bulk update mas não havia mutation).
+- **Workspace editorial como grupo de rotas:** `web/src/routes/(editor)/` com `+layout.ts` que verifica `currentUser.isEditor` — evita duplicar guard em cada página.
+
+---
+
+**Queries/campos adicionais ao schema (não presentes no Marco 4):**
+
+- `Query.editorHymnbooks(sort: [SortInput], priority: String): [HymnBookType]` — `_editor_visible_books` + `with_review_progress()` + sort dinâmico.
+- `Query.editorDashboardStats: EditorDashboardStatsType` — totalHinarios, pendingHymns, recentReviewed7d, p1Count, pendingAudiosCount, resumeHymn.
+- `Query.pendingAudios: [HymnAudioType]` — `_pending_audios_for(user)`.
+- `Query.publishReadiness(slug: String!): PublishReadinessType` — paridade com `hymnbook_publish_check_view`.
+- `Query.ocrTask(id: UUID!): OCRTaskType` — polling de progresso OCR.
+- `HymnBookType.nextPendingHymn(currentPk: UUID): HymnType` — porta `_next_pending_hymn`.
+- `HymnBookType.nextIncompleteHymn: HymnType` — primeiro hino com `style=""` ou `repetitions=""`.
+- `HymnType.inlineDiff: InlineDiffType` — porta `_compute_inline_diff(ocr_text, text)`.
+- `HymnType.ocrLineConfidences: [Int]` — porta `_compute_ocr_line_confidences`.
+- `HymnType.revisions: [HymnRevisionType]` — drawer de histórico de revisões.
+- `HymnType.commonStyles(top: Int = 5): [String]` — porta `_common_field_values(book, "style", top)`.
+- `HymnType.commonRepetitions(top: Int = 5): [String]` — porta `_common_field_values(book, "repetitions", top)`.
+
+---
+
+#### Sub-marco 5.A — Mutations + queries editoriais backend — ~1 semana, branch `feat/headless-marco5a-mutations`
+
+Backend puro (Django/Python). Entrega SDL atualizado para os sub-marcos de frontend.
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 5A.1 | `test_create_hymnbook_editor_succeeds`, `test_create_hymnbook_anon_blocked`, `test_create_hymnbook_validates_name_unique` | Mutation `createHymnBook(input: HymnBookInput!)` via `HymnBookForm`; gate `can_create_hymnbook` |
+| 5A.2 | `test_update_hymnbook_editor_succeeds`, `test_update_hymnbook_non_editor_blocked` | Mutation `updateHymnBook(slug: String!, input: HymnBookInput!)` via `HymnBookForm` |
+| 5A.3 | `test_publish_hymnbook_succeeds_when_readiness_ok`, `test_publish_hymnbook_fails_with_pending_check`, `test_publish_hymnbook_non_publisher_blocked` | Mutation `publishHymnBook(slug: String!): PublishResult` reusando `publish_readiness` |
+| 5A.4 | `test_unpublish_hymnbook_publisher_succeeds`, `test_unpublish_hymnbook_non_publisher_blocked` | Mutation `unpublishHymnBook(slug: String!)` |
+| 5A.5 | `test_delete_hymnbook_editor_succeeds`, `test_delete_hymnbook_non_editor_blocked`, `test_delete_hymnbook_cascade` | Mutation `deleteHymnBook(slug: String!): DeleteResult` |
+| 5A.6 | `test_update_hymnbook_editorial_staff_succeeds`, `test_update_hymnbook_editorial_non_staff_blocked` | Mutation `updateHymnBookEditorial(slug, priority, isFeatured)` gateada por `user.is_staff` |
+| 5A.7 | `test_create_hymn_editor_succeeds`, `test_create_hymn_validates_number_unique`, `test_create_hymn_non_editor_blocked` | Mutation `createHymn(hymnbookSlug: String!, input: HymnInput!)` via `HymnForm` |
+| 5A.8 | `test_delete_hymn_editor_succeeds`, `test_delete_hymn_non_editor_blocked` | Mutation `deleteHymn(pk: UUID!): DeleteResult` |
+| 5A.9 | `test_quick_review_hymn_updates_style_repetitions`, `test_quick_review_does_not_touch_review_status`, `test_quick_review_creates_revision_signal` | Mutation `quickReviewHymn(pk: UUID!, style: String!, repetitions: String!)` via `QuickReviewForm`; signal dispara `HymnRevision` |
+| 5A.10 | `test_upload_audio_authenticated_succeeds`, `test_upload_audio_validates_size_25mb`, `test_upload_audio_validates_format`, `test_upload_audio_anon_blocked` | Mutation `uploadAudio(hymnPk: UUID!, file: Upload!, ...)` via `HymnAudioUploadForm`; waveform signal dispara |
+| 5A.11 | `test_approve_audio_editor_succeeds`, `test_approve_audio_non_editor_blocked` | Mutation `approveAudio(pk: UUID!): HymnAudioType` |
+| 5A.12 | `test_reject_audio_editor_succeeds_and_deletes`, `test_reject_audio_non_editor_blocked` | Mutation `rejectAudio(pk: UUID!)` — deleta o áudio |
+| 5A.13 | `test_review_audio_match_sets_is_approved_true`, `test_review_audio_mismatch_forces_unapproval`, `test_review_audio_non_editor_blocked` | Mutation `reviewAudio(pk: UUID!, input: AudioReviewInput!)` — paridade com `editor_hymn_audio_review` |
+| 5A.14 | `test_delete_audio_editor_succeeds`, `test_delete_audio_uploader_can_delete_own`, `test_delete_audio_other_user_blocked` | Mutation `deleteAudio(pk: UUID!): DeleteResult` |
+| 5A.15 | `test_follow_user_creates_follow_and_notification`, `test_follow_already_following_no_dup`, `test_follow_self_blocked` | Mutation `followUser(username: String!)` |
+| 5A.16 | `test_unfollow_user_removes_follow`, `test_unfollow_not_following_is_noop` | Mutation `unfollowUser(username: String!)` |
+| 5A.17 | `test_mark_notification_read_owner_succeeds`, `test_mark_notification_read_other_user_blocked` | Mutation `markNotificationRead(pk: UUID!)` |
+| 5A.18 | `test_mark_all_notifications_read_marks_only_own` | Mutation `markAllNotificationsRead` |
+| 5A.19 | `test_editor_hymnbooks_query_superuser_sees_all`, `test_editor_hymnbooks_sort_by_review_pct_desc`, `test_editor_hymnbooks_filter_by_priority_p1` | `Query.editorHymnbooks(sort: [SortInput], priority: String)` |
+| 5A.20 | `test_editor_dashboard_stats_correct_counts`, `test_pending_audios_editor_sees_all`, `test_publish_readiness_query_returns_checks`, `test_hymn_type_exposes_inline_diff`, `test_hymn_type_exposes_revisions` | Queries menores + campos de tipo; atualiza `schema.graphql` |
+
+**Arquivos a criar:** `tests/unit/api/test_mutation_hymnbook.py` (5A.1-6), `test_mutation_hymn.py` (5A.7-9), `test_mutation_audio.py` (5A.10-14), `test_mutation_social.py` (5A.15-18), `test_query_editor.py` (5A.19-20).
+
+**Arquivos a editar:** `apps/api/mutations.py`, `apps/api/types.py` (novos input/output types), `apps/api/schema.py`, `schema.graphql`.
+
+**Critério de aceitação 5.A:** 20 ciclos verdes; SDL sem divergência; upload multipart validado via `curl`; lint passa.
+
+---
+
+#### Sub-marco 5.B — Dashboard editorial + detalhe do hinário — ~4-5 dias, branch `feat/headless-marco5b-editor-dashboard`
+
+Depende de 5.A. Rotas `/editor/` e `/editor/hinarios/[slug]/`.
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 5B.1 | `routes/(editor)/+layout.test.ts` — guard redireciona `/login?next=/editor/` se não-editor | `+layout.ts` lê `data.currentUser`; redireciona se `!isEditor` |
+| 5B.2 | `routes/editor/+page.test.ts` — load busca `editorDashboardStats` + `editorHymnbooks` | `+page.{ts,svelte}` básico |
+| 5B.3 | renderiza 4 cards de stats | `EditorStatsBar.svelte` |
+| 5B.4 | renderiza card "Continuar revisão" quando `resumeHymn` não-nulo | `ResumeCard.svelte` |
+| 5B.5 | 4 chips de sort cicla off→asc→desc→off, atualiza URL | `SortChips.svelte` com `goto(?sort=..., replaceState: true)` |
+| 5B.6 | chips de prioridade filtram via `?priority=` | `PriorityChips.svelte` |
+| 5B.7 | tabela mostra barra de progresso de revisão colorida | `ReviewProgressBar.svelte` |
+| 5B.8 | `routes/editor/hinarios/[slug]/+page.test.ts` — load + lista de hinos com status badge | `[slug]/+page.{ts,svelte}` + `HymnStatusList.svelte` |
+| 5B.9 | botão "Próximo pendente" navega para `nextPendingHymn` | Consome `HymnBookType.nextPendingHymn` + `goto` |
+| 5B.10 | Playwright `tests/e2e/editor-dashboard.spec.ts` — login editor, sort por revisão asc, badge áudios pendentes | E2E |
+
+**Arquivos a criar:** `web/src/routes/(editor)/+layout.{ts,svelte}` (guard global), rotas `+page.{ts,svelte}`, componentes em `web/src/lib/components/editor/`, E2E spec.
+
+**Critério 5.B:** 10 ciclos verdes; sort multi-critério funciona; guard bloqueia não-editores.
+
+---
+
+#### Sub-marco 5.C — Formulário de revisão de hino — ~1 semana, branch `feat/headless-marco5c-revise-hymn`
+
+Depende de 5.A. **Paralelo com 5.B e 5.D.** A tela mais complexa do projeto (~280 LOC view + diff visual + autosave).
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 5C.1 | load busca hino com `inlineDiff`, `ocrLineConfidences`, `revisions`, `commonStyles`, `commonRepetitions` | `[pk]/revisar/+page.{ts,svelte}` |
+| 5C.2 | `InlineDiff.test.ts` — renderiza linhas com kind `eq`/`replace`/`add`/`del` com marcação colorida | `InlineDiff.svelte` |
+| 5C.3 | exibe badges de contagem (N substituições/adições/remoções) | Badges no header |
+| 5C.4 | `OcrConfidenceBar.test.ts` — barra de confiança por linha (0-100 como gradiente) | `OcrConfidenceBar.svelte` |
+| 5C.5 | formulário edita todos os campos de `HymnForm` | Campos com `bind:value` |
+| 5C.6 | pílulas de `CANONICAL_STYLES` (Marcha/Valsa/Mazurca) preenchem campo style | Pílulas `<button type="button">` |
+| 5C.7 | pílulas de `CANONICAL_REPETITIONS` preenchem campo repetitions | Idem |
+| 5C.8 | autosave: `$effect` com debounce 2s → `updateHymn` sem redirect → "Salvo às HH:MM" | Debounce + mutation |
+| 5C.9 | preview: `$effect` nos campos `text`/`repetitions` → REST `/editor/preview/` → HTML | `$effect` + fetch REST debounced |
+| 5C.10 | "Salvar e Avançar" → `setReviewStatus(REVIEWED)` + redirect para `nextPendingHymn` (wrap-around) | Botão + mutation + `goto` |
+| 5C.11 | "Salvar e Voltar" → `updateHymn` + redirect para `/editor/hinarios/[slug]/` | Botão + mutation + `goto` |
+| 5C.12 | indicador "Hino X de Y · Y-X pendentes" atualiza ao salvar | Dados do load |
+| 5C.13 | `AudioReviewDrawer.test.ts` — player, controles `is_match`, rating 1-5, observações, mismatch reason | `AudioReviewDrawer.svelte` |
+| 5C.14 | `is_match=false` exibe selector de `mismatch_reason` e desabilita rating | UI condicional |
+| 5C.15 | submit do drawer chama `reviewAudio` e fecha | Mutation + close |
+| 5C.16 | `RevisionHistoryDrawer.test.ts` — lista `HymnType.revisions` em ordem reversa com diff de campos | `RevisionHistoryDrawer.svelte` |
+| 5C.17 | Playwright `tests/e2e/revise-hymn.spec.ts` — autosave, avançar, drawer de histórico | E2E |
+
+**Critério 5.C:** 17 ciclos verdes; autosave não redireciona; "Avançar" faz wrap-around; diff visual renderizado.
+
+---
+
+#### Sub-marco 5.D — CRUD de hinários/hinos + aprovação de áudios — ~4-5 dias, branch `feat/headless-marco5d-crud-audios`
+
+Depende de 5.A. **Paralelo com 5.B e 5.C.** Toca arquivos disjuntos.
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 5D.1 | `routes/editor/hinarios/novo/+page.test.ts` — form com campos de `HymnBookForm` | `novo/+page.{ts,svelte}` + `HymnBookFormView.svelte` |
+| 5D.2 | submit chama `createHymnBook`, redireciona | Mutation + redirect |
+| 5D.3 | `editar/+page.test.ts` — pré-popula form | Rota |
+| 5D.4 | submit chama `updateHymnBook` | Mutation + redirect |
+| 5D.5 | `DeleteHymnBookModal.test.ts` — confirma nome, chama `deleteHymnBook` | Modal embutido no detalhe editorial de 5.B (placeholder mergeado) |
+| 5D.6 | `PublishHymnBookModal.test.ts` — checklist `publishReadiness`, desabilita se checks falharem | Modal consome `Query.publishReadiness` |
+| 5D.7 | submit chama `publishHymnBook`/`unpublishHymnBook` conforme estado | Mutations |
+| 5D.8 | `routes/.../hinos/novo/+page.test.ts` — form, `number` sugerido = max+1 | Rota + `HymnFormView.svelte` |
+| 5D.9 | submit chama `createHymn`, redireciona | Mutation + redirect |
+| 5D.10 | `routes/.../hinos/[pk]/editar/+page.test.ts` — pré-popula, `updateHymn` | Rota + mutation |
+| 5D.11 | `DeleteHymnModal.test.ts` — confirma, chama `deleteHymn` | Modal inline |
+| 5D.12 | `AudioUploadDrawer.test.ts` — file input (mp3/ogg/flac ≤25MB), `uploadAudio` | `AudioUploadDrawer.svelte` |
+| 5D.13 | validação client-side de tamanho/extensão | Guard no handler |
+| 5D.14 | `routes/.../audios/pendentes/+page.test.ts` — `pendingAudios` com player inline | `pendentes/+page.{ts,svelte}` |
+| 5D.15 | "Aprovar" → `approveAudio` com optimistic UI | Mutation + optimistic |
+| 5D.16 | "Rejeitar" → `rejectAudio` com confirmação | Mutation + confirm |
+| 5D.17 | Playwright `tests/e2e/editor-crud.spec.ts` — criar hinário, adicionar hino, upload+aprovação, publicar | E2E |
+
+**Critério 5.D:** 17 ciclos verdes; fluxo CRUD verificado em E2E.
+
+---
+
+#### Sub-marco 5.E — Revisão ágil + upload inline + social mutations — ~3 dias, branch `feat/headless-marco5e-quick-review`
+
+Depende de 5.A e 5.B. **Paralelo com 5.C e 5.D** após 5.B mergeado. Edita páginas do Marco 4.
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 5E.1 | `routes/.../revisao-agil/+page.test.ts` — load seleciona hino via `?h=<number>`, default = primeiro | `revisao-agil/+page.{ts,svelte}` |
+| 5E.2 | pílulas fixas estilo (M/V/Z) + repetições (1-4) com atalhos de teclado | Pílulas + `keydown` handler |
+| 5E.3 | submit → `quickReviewHymn` → navega para `nextIncompleteHymn` | Mutation + `goto` |
+| 5E.4 | quando todos completos, flash + volta para `/editor/hinarios/[slug]/` | Redirect condicional |
+| 5E.5 | indicador N/total, links prev/next via `?h=` | `<a>` links (não JS) |
+| 5E.6 | `routes/hinos/[pk]/+page.test.ts` (estende Marco 4) — `isEditor` mostra botão upload → `AudioUploadDrawer` | Condicional no `HymnDetailPage` |
+| 5E.7 | botão "Seguir" → `followUser`/`unfollowUser` com optimistic UI | Mutation + optimistic state |
+| 5E.8 | `routes/notificacoes/+page.test.ts` (estende Marco 4) — "Marcar tudo como lido" → `markAllNotificationsRead` | Mutation |
+| 5E.9 | Playwright `tests/e2e/quick-review.spec.ts` — 3 hinos via atalhos de teclado | E2E |
+
+**Critério 5.E:** 9 ciclos verdes; atalhos teclado funcionam; follow/unfollow com optimistic UI.
+
+---
+
+**Plano de paralelização do Marco 5:**
+
+Análise de dependências:
+- **5.A** (mutations backend): sem dependência. Bloqueia 5.B-5.E. Executa primeiro, sozinho.
+- **5.B, 5.C, 5.D**: dependem de 5.A. **Paralelos entre si** (arquivos disjuntos).
+- **5.E**: depende de 5.A e 5.B. Sequencial após 5.B; paralelo com 5.C/5.D se 5.B mergeado.
+
+**Fases de execução:**
+
+| Fase | Subagentes | Branch base | Critério pra avançar |
+|---|---|---|---|
+| **F1** (~1 semana) | 5.A único | `feat/headless-marco4-spa` | SDL atualizado committado |
+| **F2** (~1 semana) | 5.B + 5.C + 5.D em paralelo | `feat/headless-marco5-base` | Todas 3 branches verdes |
+| **F3** (~3 dias) | Merge 5.B+5.C+5.D + spawn 5.E | `feat/headless-marco5-base` | Branch unificada + 5.E verdes |
+| **F4** (~1 dia) | Abrir PR contra `development` | `feat/headless-marco5` | Auto-merge fecha |
+
+**Ganho estimado:** F1+F2+F3 ≈ 2,5 semanas vs. 3-4 semanas sequenciais.
+
+**Riscos da paralelização:**
+- **Conflito `DeleteHymnBookModal`:** 5.B cria `<!-- TODO: DeleteHymnBookModal slot -->`. Merge resolve substituindo placeholder pelo componente de 5.D.
+- **Conflito `routes/hinos/[pk]/+page.svelte`:** 5.E edita arquivo do Marco 4. Toca apenas bloco de botões condicionais — conflito limitado.
+- **Upload multipart `strawberry.file_uploads.Upload`:** validar end-to-end em 5A.10 antes do frontend em 5.D. Se incompatibilidade, pausar e reportar.
+
+---
+
+**Critério de aceitação geral do Marco 5:**
+- Sub-marcos 5.A-5.E com CI verde na branch-mãe `feat/headless-marco5`.
+- Fluxo editorial completo em E2E: login editor → cria hinário → adiciona 3 hinos → upload áudio → aprovação → revisão (formulário + ágil) → publica.
+- Signal `HymnRevision` cria trilha de auditoria (verificado em 5A.9; implícito em 5C.8/5C.10).
+- Permissões cobertas: editor consegue tudo; usuário comum recebe erro; anônimo recebe 401.
+- SDL `schema.graphql` atualizado e committado.
+- Templates Django intocados (serão deletados no Marco 7).
 
 ### Marco 6 — Offline-first (a feature-âncora)
 
