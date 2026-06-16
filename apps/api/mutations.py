@@ -21,11 +21,15 @@ from django.contrib.auth import logout as django_logout
 from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
-from apps.hymns.forms import HymnForm
-from apps.hymns.permissions import _is_editor_or_admin
+from apps.hymns.forms import HymnBookForm, HymnForm
+from apps.hymns.permissions import (
+    _is_editor_or_admin,
+    can_create_hymnbook,
+    can_edit_hymnbook,
+)
 
 from .errors import NotFoundError, PermissionDeniedError, ValidationError
-from .types import HymnType, ReviewStatus, UserType
+from .types import HymnBookInput, HymnBookType, HymnType, ReviewStatus, UserType
 
 
 @strawberry.input
@@ -43,6 +47,30 @@ class HymnUpdateInput:
 def _request(info: Info):
     """Obtém o `HttpRequest` do contexto Strawberry."""
     return info.context["request"] if isinstance(info.context, dict) else info.context.request
+
+
+def _hymnbook_form_data(input: HymnBookInput, instance=None) -> dict:
+    """Mapeia `HymnBookInput` → dict que `HymnBookForm` aceita.
+
+    Campos não enviados (`strawberry.UNSET`) caem para o valor atual da instance
+    (em update) ou para string vazia (em create), evitando que o form valide
+    contra UNSET. Campos opcionais (`intro_name`, `description`) seguem essa
+    regra; `name` e `owner_name` são obrigatórios pelo schema.
+    """
+
+    def _val(field: str, raw):
+        if raw is strawberry.UNSET:
+            if instance is not None:
+                return getattr(instance, field, "")
+            return ""
+        return raw
+
+    return {
+        "name": _val("name", input.name),
+        "owner_name": _val("owner_name", input.owner_name),
+        "intro_name": _val("intro_name", input.intro_name),
+        "description": _val("description", input.description),
+    }
 
 
 @strawberry.type
@@ -127,6 +155,27 @@ class Mutation:
 
         form.save()
         return hymn
+
+    @strawberry.mutation(name="createHymnBook")
+    def create_hymnbook(self, info: Info, input: HymnBookInput) -> Annotated[
+        Union[HymnBookType, PermissionDeniedError, ValidationError],
+        strawberry.union("CreateHymnBookResult"),
+    ]:
+        """Cria um HymnBook reusando `HymnBookForm` (paridade com `hymnbook_create_view`)."""
+        user = _request(info).user
+        if not can_create_hymnbook(user):
+            return PermissionDeniedError()
+
+        data = _hymnbook_form_data(input)
+        form = HymnBookForm(data=data)
+        if not form.is_valid():
+            field, errors = next(iter(form.errors.items()))
+            return ValidationError(message=errors[0], field=field)
+
+        hymnbook = form.save(commit=False)
+        hymnbook.owner_user = user
+        hymnbook.save()
+        return hymnbook
 
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[

@@ -1,3 +1,5 @@
+union CreateHymnBookResult = HymnBookType | PermissionDeniedError | ValidationError
+
 """Date (isoformat)"""
 scalar Date
 
@@ -22,6 +24,13 @@ type HymnAudioType {
   url: String!
   durationSeconds: Float
   uploadedBy: UserType
+}
+
+input HymnBookInput {
+  name: String!
+  ownerName: String!
+  introName: String
+  description: String
 }
 
 type HymnBookStatsType {
@@ -77,6 +86,7 @@ type Mutation {
   logout: Boolean!
   setReviewStatus(pk: ID!, status: ReviewStatus!): SetReviewStatusResult!
   updateHymn(pk: ID!, input: HymnUpdateInput!): UpdateHymnResult!
+  createHymnBook(input: HymnBookInput!): CreateHymnBookResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 

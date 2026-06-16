@@ -28,6 +28,16 @@ def _user_from_info(info: Info):
     return request.user
 
 
+@strawberry.input
+class HymnBookInput:
+    """Payload de criação/edição de HymnBook — espelha `HymnBookForm.Meta.fields`."""
+
+    name: str
+    owner_name: str
+    intro_name: str | None = strawberry.UNSET
+    description: str | None = strawberry.UNSET
+
+
 @strawberry.type
 class HymnBookStatsType:
     """Contagens equivalentes às anotações dos cards (`_annotate_card_counts`)."""
