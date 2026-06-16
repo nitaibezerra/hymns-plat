@@ -235,3 +235,51 @@ def test_unpublish_hymnbook_non_publisher_blocked(authenticated_client, hymn_boo
     assert data["data"]["unpublishHymnBook"]["__typename"] == "PermissionDeniedError"
     hb.refresh_from_db()
     assert hb.is_published is True
+
+
+# ---------- Ciclo 5A.5 — deleteHymnBook ----------
+
+DELETE_MUTATION = """
+mutation($slug: String!) {
+  deleteHymnBook(slug: $slug) {
+    __typename
+    ... on DeleteResult { ok deletedId }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+  }
+}
+"""
+
+
+def test_delete_hymnbook_editor_succeeds(editor_client, hymn_book_factory):
+    hb = hymn_book_factory(name="Vai sumir", slug="vai-sumir")
+    pk = str(hb.pk)
+    data = gql(editor_client, DELETE_MUTATION, variables={"slug": hb.slug})
+    assert "errors" not in data, data
+    result = data["data"]["deleteHymnBook"]
+    assert result["__typename"] == "DeleteResult"
+    assert result["ok"] is True
+    assert result["deletedId"] == pk
+    assert not HymnBook.objects.filter(slug="vai-sumir").exists()
+
+
+def test_delete_hymnbook_non_editor_blocked(authenticated_client, hymn_book_factory):
+    hb = hymn_book_factory(name="Protegido", slug="protegido")
+    data = gql(authenticated_client, DELETE_MUTATION, variables={"slug": hb.slug})
+    assert "errors" not in data, data
+    assert data["data"]["deleteHymnBook"]["__typename"] == "PermissionDeniedError"
+    assert HymnBook.objects.filter(slug="protegido").exists()
+
+
+def test_delete_hymnbook_cascade(editor_client, hymn_book_factory, hymn_factory):
+    from apps.hymns.models import Hymn
+
+    hb = hymn_book_factory(name="Com filhos", slug="com-filhos")
+    hymn_factory(hymn_book=hb, number=1)
+    hymn_factory(hymn_book=hb, number=2)
+    assert Hymn.objects.filter(hymn_book=hb).count() == 2
+
+    data = gql(editor_client, DELETE_MUTATION, variables={"slug": hb.slug})
+    assert "errors" not in data, data
+    assert data["data"]["deleteHymnBook"]["__typename"] == "DeleteResult"
+    assert Hymn.objects.filter(hymn_book__slug="com-filhos").count() == 0

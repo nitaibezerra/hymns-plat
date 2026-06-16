@@ -6,6 +6,13 @@ scalar Date
 """Date with time (isoformat)"""
 scalar DateTime
 
+union DeleteHymnBookResult = DeleteResult | PermissionDeniedError | NotFoundError
+
+type DeleteResult {
+  ok: Boolean!
+  deletedId: ID
+}
+
 type GlobalStats {
   hymnbooks: Int!
   hymns: Int!
@@ -90,6 +97,7 @@ type Mutation {
   updateHymnBook(slug: String!, input: HymnBookInput!): UpdateHymnBookResult!
   publishHymnBook(slug: String!): PublishHymnBookResult!
   unpublishHymnBook(slug: String!): UnpublishHymnBookResult!
+  deleteHymnBook(slug: String!): DeleteHymnBookResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 
