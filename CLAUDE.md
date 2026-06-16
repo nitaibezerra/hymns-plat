@@ -44,16 +44,32 @@ CI on every PR runs three jobs (`.github/workflows/ci.yml`):
 
 Before pushing, always run lint + unit suite locally; otherwise CI catches it. **Never skip git hooks** (`--no-verify` etc.) — see `.gitignore`/CI config.
 
-### Branch protection on `main`
+### Branch workflow (two-stage: `development` → `main`)
 
-`main` is protected (configured via `gh api /repos/.../branches/main/protection`):
-- **Required status checks**: `Lint & Format Check`, `Unit Tests`, `E2E Tests` — must all pass before merge.
-- **strict: true** — branch must be up to date with `main` before merging (rebase/update if behind).
-- **enforce_admins: true** — even the repo owner cannot push directly to `main` or merge a failing PR. Always go through PR.
-- **No PR review required** (solo maintainer).
+Since `main` auto-deploys to Railway on every merge, we use a staging buffer:
+
+```
+feature/* ─PR─▶ development ─PR─▶ main ─auto-deploy─▶ Railway
+```
+
+- **`development`** is the integration target. All feature PRs merge here first. CI runs but **no deploy** is triggered.
+- **`main`** is production. The only PRs that target `main` are `development → main` promotion PRs, opened deliberately when ready to deploy. Merging to `main` triggers `deploy.yml`.
+- Never open a PR targeting `main` from a feature branch — always go through `development`.
+- To promote: `gh pr create --base main --head development --title "release: <date or summary>"`. Squash-merge.
+
+#### Protection on `main`
+- **Required status checks**: `Lint & Format Check`, `Unit Tests`, `E2E Tests`.
+- **strict: true** — branch must be up to date.
+- **enforce_admins: true** — even the repo owner cannot push directly to `main` or bypass.
 - `allow_force_pushes: false`, `allow_deletions: false`.
 
-Implication: do NOT `git push origin main`. Workflow is always: feature branch → PR → CI green → squash merge.
+#### Protection on `development`
+- Same required status checks as `main`.
+- **strict: true** — branch must be up to date with `development` before merging into it.
+- **enforce_admins: false** — admin can push directly if needed for emergency fixes, though normal flow is still feature → PR → squash.
+- `allow_force_pushes: false`, `allow_deletions: false`.
+
+Implication: do NOT `git push origin main` or `git push origin development` from a feature branch. Workflow is always: feature branch → PR to `development` → CI green → squash merge; then periodically `development → main` PR for deploy.
 
 ## Architecture (the parts that span files)
 
