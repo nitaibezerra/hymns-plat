@@ -58,10 +58,14 @@ def _build_sort_expressions(sort_inputs):
 
 from .mutations import Mutation
 from .types import (
+    EditorDashboardStatsType,
     HymnAudioType,
     HymnBookType,
     HymnType,
     NotificationType,
+    OCRTaskType,
+    PublishReadinessCheckType,
+    PublishReadinessType,
     SearchKind,
     SearchResultsType,
     SortInput,
@@ -176,6 +180,107 @@ class Query:
         order_args.append(F("name").asc())
         qs = qs.order_by(*order_args)
         return list(qs)
+
+    @strawberry.field(name="editorDashboardStats")
+    def editor_dashboard_stats(self, info: Info) -> EditorDashboardStatsType:
+        """Stats agregadas do workspace (paridade com `editor_hymnbook_list` stats inline)."""
+        from datetime import timedelta
+
+        from apps.hymns.models import HymnAudio, HymnRevision
+
+        user = _user(info)
+        visible_qs = _editor_visible_books(user)
+        visible_ids = list(visible_qs.values_list("pk", flat=True))
+
+        total = len(visible_ids)
+        pending_hymns = (
+            hymn_models.Hymn.objects.filter(hymn_book_id__in=visible_ids)
+            .exclude(review_status=hymn_models.Hymn.ReviewStatus.REVIEWED)
+            .count()
+        )
+        cutoff = timezone.now() - timedelta(days=7)
+        recent = HymnRevision.objects.filter(
+            hymn__hymn_book_id__in=visible_ids,
+            revised_at__gte=cutoff,
+            new_status=hymn_models.Hymn.ReviewStatus.REVIEWED,
+        ).count()
+        p1 = visible_qs.filter(priority=hymn_models.HymnBook.Priority.P1).count()
+
+        pending_audios = (
+            HymnAudio.objects.filter(is_approved=False, hymn__hymn_book_id__in=visible_ids).count()
+            if getattr(user, "is_authenticated", False)
+            else 0
+        )
+
+        resume_hymn = None
+        if getattr(user, "is_authenticated", False):
+            rev = (
+                HymnRevision.objects.filter(revised_by=user)
+                .exclude(hymn__review_status=hymn_models.Hymn.ReviewStatus.REVIEWED)
+                .select_related("hymn")
+                .order_by("-revised_at")
+                .first()
+            )
+            resume_hymn = rev.hymn if rev else None
+
+        return EditorDashboardStatsType(
+            total_hinarios=total,
+            pending_hymns=pending_hymns,
+            recent_reviewed7d=recent,
+            p1_count=p1,
+            pending_audios_count=pending_audios,
+            resume_hymn=resume_hymn,
+        )
+
+    @strawberry.field(name="pendingAudios")
+    def pending_audios(self, info: Info) -> list[HymnAudioType]:
+        """Áudios aguardando aprovação que o usuário pode revisar."""
+        from apps.hymns.models import HymnAudio
+
+        user = _user(info)
+        if not getattr(user, "is_authenticated", False):
+            return []
+        qs = HymnAudio.objects.filter(is_approved=False).select_related("hymn__hymn_book")
+        if user.is_superuser or user.has_perm("hymns.can_review_any_hymnbook"):
+            return list(qs.order_by("-created_at"))
+        return list(qs.filter(hymn__hymn_book__owner_user=user).order_by("-created_at"))
+
+    @strawberry.field(name="publishReadiness")
+    def publish_readiness_query(self, info: Info, slug: str) -> Optional[PublishReadinessType]:
+        """Snapshot de pré-condições de publicação. Retorna `None` se o
+        hinário não existe ou o usuário não tem permissão de publicar."""
+        from apps.hymns.permissions import can_publish_hymnbook
+        from apps.hymns.services.review import publish_readiness as _readiness
+
+        user = _user(info)
+        hb = hymn_models.HymnBook.objects.filter(slug=slug).first()
+        if hb is None or not can_publish_hymnbook(user, hb):
+            return None
+        report = _readiness(hb)
+        return PublishReadinessType(
+            can_publish=report["can_publish"],
+            checks=[
+                PublishReadinessCheckType(key=c["key"], label=c["label"], ok=c["ok"])
+                for c in report["checks"]
+            ],
+        )
+
+    @strawberry.field(name="ocrTask")
+    def ocr_task(self, info: Info, id: strawberry.ID) -> Optional[OCRTaskType]:
+        """OCRTask por id, gateada ao próprio uploader ou editor/admin."""
+        user = _user(info)
+        if not getattr(user, "is_authenticated", False):
+            return None
+        task = hymn_models.OCRTask.objects.filter(pk=id).first()
+        if task is None:
+            return None
+        if (
+            user.is_superuser
+            or user.has_perm("hymns.can_review_any_hymnbook")
+            or task.user_id == user.pk
+        ):
+            return task
+        return None
 
     @strawberry.field
     def global_stats(self) -> GlobalStats:
