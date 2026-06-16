@@ -72,3 +72,44 @@ def test_follow_self_blocked(authenticated_client):
     assert not UserFollow.objects.filter(
         follower=authenticated_client.user, followed=authenticated_client.user
     ).exists()
+
+
+# ---------- Ciclo 5A.16 — unfollowUser ----------
+
+UNFOLLOW_MUTATION = """
+mutation($username: String!) {
+  unfollowUser(username: $username) {
+    __typename
+    ... on UserProfileType { user { username } followersCount }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+  }
+}
+"""
+
+
+def test_unfollow_user_removes_follow(authenticated_client, user_factory):
+    target = user_factory(email="target@x.com")
+    UserFollow.objects.create(follower=authenticated_client.user, followed=target)
+    assert UserFollow.objects.filter(follower=authenticated_client.user, followed=target).exists()
+
+    data = gql(authenticated_client, UNFOLLOW_MUTATION, variables={"username": target.username})
+    assert "errors" not in data, data
+    result = data["data"]["unfollowUser"]
+    assert result["__typename"] == "UserProfileType"
+    assert result["followersCount"] == 0
+    assert not UserFollow.objects.filter(
+        follower=authenticated_client.user, followed=target
+    ).exists()
+
+
+def test_unfollow_not_following_is_noop(authenticated_client, user_factory):
+    """unfollow sem follow prévio retorna profile sem erro."""
+    target = user_factory(email="target@x.com")
+    assert not UserFollow.objects.filter(
+        follower=authenticated_client.user, followed=target
+    ).exists()
+
+    data = gql(authenticated_client, UNFOLLOW_MUTATION, variables={"username": target.username})
+    assert "errors" not in data, data
+    assert data["data"]["unfollowUser"]["__typename"] == "UserProfileType"

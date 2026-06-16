@@ -576,6 +576,21 @@ class Mutation:
             )
         return UserProfileType(user=target)
 
+    @strawberry.mutation(name="unfollowUser")
+    def unfollow_user(self, info: Info, username: str) -> Annotated[
+        Union[UserProfileType, PermissionDeniedError, NotFoundError],
+        strawberry.union("UnfollowUserResult"),
+    ]:
+        """Deixa de seguir um usuário. No-op idempotente quando já não segue."""
+        user = _request(info).user
+        if not getattr(user, "is_authenticated", False):
+            return PermissionDeniedError(message="É preciso estar autenticado.")
+        target = user_models.User.objects.filter(username=username).first()
+        if target is None:
+            return NotFoundError()
+        user_models.UserFollow.objects.filter(follower=user, followed=target).delete()
+        return UserProfileType(user=target)
+
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[
         Union[ToggleFavoriteSuccess, PermissionDeniedError, NotFoundError],

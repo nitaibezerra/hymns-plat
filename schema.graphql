@@ -151,6 +151,7 @@ type Mutation {
   reviewAudio(pk: ID!, input: AudioReviewInput!): ReviewAudioResult!
   deleteAudio(pk: ID!): DeleteAudioResult!
   followUser(username: String!): FollowUserResult!
+  unfollowUser(username: String!): UnfollowUserResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 
@@ -223,6 +224,8 @@ type ToggleFavoriteSuccess {
 }
 
 scalar UUID
+
+union UnfollowUserResult = UserProfileType | PermissionDeniedError | NotFoundError
 
 union UnpublishHymnBookResult = HymnBookType | PermissionDeniedError | NotFoundError
 
