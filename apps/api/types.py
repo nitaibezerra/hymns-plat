@@ -39,6 +39,20 @@ class HymnBookInput:
 
 
 @strawberry.input
+class AudioReviewInput:
+    """Decisão de revisão de áudio (paridade com `editor_hymn_audio_review`).
+
+    `isMatch` é obrigatório (True/False). Quando False, mismatchReason vira
+    relevante. Quando True, qualityRating e qualityObservations podem
+    enriquecer a nota."""
+
+    is_match: bool
+    quality_rating: int | None = strawberry.UNSET
+    quality_observations: list[str] | None = strawberry.UNSET
+    mismatch_reason: str | None = strawberry.UNSET
+
+
+@strawberry.input
 class HymnInput:
     """Payload de criação/edição de Hymn — espelha `HymnForm.Meta.fields` (subset
     obrigatório). `received_at` continua só via `updateHymn` do Marco 2."""
@@ -195,6 +209,12 @@ class HymnType:
 class HymnAudioType:
     id: strawberry.auto
     waveform_peaks: list[int]
+    title: strawberry.auto
+    is_approved: strawberry.auto
+    is_match: strawberry.auto
+    quality_rating: strawberry.auto
+    quality_observations: list[str]
+    mismatch_reason: strawberry.auto
 
     @strawberry.field
     def url(self) -> str:

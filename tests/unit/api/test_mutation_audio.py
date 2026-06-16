@@ -200,4 +200,87 @@ def test_reject_audio_non_editor_blocked(authenticated_client, hymn_book_factory
     assert HymnAudio.objects.filter(pk=a.pk).exists()
 
 
+# ---------- Ciclo 5A.13 — reviewAudio ----------
+
+REVIEW_MUTATION = """
+mutation($pk: ID!, $input: AudioReviewInput!) {
+  reviewAudio(pk: $pk, input: $input) {
+    __typename
+    ... on HymnAudioType { id isApproved isMatch qualityRating qualityObservations mismatchReason }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+  }
+}
+"""
+
+
+def test_review_audio_match_sets_is_approved_true(editor_client, hymn_book_factory, hymn_factory):
+    """is_match=True com quality_rating preenchido: áudio fica aprovado."""
+    hb = hymn_book_factory()
+    h = hymn_factory(hymn_book=hb)
+    a = _make_audio(h, is_approved=False)
+
+    data = gql(
+        editor_client,
+        REVIEW_MUTATION,
+        variables={
+            "pk": str(a.pk),
+            "input": {
+                "isMatch": True,
+                "qualityRating": 4,
+                "qualityObservations": ["Excelente captação"],
+            },
+        },
+    )
+    assert "errors" not in data, data
+    result = data["data"]["reviewAudio"]
+    assert result["__typename"] == "HymnAudioType"
+    assert result["isMatch"] is True
+    assert result["qualityRating"] == 4
+    a.refresh_from_db()
+    assert a.is_match is True
+    assert a.quality_rating == 4
+    assert "Excelente captação" in a.quality_observations
+    assert a.reviewed_by_id == editor_client.user.pk
+
+
+def test_review_audio_mismatch_forces_unapproval(editor_client, hymn_book_factory, hymn_factory):
+    """is_match=False: save() do model força is_approved=False e zera quality."""
+    hb = hymn_book_factory()
+    h = hymn_factory(hymn_book=hb)
+    a = _make_audio(h, is_approved=True)
+    a.quality_rating = 5
+    a.save()
+
+    data = gql(
+        editor_client,
+        REVIEW_MUTATION,
+        variables={
+            "pk": str(a.pk),
+            "input": {"isMatch": False, "mismatchReason": "other_hymn"},
+        },
+    )
+    assert "errors" not in data, data
+    result = data["data"]["reviewAudio"]
+    assert result["isApproved"] is False
+    assert result["mismatchReason"] == "other_hymn"
+    assert result["qualityRating"] is None  # zerado pelo save()
+    a.refresh_from_db()
+    assert a.is_approved is False
+    assert a.mismatch_reason == "other_hymn"
+
+
+def test_review_audio_non_editor_blocked(authenticated_client, hymn_book_factory, hymn_factory):
+    hb = hymn_book_factory()
+    h = hymn_factory(hymn_book=hb)
+    a = _make_audio(h)
+    data = gql(
+        authenticated_client,
+        REVIEW_MUTATION,
+        variables={"pk": str(a.pk), "input": {"isMatch": True}},
+    )
+    assert "errors" not in data, data
+    assert data["data"]["reviewAudio"]["__typename"] == "PermissionDeniedError"
+
+
 _ = gql  # silenciar import não-usado (mantemos pra outros ciclos do arquivo)

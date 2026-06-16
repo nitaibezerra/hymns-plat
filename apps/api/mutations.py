@@ -35,6 +35,7 @@ from apps.hymns.services.review import publish_readiness
 
 from .errors import NotFoundError, PermissionDeniedError, ValidationError
 from .types import (
+    AudioReviewInput,
     DeleteResult,
     HymnAudioType,
     HymnBookInput,
@@ -480,6 +481,46 @@ class Mutation:
         pk_str = str(audio.pk)
         audio.delete()
         return DeleteResult(ok=True, deleted_id=pk_str)
+
+    @strawberry.mutation(name="reviewAudio")
+    def review_audio(self, info: Info, pk: strawberry.ID, input: AudioReviewInput) -> Annotated[
+        Union[HymnAudioType, PermissionDeniedError, NotFoundError],
+        strawberry.union("ReviewAudioResult"),
+    ]:
+        """Revisão de áudio (paridade com `editor_hymn_audio_review`).
+
+        O `save()` do `HymnAudio` força `is_approved=False` quando `is_match=False`
+        e zera `quality_*` — replicamos a regra delegando ao model.
+        """
+        user = _request(info).user
+        audio = hymn_models.HymnAudio.objects.filter(pk=pk).select_related("hymn__hymn_book").first()
+        if audio is None:
+            return NotFoundError()
+        if not can_edit_hymnbook(user, audio.hymn.hymn_book):
+            return PermissionDeniedError()
+
+        audio.is_match = bool(input.is_match)
+
+        if input.quality_rating is not strawberry.UNSET:
+            v = input.quality_rating
+            audio.quality_rating = v if v in {1, 2, 3, 4, 5} else None
+
+        if input.quality_observations is not strawberry.UNSET and input.quality_observations is not None:
+            valid = set(hymn_models.HymnAudio.QUALITY_OBSERVATIONS)
+            audio.quality_observations = [o for o in input.quality_observations if o in valid]
+
+        if input.mismatch_reason is not strawberry.UNSET:
+            v = input.mismatch_reason
+            valid_reasons = {c[0] for c in hymn_models.HymnAudio.MismatchReason.choices}
+            audio.mismatch_reason = v if v in valid_reasons else ""
+
+        audio.reviewed_by = user
+        audio.reviewed_at = timezone.now()
+        # Match=True com qualityRating preenchido habilita aprovação. NÃO setamos
+        # is_approved=True automaticamente quando match=True sem rating (paridade
+        # com a view: a aprovação efetiva continua sendo a mutation approveAudio).
+        audio.save()
+        return audio
 
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[
