@@ -15,10 +15,46 @@ import strawberry
 from django.utils import timezone
 from strawberry.types import Info
 
+from django.db.models import F
+
 from apps.hymns import models as hymn_models
 from apps.hymns.featured import hourly_featured
 from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
 from apps.users import models as user_models
+
+
+def _editor_visible_books(user):
+    """Espelha o helper de `editor_views.py`: editor/admin vê tudo,
+    dono comum vê só os seus."""
+    if not getattr(user, "is_authenticated", False):
+        return hymn_models.HymnBook.objects.none()
+    if user.is_superuser or user.has_perm("hymns.can_review_any_hymnbook"):
+        return hymn_models.HymnBook.objects.all()
+    return hymn_models.HymnBook.objects.filter(owner_user=user)
+
+
+_SORT_COLUMN_TO_FIELD = {
+    "review_pct": F("review_pct"),
+    "name": F("name"),
+    "priority": F("priority"),
+    "created_at": F("created_at"),
+}
+
+
+def _build_sort_expressions(sort_inputs):
+    """Converte lista de `SortInput` em lista de OrderBy aplicáveis ao qs.
+
+    Colunas/direções inválidas são silenciosamente filtradas — a UI controla
+    o vocabulário e deve mandar valores válidos."""
+    if not sort_inputs:
+        return []
+    out = []
+    for s in sort_inputs:
+        expr = _SORT_COLUMN_TO_FIELD.get(s.column)
+        if expr is None:
+            continue
+        out.append(expr.asc() if s.direction == "asc" else expr.desc())
+    return out
 
 from .mutations import Mutation
 from .types import (
@@ -28,6 +64,7 @@ from .types import (
     NotificationType,
     SearchKind,
     SearchResultsType,
+    SortInput,
     UserProfileType,
     UserType,
 )
@@ -120,6 +157,25 @@ class Query:
         if kind in (SearchKind.ALL, SearchKind.HYMNBOOK):
             hymnbooks = list(build_book_search_qs(q, user)[:25])
         return SearchResultsType(hymns=hymns, hymnbooks=hymnbooks)
+
+    @strawberry.field(name="editorHymnbooks")
+    def editor_hymnbooks(
+        self, info: Info, sort: list[SortInput] | None = None, priority: str | None = None
+    ) -> list[HymnBookType]:
+        """Lista de hinários do workspace editorial.
+
+        Paridade conceitual com `editor_hymnbook_list`: usa `_editor_visible_books`
+        + `with_review_progress` pra anotar `review_pct` e permite multi-sort +
+        filter por prioridade. `name` como tie-breaker final é sempre aplicado.
+        """
+        user = _user(info)
+        qs = _editor_visible_books(user).with_review_progress()
+        if priority and priority in hymn_models.HymnBook.Priority.values:
+            qs = qs.filter(priority=priority)
+        order_args = _build_sort_expressions(sort or [])
+        order_args.append(F("name").asc())
+        qs = qs.order_by(*order_args)
+        return list(qs)
 
     @strawberry.field
     def global_stats(self) -> GlobalStats:

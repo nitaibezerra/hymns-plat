@@ -193,6 +193,7 @@ type Query {
   notifications(unreadOnly: Boolean! = false): [NotificationType!]!
   hourlyFeatured: [HymnBookType!]!
   search(q: String!, kind: SearchKind! = ALL): SearchResultsType!
+  editorHymnbooks(sort: [SortInput!] = null, priority: String = null): [HymnBookType!]!
   globalStats: GlobalStats!
 }
 
@@ -220,6 +221,11 @@ type SearchResultsType {
 }
 
 union SetReviewStatusResult = HymnType | PermissionDeniedError | NotFoundError
+
+input SortInput {
+  column: String!
+  direction: String!
+}
 
 union ToggleFavoriteResult = ToggleFavoriteSuccess | PermissionDeniedError | NotFoundError
 

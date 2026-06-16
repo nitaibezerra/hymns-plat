@@ -39,6 +39,18 @@ class HymnBookInput:
 
 
 @strawberry.input
+class SortInput:
+    """Par ordenado `(coluna, direção)` para ordenação multi-key.
+
+    Colunas suportadas em queries editoriais: `review_pct`, `name`, `priority`,
+    `created_at`. Direções: `"asc"` ou `"desc"`. Colunas inválidas são
+    ignoradas pelo resolver (não erro — degradação silenciosa)."""
+
+    column: str
+    direction: str
+
+
+@strawberry.input
 class AudioReviewInput:
     """Decisão de revisão de áudio (paridade com `editor_hymn_audio_review`).
 
