@@ -32,6 +32,7 @@ from apps.hymns.permissions import (
     can_publish_hymnbook,
 )
 from apps.hymns.services.review import publish_readiness
+from apps.users import models as user_models
 
 from .errors import NotFoundError, PermissionDeniedError, ValidationError
 from .types import (
@@ -42,8 +43,10 @@ from .types import (
     HymnBookType,
     HymnInput,
     HymnType,
+    NotificationType,
     PublishResult,
     ReviewStatus,
+    UserProfileType,
     UserType,
 )
 
@@ -545,6 +548,33 @@ class Mutation:
         pk_str = str(audio.pk)
         audio.delete()
         return DeleteResult(ok=True, deleted_id=pk_str)
+
+    @strawberry.mutation(name="followUser")
+    def follow_user(self, info: Info, username: str) -> Annotated[
+        Union[UserProfileType, PermissionDeniedError, NotFoundError],
+        strawberry.union("FollowUserResult"),
+    ]:
+        """Segue um usuário (paridade com `toggle_follow` direção "follow")."""
+        user = _request(info).user
+        if not getattr(user, "is_authenticated", False):
+            return PermissionDeniedError(message="É preciso estar autenticado para seguir usuários.")
+        target = user_models.User.objects.filter(username=username).first()
+        if target is None:
+            return NotFoundError()
+        if target == user:
+            return PermissionDeniedError(message="Você não pode seguir a si mesmo.")
+
+        _, created = user_models.UserFollow.objects.get_or_create(follower=user, followed=target)
+        if created:
+            user_models.Notification.objects.create(
+                recipient=target,
+                sender=user,
+                notification_type=user_models.Notification.TYPE_FOLLOW,
+                title="Novo seguidor",
+                message=f"{user.username} começou a seguir você",
+                link=f"/perfil/{user.username}/",
+            )
+        return UserProfileType(user=target)
 
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[

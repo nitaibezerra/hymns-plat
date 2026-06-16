@@ -28,6 +28,8 @@ type DeleteResult {
   deletedId: ID
 }
 
+union FollowUserResult = UserProfileType | PermissionDeniedError | NotFoundError
+
 type GlobalStats {
   hymnbooks: Int!
   hymns: Int!
@@ -148,6 +150,7 @@ type Mutation {
   rejectAudio(pk: ID!): RejectAudioResult!
   reviewAudio(pk: ID!, input: AudioReviewInput!): ReviewAudioResult!
   deleteAudio(pk: ID!): DeleteAudioResult!
+  followUser(username: String!): FollowUserResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 
