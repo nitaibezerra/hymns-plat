@@ -613,6 +613,20 @@ class Mutation:
             notif.save(update_fields=["is_read"])
         return notif
 
+    @strawberry.mutation(name="markAllNotificationsRead")
+    def mark_all_notifications_read(self, info: Info) -> int:
+        """Marca todas as notificações não-lidas do usuário como lidas.
+
+        Anônimo recebe 0 (sem erro — feed vazio é resposta natural).
+        Retorna o número de notificações afetadas.
+        """
+        user = _request(info).user
+        if not getattr(user, "is_authenticated", False):
+            return 0
+        return user_models.Notification.objects.filter(recipient=user, is_read=False).update(
+            is_read=True
+        )
+
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[
         Union[ToggleFavoriteSuccess, PermissionDeniedError, NotFoundError],

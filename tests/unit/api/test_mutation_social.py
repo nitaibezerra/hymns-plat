@@ -162,3 +162,32 @@ def test_mark_notification_read_other_user_blocked(client, user_factory):
     assert data["data"]["markNotificationRead"]["__typename"] == "NotFoundError"
     n.refresh_from_db()
     assert n.is_read is False
+
+
+# ---------- Ciclo 5A.18 — markAllNotificationsRead ----------
+
+MARK_ALL_READ_MUTATION = """
+mutation { markAllNotificationsRead }
+"""
+
+
+def test_mark_all_notifications_read_marks_only_own(authenticated_client, user_factory):
+    """Marca como lidas só as do usuário autenticado."""
+    other = user_factory(email="other@x.com")
+    own_unread = [
+        _make_notification(authenticated_client.user, is_read=False) for _ in range(3)
+    ]
+    own_read = _make_notification(authenticated_client.user, is_read=True)
+    other_unread = _make_notification(other, is_read=False)
+
+    data = gql(authenticated_client, MARK_ALL_READ_MUTATION)
+    assert "errors" not in data, data
+    # Conta = só as não-lidas do user que mudaram
+    assert data["data"]["markAllNotificationsRead"] == 3
+    for n in own_unread:
+        n.refresh_from_db()
+        assert n.is_read is True
+    own_read.refresh_from_db()
+    assert own_read.is_read is True
+    other_unread.refresh_from_db()
+    assert other_unread.is_read is False
