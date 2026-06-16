@@ -197,3 +197,41 @@ def test_publish_hymnbook_non_publisher_blocked(authenticated_client, hymn_book_
     assert data["data"]["publishHymnBook"]["__typename"] == "PermissionDeniedError"
     hb.refresh_from_db()
     assert hb.is_published is False
+
+
+# ---------- Ciclo 5A.4 — unpublishHymnBook ----------
+
+UNPUBLISH_MUTATION = """
+mutation($slug: String!) {
+  unpublishHymnBook(slug: $slug) {
+    __typename
+    ... on HymnBookType { slug isPublished }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+  }
+}
+"""
+
+
+def test_unpublish_hymnbook_publisher_succeeds(editor_client, hymn_book_factory):
+    from django.contrib.auth.models import Permission
+
+    editor_client.user.user_permissions.add(Permission.objects.get(codename="can_publish_hymnbook"))
+    hb = hymn_book_factory(name="Publicado", slug="pub", is_published=True)
+
+    data = gql(editor_client, UNPUBLISH_MUTATION, variables={"slug": hb.slug})
+    assert "errors" not in data, data
+    result = data["data"]["unpublishHymnBook"]
+    assert result["__typename"] == "HymnBookType"
+    assert result["isPublished"] is False
+    hb.refresh_from_db()
+    assert hb.is_published is False
+
+
+def test_unpublish_hymnbook_non_publisher_blocked(authenticated_client, hymn_book_factory):
+    hb = hymn_book_factory(name="Publicado", slug="pub", is_published=True)
+    data = gql(authenticated_client, UNPUBLISH_MUTATION, variables={"slug": hb.slug})
+    assert "errors" not in data, data
+    assert data["data"]["unpublishHymnBook"]["__typename"] == "PermissionDeniedError"
+    hb.refresh_from_db()
+    assert hb.is_published is True

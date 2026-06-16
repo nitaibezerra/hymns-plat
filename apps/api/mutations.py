@@ -235,6 +235,23 @@ class Mutation:
         hymnbook.save(update_fields=["is_published", "published_at", "published_by", "updated_at"])
         return PublishResult(ok=True, failed_checks=[])
 
+    @strawberry.mutation(name="unpublishHymnBook")
+    def unpublish_hymnbook(self, info: Info, slug: str) -> Annotated[
+        Union[HymnBookType, PermissionDeniedError, NotFoundError],
+        strawberry.union("UnpublishHymnBookResult"),
+    ]:
+        """Despublica um HymnBook (paridade com `hymnbook_unpublish_view`)."""
+        user = _request(info).user
+        hymnbook = hymn_models.HymnBook.objects.filter(slug=slug).first()
+        if hymnbook is None:
+            return NotFoundError()
+        if not can_publish_hymnbook(user, hymnbook):
+            return PermissionDeniedError()
+
+        hymnbook.is_published = False
+        hymnbook.save(update_fields=["is_published", "updated_at"])
+        return hymnbook
+
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[
         Union[ToggleFavoriteSuccess, PermissionDeniedError, NotFoundError],
