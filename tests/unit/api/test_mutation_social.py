@@ -113,3 +113,52 @@ def test_unfollow_not_following_is_noop(authenticated_client, user_factory):
     data = gql(authenticated_client, UNFOLLOW_MUTATION, variables={"username": target.username})
     assert "errors" not in data, data
     assert data["data"]["unfollowUser"]["__typename"] == "UserProfileType"
+
+
+# ---------- Ciclo 5A.17 — markNotificationRead ----------
+
+MARK_READ_MUTATION = """
+mutation($pk: ID!) {
+  markNotificationRead(pk: $pk) {
+    __typename
+    ... on NotificationType { id isRead }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+  }
+}
+"""
+
+
+def _make_notification(recipient, **kwargs):
+    return Notification.objects.create(
+        recipient=recipient,
+        notification_type=Notification.TYPE_FAVORITE,
+        title="t",
+        message="m",
+        **kwargs,
+    )
+
+
+def test_mark_notification_read_owner_succeeds(authenticated_client):
+    n = _make_notification(authenticated_client.user, is_read=False)
+    data = gql(authenticated_client, MARK_READ_MUTATION, variables={"pk": str(n.pk)})
+    assert "errors" not in data, data
+    result = data["data"]["markNotificationRead"]
+    assert result["__typename"] == "NotificationType"
+    assert result["isRead"] is True
+    n.refresh_from_db()
+    assert n.is_read is True
+
+
+def test_mark_notification_read_other_user_blocked(client, user_factory):
+    owner = user_factory(email="owner@x.com")
+    other = user_factory(email="other@x.com")
+    n = _make_notification(owner, is_read=False)
+    client.force_login(other)
+
+    data = gql(client, MARK_READ_MUTATION, variables={"pk": str(n.pk)})
+    assert "errors" not in data, data
+    # Não vaza existência de notificação alheia: NotFoundError, não Permission
+    assert data["data"]["markNotificationRead"]["__typename"] == "NotFoundError"
+    n.refresh_from_db()
+    assert n.is_read is False

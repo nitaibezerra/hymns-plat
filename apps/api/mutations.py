@@ -591,6 +591,28 @@ class Mutation:
         user_models.UserFollow.objects.filter(follower=user, followed=target).delete()
         return UserProfileType(user=target)
 
+    @strawberry.mutation(name="markNotificationRead")
+    def mark_notification_read(self, info: Info, pk: strawberry.ID) -> Annotated[
+        Union[NotificationType, PermissionDeniedError, NotFoundError],
+        strawberry.union("MarkNotificationReadResult"),
+    ]:
+        """Marca uma notificação como lida (paridade com `mark_notification_read`).
+
+        Notificações alheias retornam `NotFoundError` ao invés de
+        `PermissionDeniedError` — não vaza existência de notificação que o
+        usuário não deveria ver.
+        """
+        user = _request(info).user
+        if not getattr(user, "is_authenticated", False):
+            return PermissionDeniedError()
+        notif = user_models.Notification.objects.filter(pk=pk, recipient=user).first()
+        if notif is None:
+            return NotFoundError()
+        if not notif.is_read:
+            notif.is_read = True
+            notif.save(update_fields=["is_read"])
+        return notif
+
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[
         Union[ToggleFavoriteSuccess, PermissionDeniedError, NotFoundError],
