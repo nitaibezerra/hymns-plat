@@ -38,6 +38,21 @@ class HymnBookInput:
     description: str | None = strawberry.UNSET
 
 
+@strawberry.input
+class HymnInput:
+    """Payload de criação/edição de Hymn — espelha `HymnForm.Meta.fields` (subset
+    obrigatório). `received_at` continua só via `updateHymn` do Marco 2."""
+
+    number: int
+    title: str
+    text: str
+    style: str | None = strawberry.UNSET
+    repetitions: str | None = strawberry.UNSET
+    extra_instructions: str | None = strawberry.UNSET
+    offered_to: str | None = strawberry.UNSET
+    section: str | None = strawberry.UNSET
+
+
 @strawberry.type
 class PublishResult:
     """Resultado de `publishHymnBook`. `ok=True` quando publicação foi

@@ -1,5 +1,7 @@
 union CreateHymnBookResult = HymnBookType | PermissionDeniedError | ValidationError
 
+union CreateHymnResult = HymnType | PermissionDeniedError | NotFoundError | ValidationError
+
 """Date (isoformat)"""
 scalar Date
 
@@ -57,6 +59,17 @@ type HymnBookType {
   hymns: [HymnType!]!
 }
 
+input HymnInput {
+  number: Int!
+  title: String!
+  text: String!
+  style: String
+  repetitions: String
+  extraInstructions: String
+  offeredTo: String
+  section: String
+}
+
 type HymnType {
   id: UUID!
   number: Int!
@@ -101,6 +114,7 @@ type Mutation {
   unpublishHymnBook(slug: String!): UnpublishHymnBookResult!
   deleteHymnBook(slug: String!): DeleteHymnBookResult!
   updateHymnBookEditorial(slug: String!, priority: String, isFeatured: Boolean): UpdateHymnBookEditorialResult!
+  createHymn(hymnbookSlug: String!, input: HymnInput!): CreateHymnResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 

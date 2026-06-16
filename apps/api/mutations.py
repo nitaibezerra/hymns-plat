@@ -37,6 +37,7 @@ from .types import (
     DeleteResult,
     HymnBookInput,
     HymnBookType,
+    HymnInput,
     HymnType,
     PublishResult,
     ReviewStatus,
@@ -59,6 +60,33 @@ class HymnUpdateInput:
 def _request(info: Info):
     """Obtém o `HttpRequest` do contexto Strawberry."""
     return info.context["request"] if isinstance(info.context, dict) else info.context.request
+
+
+def _hymn_form_data(input: HymnInput, instance=None) -> dict:
+    """Mapeia `HymnInput` → dict que `HymnForm` aceita.
+
+    Replica a regra de UNSET do `_hymnbook_form_data`: campos não enviados caem
+    para o valor da instance (update) ou string/None vazio (create).
+    """
+
+    def _val(field: str, raw):
+        if raw is strawberry.UNSET:
+            if instance is not None:
+                return getattr(instance, field, "")
+            return ""
+        return raw
+
+    return {
+        "number": input.number,
+        "title": input.title,
+        "text": input.text,
+        "received_at": None if instance is None else instance.received_at,
+        "style": _val("style", input.style),
+        "repetitions": _val("repetitions", input.repetitions),
+        "extra_instructions": _val("extra_instructions", input.extra_instructions),
+        "offered_to": _val("offered_to", input.offered_to),
+        "section": _val("section", input.section),
+    }
 
 
 def _hymnbook_form_data(input: HymnBookInput, instance=None) -> dict:
@@ -303,6 +331,29 @@ class Mutation:
             update_fields.append("updated_at")
             hymnbook.save(update_fields=update_fields)
         return hymnbook
+
+    @strawberry.mutation(name="createHymn")
+    def create_hymn(self, info: Info, hymnbook_slug: str, input: HymnInput) -> Annotated[
+        Union[HymnType, PermissionDeniedError, NotFoundError, ValidationError],
+        strawberry.union("CreateHymnResult"),
+    ]:
+        """Cria um Hymn dentro de um HymnBook (paridade com `hymn_create_view`)."""
+        user = _request(info).user
+        hymnbook = hymn_models.HymnBook.objects.filter(slug=hymnbook_slug).first()
+        if hymnbook is None:
+            return NotFoundError()
+        if not can_edit_hymnbook(user, hymnbook):
+            return PermissionDeniedError()
+
+        data = _hymn_form_data(input)
+        form = HymnForm(data=data, hymn_book=hymnbook)
+        if not form.is_valid():
+            field, errors = next(iter(form.errors.items()))
+            return ValidationError(message=errors[0], field=field)
+        hymn = form.save(commit=False)
+        hymn.hymn_book = hymnbook
+        hymn.save()
+        return hymn
 
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[
