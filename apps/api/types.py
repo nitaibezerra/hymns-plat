@@ -39,6 +39,25 @@ class HymnBookInput:
 
 
 @strawberry.type
+class PublishResult:
+    """Resultado de `publishHymnBook`. `ok=True` quando publicação foi
+    bem-sucedida; `failedChecks` lista as labels dos checks que falharam
+    (mesma string que `publish_readiness` retorna)."""
+
+    ok: bool
+    failed_checks: list[str]
+
+
+@strawberry.type
+class DeleteResult:
+    """Resultado de mutations destrutivas. `deletedId` permite o cliente
+    atualizar caches otimistas localmente."""
+
+    ok: bool
+    deleted_id: strawberry.ID | None = None
+
+
+@strawberry.type
 class HymnBookStatsType:
     """Contagens equivalentes às anotações dos cards (`_annotate_card_counts`)."""
 

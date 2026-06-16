@@ -88,6 +88,7 @@ type Mutation {
   updateHymn(pk: ID!, input: HymnUpdateInput!): UpdateHymnResult!
   createHymnBook(input: HymnBookInput!): CreateHymnBookResult!
   updateHymnBook(slug: String!, input: HymnBookInput!): UpdateHymnBookResult!
+  publishHymnBook(slug: String!): PublishHymnBookResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 
@@ -107,6 +108,13 @@ type NotificationType {
 
 type PermissionDeniedError {
   message: String!
+}
+
+union PublishHymnBookResult = PublishResult | PermissionDeniedError | NotFoundError
+
+type PublishResult {
+  ok: Boolean!
+  failedChecks: [String!]!
 }
 
 type Query {

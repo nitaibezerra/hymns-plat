@@ -20,16 +20,28 @@ from django.contrib.auth import login as django_login
 from django.contrib.auth import logout as django_logout
 from strawberry.types import Info
 
+from django.utils import timezone
+
 from apps.hymns import models as hymn_models
 from apps.hymns.forms import HymnBookForm, HymnForm
 from apps.hymns.permissions import (
     _is_editor_or_admin,
     can_create_hymnbook,
     can_edit_hymnbook,
+    can_publish_hymnbook,
 )
+from apps.hymns.services.review import publish_readiness
 
 from .errors import NotFoundError, PermissionDeniedError, ValidationError
-from .types import HymnBookInput, HymnBookType, HymnType, ReviewStatus, UserType
+from .types import (
+    DeleteResult,
+    HymnBookInput,
+    HymnBookType,
+    HymnType,
+    PublishResult,
+    ReviewStatus,
+    UserType,
+)
 
 
 @strawberry.input
@@ -197,6 +209,31 @@ class Mutation:
             return ValidationError(message=errors[0], field=field)
         form.save()
         return hymnbook
+
+    @strawberry.mutation(name="publishHymnBook")
+    def publish_hymnbook(self, info: Info, slug: str) -> Annotated[
+        Union[PublishResult, PermissionDeniedError, NotFoundError],
+        strawberry.union("PublishHymnBookResult"),
+    ]:
+        """Publica um HymnBook após validar `publish_readiness`. Retorna
+        `PublishResult` com `failedChecks` quando algum critério falha."""
+        user = _request(info).user
+        hymnbook = hymn_models.HymnBook.objects.filter(slug=slug).first()
+        if hymnbook is None:
+            return NotFoundError()
+        if not can_publish_hymnbook(user, hymnbook):
+            return PermissionDeniedError()
+
+        report = publish_readiness(hymnbook)
+        if not report["can_publish"]:
+            failed = [c["label"] for c in report["checks"] if not c["ok"]]
+            return PublishResult(ok=False, failed_checks=failed)
+
+        hymnbook.is_published = True
+        hymnbook.published_at = timezone.now()
+        hymnbook.published_by = user
+        hymnbook.save(update_fields=["is_published", "published_at", "published_by", "updated_at"])
+        return PublishResult(ok=True, failed_checks=[])
 
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[

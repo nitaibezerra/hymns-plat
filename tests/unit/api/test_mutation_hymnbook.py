@@ -123,3 +123,77 @@ def test_update_hymnbook_non_editor_blocked(authenticated_client, hymn_book_fact
     assert data["data"]["updateHymnBook"]["__typename"] == "PermissionDeniedError"
     hb.refresh_from_db()
     assert hb.name == "Original"
+
+
+# ---------- Ciclo 5A.3 — publishHymnBook ----------
+
+PUBLISH_MUTATION = """
+mutation($slug: String!) {
+  publishHymnBook(slug: $slug) {
+    __typename
+    ... on PublishResult { ok failedChecks }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+  }
+}
+"""
+
+
+def _make_publishable_book(hymn_book_factory, hymn_factory, user):
+    """Cria hinário que satisfaz `publish_readiness` (descrição, owner_user,
+    todos revisados, audit trail)."""
+    from apps.hymns.models import Hymn, HymnRevision
+
+    hb = hymn_book_factory(
+        name="Pronto", slug="pronto", description="desc", owner_user=user, is_published=False
+    )
+    h = hymn_factory(hymn_book=hb)
+    h.review_status = Hymn.ReviewStatus.REVIEWED
+    h.last_reviewed_by = user
+    h.save()
+    HymnRevision.objects.create(
+        hymn=h, revised_by=user, previous_status="", new_status=h.review_status, field_diff={}
+    )
+    return hb
+
+
+def test_publish_hymnbook_succeeds_when_readiness_ok(editor_client, hymn_book_factory, hymn_factory):
+    hb = _make_publishable_book(hymn_book_factory, hymn_factory, editor_client.user)
+    # garantir is_superuser=False mas com perm de publicar
+    from django.contrib.auth.models import Permission
+
+    editor_client.user.user_permissions.add(Permission.objects.get(codename="can_publish_hymnbook"))
+
+    data = gql(editor_client, PUBLISH_MUTATION, variables={"slug": hb.slug})
+    assert "errors" not in data, data
+    result = data["data"]["publishHymnBook"]
+    assert result["__typename"] == "PublishResult"
+    assert result["ok"] is True
+    assert result["failedChecks"] == []
+    hb.refresh_from_db()
+    assert hb.is_published is True
+
+
+def test_publish_hymnbook_fails_with_pending_check(editor_client, hymn_book_factory):
+    hb = hymn_book_factory(name="Incompleto", slug="incompleto", is_published=False, description="")
+    from django.contrib.auth.models import Permission
+
+    editor_client.user.user_permissions.add(Permission.objects.get(codename="can_publish_hymnbook"))
+
+    data = gql(editor_client, PUBLISH_MUTATION, variables={"slug": hb.slug})
+    assert "errors" not in data, data
+    result = data["data"]["publishHymnBook"]
+    assert result["__typename"] == "PublishResult"
+    assert result["ok"] is False
+    assert len(result["failedChecks"]) >= 1
+    hb.refresh_from_db()
+    assert hb.is_published is False
+
+
+def test_publish_hymnbook_non_publisher_blocked(authenticated_client, hymn_book_factory):
+    hb = hymn_book_factory(name="Bloqueado", slug="bloqueado", is_published=False)
+    data = gql(authenticated_client, PUBLISH_MUTATION, variables={"slug": hb.slug})
+    assert "errors" not in data, data
+    assert data["data"]["publishHymnBook"]["__typename"] == "PermissionDeniedError"
+    hb.refresh_from_db()
+    assert hb.is_published is False
