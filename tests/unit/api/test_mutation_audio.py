@@ -159,4 +159,45 @@ def test_approve_audio_non_editor_blocked(authenticated_client, hymn_book_factor
     assert a.is_approved is False
 
 
+# ---------- Ciclo 5A.12 — rejectAudio ----------
+
+REJECT_MUTATION = """
+mutation($pk: ID!) {
+  rejectAudio(pk: $pk) {
+    __typename
+    ... on DeleteResult { ok deletedId }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+  }
+}
+"""
+
+
+def test_reject_audio_editor_succeeds_and_deletes(editor_client, hymn_book_factory, hymn_factory):
+    """Paridade com editor_reject_audio: rejeitar = deletar o áudio."""
+    hb = hymn_book_factory()
+    h = hymn_factory(hymn_book=hb)
+    a = _make_audio(h, is_approved=False)
+    pk = str(a.pk)
+
+    data = gql(editor_client, REJECT_MUTATION, variables={"pk": pk})
+    assert "errors" not in data, data
+    result = data["data"]["rejectAudio"]
+    assert result["__typename"] == "DeleteResult"
+    assert result["ok"] is True
+    assert result["deletedId"] == pk
+    assert not HymnAudio.objects.filter(pk=pk).exists()
+
+
+def test_reject_audio_non_editor_blocked(authenticated_client, hymn_book_factory, hymn_factory):
+    hb = hymn_book_factory()
+    h = hymn_factory(hymn_book=hb)
+    a = _make_audio(h, is_approved=False)
+
+    data = gql(authenticated_client, REJECT_MUTATION, variables={"pk": str(a.pk)})
+    assert "errors" not in data, data
+    assert data["data"]["rejectAudio"]["__typename"] == "PermissionDeniedError"
+    assert HymnAudio.objects.filter(pk=a.pk).exists()
+
+
 _ = gql  # silenciar import não-usado (mantemos pra outros ciclos do arquivo)

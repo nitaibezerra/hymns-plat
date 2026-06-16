@@ -130,6 +130,7 @@ type Mutation {
   quickReviewHymn(pk: ID!, style: String!, repetitions: String!): QuickReviewHymnResult!
   uploadAudio(hymnPk: ID!, file: Upload!, title: String, source: String, credits: String, allowDownload: Boolean): UploadAudioResult!
   approveAudio(pk: ID!): ApproveAudioResult!
+  rejectAudio(pk: ID!): RejectAudioResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 
@@ -171,6 +172,8 @@ type Query {
 }
 
 union QuickReviewHymnResult = HymnType | PermissionDeniedError | NotFoundError | ValidationError
+
+union RejectAudioResult = DeleteResult | PermissionDeniedError | NotFoundError
 
 enum ReviewStatus {
   NOT_REVIEWED

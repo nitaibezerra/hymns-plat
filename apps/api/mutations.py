@@ -465,6 +465,22 @@ class Mutation:
         audio.save(update_fields=["is_approved", "updated_at"])
         return audio
 
+    @strawberry.mutation(name="rejectAudio")
+    def reject_audio(self, info: Info, pk: strawberry.ID) -> Annotated[
+        Union[DeleteResult, PermissionDeniedError, NotFoundError],
+        strawberry.union("RejectAudioResult"),
+    ]:
+        """Rejeita = deleta o áudio (paridade com `editor_reject_audio`)."""
+        user = _request(info).user
+        audio = hymn_models.HymnAudio.objects.filter(pk=pk).select_related("hymn__hymn_book").first()
+        if audio is None:
+            return NotFoundError()
+        if not can_edit_hymnbook(user, audio.hymn.hymn_book):
+            return PermissionDeniedError()
+        pk_str = str(audio.pk)
+        audio.delete()
+        return DeleteResult(ok=True, deleted_id=pk_str)
+
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[
         Union[ToggleFavoriteSuccess, PermissionDeniedError, NotFoundError],
