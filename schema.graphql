@@ -10,6 +10,8 @@ scalar DateTime
 
 union DeleteHymnBookResult = DeleteResult | PermissionDeniedError | NotFoundError
 
+union DeleteHymnResult = DeleteResult | PermissionDeniedError | NotFoundError
+
 type DeleteResult {
   ok: Boolean!
   deletedId: ID
@@ -115,6 +117,7 @@ type Mutation {
   deleteHymnBook(slug: String!): DeleteHymnBookResult!
   updateHymnBookEditorial(slug: String!, priority: String, isFeatured: Boolean): UpdateHymnBookEditorialResult!
   createHymn(hymnbookSlug: String!, input: HymnInput!): CreateHymnResult!
+  deleteHymn(pk: ID!): DeleteHymnResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 

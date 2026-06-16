@@ -355,6 +355,23 @@ class Mutation:
         hymn.save()
         return hymn
 
+    @strawberry.mutation(name="deleteHymn")
+    def delete_hymn(self, info: Info, pk: strawberry.ID) -> Annotated[
+        Union[DeleteResult, PermissionDeniedError, NotFoundError],
+        strawberry.union("DeleteHymnResult"),
+    ]:
+        """Deleta um Hymn (paridade com `hymn_delete_view`)."""
+        user = _request(info).user
+        hymn = hymn_models.Hymn.objects.filter(pk=pk).first()
+        if hymn is None:
+            return NotFoundError()
+        if not can_edit_hymnbook(user, hymn.hymn_book):
+            return PermissionDeniedError()
+
+        pk_str = str(hymn.pk)
+        hymn.delete()
+        return DeleteResult(ok=True, deleted_id=pk_str)
+
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[
         Union[ToggleFavoriteSuccess, PermissionDeniedError, NotFoundError],

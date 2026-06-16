@@ -82,3 +82,39 @@ def test_create_hymn_non_editor_blocked(authenticated_client, hymn_book_factory)
     assert "errors" not in data, data
     assert data["data"]["createHymn"]["__typename"] == "PermissionDeniedError"
     assert not Hymn.objects.filter(hymn_book=hb).exists()
+
+
+# ---------- Ciclo 5A.8 — deleteHymn ----------
+
+DELETE_HYMN_MUTATION = """
+mutation($pk: ID!) {
+  deleteHymn(pk: $pk) {
+    __typename
+    ... on DeleteResult { ok deletedId }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+  }
+}
+"""
+
+
+def test_delete_hymn_editor_succeeds(editor_client, hymn_book_factory, hymn_factory):
+    hb = hymn_book_factory(name="X", slug="x")
+    h = hymn_factory(hymn_book=hb)
+    pk = str(h.pk)
+    data = gql(editor_client, DELETE_HYMN_MUTATION, variables={"pk": pk})
+    assert "errors" not in data, data
+    result = data["data"]["deleteHymn"]
+    assert result["__typename"] == "DeleteResult"
+    assert result["ok"] is True
+    assert result["deletedId"] == pk
+    assert not Hymn.objects.filter(pk=pk).exists()
+
+
+def test_delete_hymn_non_editor_blocked(authenticated_client, hymn_book_factory, hymn_factory):
+    hb = hymn_book_factory(name="Y", slug="y")
+    h = hymn_factory(hymn_book=hb)
+    data = gql(authenticated_client, DELETE_HYMN_MUTATION, variables={"pk": str(h.pk)})
+    assert "errors" not in data, data
+    assert data["data"]["deleteHymn"]["__typename"] == "PermissionDeniedError"
+    assert Hymn.objects.filter(pk=h.pk).exists()
