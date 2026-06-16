@@ -62,9 +62,7 @@ def _mp3_file(name="audio.mp3", size=1024):
     return SimpleUploadedFile(name, b"\x00" * size, content_type="audio/mpeg")
 
 
-def test_upload_audio_authenticated_succeeds(
-    authenticated_client, hymn_book_factory, hymn_factory
-):
+def test_upload_audio_authenticated_succeeds(authenticated_client, hymn_book_factory, hymn_factory):
     hb = hymn_book_factory()
     h = hymn_factory(hymn_book=hb)
     file = _mp3_file()
@@ -80,9 +78,7 @@ def test_upload_audio_authenticated_succeeds(
     assert audio.title == "Minha gravação"
 
 
-def test_upload_audio_validates_size_25mb(
-    authenticated_client, hymn_book_factory, hymn_factory
-):
+def test_upload_audio_validates_size_25mb(authenticated_client, hymn_book_factory, hymn_factory):
     hb = hymn_book_factory()
     h = hymn_factory(hymn_book=hb)
     # 25MB + 1 byte
@@ -131,9 +127,7 @@ mutation($pk: ID!) {
 
 
 def _make_audio(hymn, *, is_approved=False, uploaded_by=None):
-    return HymnAudio.objects.create(
-        hymn=hymn, audio_file="x.mp3", is_approved=is_approved, uploaded_by=uploaded_by
-    )
+    return HymnAudio.objects.create(hymn=hymn, audio_file="x.mp3", is_approved=is_approved, uploaded_by=uploaded_by)
 
 
 def test_approve_audio_editor_succeeds(editor_client, hymn_book_factory, hymn_factory):
@@ -309,9 +303,7 @@ def test_delete_audio_editor_succeeds(editor_client, hymn_book_factory, hymn_fac
     assert not HymnAudio.objects.filter(pk=pk).exists()
 
 
-def test_delete_audio_uploader_can_delete_own(
-    client, user_factory, hymn_book_factory, hymn_factory
-):
+def test_delete_audio_uploader_can_delete_own(client, user_factory, hymn_book_factory, hymn_factory):
     """Uploader pode deletar seu próprio áudio (mesmo sem ser editor)."""
     hb = hymn_book_factory()
     h = hymn_factory(hymn_book=hb)
@@ -324,9 +316,7 @@ def test_delete_audio_uploader_can_delete_own(
     assert data["data"]["deleteAudio"]["__typename"] == "DeleteResult"
 
 
-def test_delete_audio_other_user_blocked(
-    client, user_factory, hymn_book_factory, hymn_factory
-):
+def test_delete_audio_other_user_blocked(client, user_factory, hymn_book_factory, hymn_factory):
     """Outro usuário (não-editor, não-uploader) é bloqueado."""
     hb = hymn_book_factory()
     h = hymn_factory(hymn_book=hb)

@@ -144,16 +144,12 @@ def _make_publishable_book(hymn_book_factory, hymn_factory, user):
     todos revisados, audit trail)."""
     from apps.hymns.models import Hymn, HymnRevision
 
-    hb = hymn_book_factory(
-        name="Pronto", slug="pronto", description="desc", owner_user=user, is_published=False
-    )
+    hb = hymn_book_factory(name="Pronto", slug="pronto", description="desc", owner_user=user, is_published=False)
     h = hymn_factory(hymn_book=hb)
     h.review_status = Hymn.ReviewStatus.REVIEWED
     h.last_reviewed_by = user
     h.save()
-    HymnRevision.objects.create(
-        hymn=h, revised_by=user, previous_status="", new_status=h.review_status, field_diff={}
-    )
+    HymnRevision.objects.create(hymn=h, revised_by=user, previous_status="", new_status=h.review_status, field_diff={})
     return hb
 
 

@@ -98,17 +98,13 @@ def test_unfollow_user_removes_follow(authenticated_client, user_factory):
     result = data["data"]["unfollowUser"]
     assert result["__typename"] == "UserProfileType"
     assert result["followersCount"] == 0
-    assert not UserFollow.objects.filter(
-        follower=authenticated_client.user, followed=target
-    ).exists()
+    assert not UserFollow.objects.filter(follower=authenticated_client.user, followed=target).exists()
 
 
 def test_unfollow_not_following_is_noop(authenticated_client, user_factory):
     """unfollow sem follow prévio retorna profile sem erro."""
     target = user_factory(email="target@x.com")
-    assert not UserFollow.objects.filter(
-        follower=authenticated_client.user, followed=target
-    ).exists()
+    assert not UserFollow.objects.filter(follower=authenticated_client.user, followed=target).exists()
 
     data = gql(authenticated_client, UNFOLLOW_MUTATION, variables={"username": target.username})
     assert "errors" not in data, data
@@ -174,9 +170,7 @@ mutation { markAllNotificationsRead }
 def test_mark_all_notifications_read_marks_only_own(authenticated_client, user_factory):
     """Marca como lidas só as do usuário autenticado."""
     other = user_factory(email="other@x.com")
-    own_unread = [
-        _make_notification(authenticated_client.user, is_read=False) for _ in range(3)
-    ]
+    own_unread = [_make_notification(authenticated_client.user, is_read=False) for _ in range(3)]
     own_read = _make_notification(authenticated_client.user, is_read=True)
     other_unread = _make_notification(other, is_read=False)
 

@@ -18,19 +18,13 @@ import strawberry
 from django.contrib.auth import authenticate
 from django.contrib.auth import login as django_login
 from django.contrib.auth import logout as django_logout
+from django.utils import timezone
 from strawberry.file_uploads import Upload
 from strawberry.types import Info
 
-from django.utils import timezone
-
 from apps.hymns import models as hymn_models
 from apps.hymns.forms import HymnAudioUploadForm, HymnBookForm, HymnForm, QuickReviewForm
-from apps.hymns.permissions import (
-    _is_editor_or_admin,
-    can_create_hymnbook,
-    can_edit_hymnbook,
-    can_publish_hymnbook,
-)
+from apps.hymns.permissions import _is_editor_or_admin, can_create_hymnbook, can_edit_hymnbook, can_publish_hymnbook
 from apps.hymns.services.review import publish_readiness
 from apps.users import models as user_models
 
@@ -379,9 +373,7 @@ class Mutation:
         return DeleteResult(ok=True, deleted_id=pk_str)
 
     @strawberry.mutation(name="quickReviewHymn")
-    def quick_review_hymn(
-        self, info: Info, pk: strawberry.ID, style: str, repetitions: str
-    ) -> Annotated[
+    def quick_review_hymn(self, info: Info, pk: strawberry.ID, style: str, repetitions: str) -> Annotated[
         Union[HymnType, PermissionDeniedError, NotFoundError, ValidationError],
         strawberry.union("QuickReviewHymnResult"),
     ]:
@@ -623,9 +615,7 @@ class Mutation:
         user = _request(info).user
         if not getattr(user, "is_authenticated", False):
             return 0
-        return user_models.Notification.objects.filter(recipient=user, is_read=False).update(
-            is_read=True
-        )
+        return user_models.Notification.objects.filter(recipient=user, is_read=False).update(is_read=True)
 
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[

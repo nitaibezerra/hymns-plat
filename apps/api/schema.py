@@ -12,15 +12,31 @@ from datetime import timedelta
 from typing import Optional
 
 import strawberry
+from django.db.models import F
 from django.utils import timezone
 from strawberry.types import Info
-
-from django.db.models import F
 
 from apps.hymns import models as hymn_models
 from apps.hymns.featured import hourly_featured
 from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
 from apps.users import models as user_models
+
+from .mutations import Mutation
+from .types import (
+    EditorDashboardStatsType,
+    HymnAudioType,
+    HymnBookType,
+    HymnType,
+    NotificationType,
+    OCRTaskType,
+    PublishReadinessCheckType,
+    PublishReadinessType,
+    SearchKind,
+    SearchResultsType,
+    SortInput,
+    UserProfileType,
+    UserType,
+)
 
 
 def _editor_visible_books(user):
@@ -55,23 +71,6 @@ def _build_sort_expressions(sort_inputs):
             continue
         out.append(expr.asc() if s.direction == "asc" else expr.desc())
     return out
-
-from .mutations import Mutation
-from .types import (
-    EditorDashboardStatsType,
-    HymnAudioType,
-    HymnBookType,
-    HymnType,
-    NotificationType,
-    OCRTaskType,
-    PublishReadinessCheckType,
-    PublishReadinessType,
-    SearchKind,
-    SearchResultsType,
-    SortInput,
-    UserProfileType,
-    UserType,
-)
 
 
 def _user(info: Info):
@@ -259,10 +258,7 @@ class Query:
         report = _readiness(hb)
         return PublishReadinessType(
             can_publish=report["can_publish"],
-            checks=[
-                PublishReadinessCheckType(key=c["key"], label=c["label"], ok=c["ok"])
-                for c in report["checks"]
-            ],
+            checks=[PublishReadinessCheckType(key=c["key"], label=c["label"], ok=c["ok"]) for c in report["checks"]],
         )
 
     @strawberry.field(name="ocrTask")
@@ -274,11 +270,7 @@ class Query:
         task = hymn_models.OCRTask.objects.filter(pk=id).first()
         if task is None:
             return None
-        if (
-            user.is_superuser
-            or user.has_perm("hymns.can_review_any_hymnbook")
-            or task.user_id == user.pk
-        ):
+        if user.is_superuser or user.has_perm("hymns.can_review_any_hymnbook") or task.user_id == user.pk:
             return task
         return None
 

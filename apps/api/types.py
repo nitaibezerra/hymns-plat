@@ -309,9 +309,7 @@ class HymnType:
                 for tok in line["tokens"]
             ]
             lines.append(InlineDiffLineType(kind=line["kind"], tokens=tokens))
-        return InlineDiffType(
-            lines=lines, changes=raw["changes"], adds=raw["adds"], dels=raw["dels"]
-        )
+        return InlineDiffType(lines=lines, changes=raw["changes"], adds=raw["adds"], dels=raw["dels"])
 
     @strawberry.field
     def ocr_line_confidences(self) -> list[int]:
