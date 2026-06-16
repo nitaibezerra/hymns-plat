@@ -99,6 +99,16 @@ export const SEARCH_QUERY = `
   }
 `;
 
+export const CURRENT_USER_QUERY = `
+  query CurrentUser {
+    currentUser {
+      id
+      username
+      email
+    }
+  }
+`;
+
 export const LOGIN_MUTATION = `
   mutation Login($username: String!, $password: String!) {
     login(username: $username, password: $password) {
