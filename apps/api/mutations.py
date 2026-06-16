@@ -177,6 +177,27 @@ class Mutation:
         hymnbook.save()
         return hymnbook
 
+    @strawberry.mutation(name="updateHymnBook")
+    def update_hymnbook(self, info: Info, slug: str, input: HymnBookInput) -> Annotated[
+        Union[HymnBookType, PermissionDeniedError, NotFoundError, ValidationError],
+        strawberry.union("UpdateHymnBookResult"),
+    ]:
+        """Atualiza um HymnBook reusando `HymnBookForm` (paridade com `hymnbook_edit_view`)."""
+        user = _request(info).user
+        hymnbook = hymn_models.HymnBook.objects.filter(slug=slug).first()
+        if hymnbook is None:
+            return NotFoundError()
+        if not can_edit_hymnbook(user, hymnbook):
+            return PermissionDeniedError()
+
+        data = _hymnbook_form_data(input, instance=hymnbook)
+        form = HymnBookForm(data=data, instance=hymnbook)
+        if not form.is_valid():
+            field, errors = next(iter(form.errors.items()))
+            return ValidationError(message=errors[0], field=field)
+        form.save()
+        return hymnbook
+
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[
         Union[ToggleFavoriteSuccess, PermissionDeniedError, NotFoundError],

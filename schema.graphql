@@ -87,6 +87,7 @@ type Mutation {
   setReviewStatus(pk: ID!, status: ReviewStatus!): SetReviewStatusResult!
   updateHymn(pk: ID!, input: HymnUpdateInput!): UpdateHymnResult!
   createHymnBook(input: HymnBookInput!): CreateHymnBookResult!
+  updateHymnBook(slug: String!, input: HymnBookInput!): UpdateHymnBookResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 
@@ -146,6 +147,8 @@ type ToggleFavoriteSuccess {
 }
 
 scalar UUID
+
+union UpdateHymnBookResult = HymnBookType | PermissionDeniedError | NotFoundError | ValidationError
 
 union UpdateHymnResult = HymnType | PermissionDeniedError | NotFoundError | ValidationError
 

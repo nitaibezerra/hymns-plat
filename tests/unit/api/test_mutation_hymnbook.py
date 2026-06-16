@@ -74,3 +74,52 @@ def test_create_hymnbook_validates_name_unique(editor_client, hymn_book_factory)
     result = data["data"]["createHymnBook"]
     assert result["__typename"] == "ValidationError"
     assert result["field"] == "name"
+
+
+# ---------- Ciclo 5A.2 — updateHymnBook ----------
+
+UPDATE_MUTATION = """
+mutation($slug: String!, $input: HymnBookInput!) {
+  updateHymnBook(slug: $slug, input: $input) {
+    __typename
+    ... on HymnBookType { slug name }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+    ... on ValidationError { message field }
+  }
+}
+"""
+
+
+def test_update_hymnbook_editor_succeeds(editor_client, hymn_book_factory):
+    hb = hymn_book_factory(name="Antigo", slug="antigo")
+    data = gql(
+        editor_client,
+        UPDATE_MUTATION,
+        variables={
+            "slug": hb.slug,
+            "input": {"name": "Novo Nome", "ownerName": hb.owner_name},
+        },
+    )
+    assert "errors" not in data, data
+    result = data["data"]["updateHymnBook"]
+    assert result["__typename"] == "HymnBookType"
+    assert result["name"] == "Novo Nome"
+    hb.refresh_from_db()
+    assert hb.name == "Novo Nome"
+
+
+def test_update_hymnbook_non_editor_blocked(authenticated_client, hymn_book_factory):
+    hb = hymn_book_factory(name="Original", slug="original")
+    data = gql(
+        authenticated_client,
+        UPDATE_MUTATION,
+        variables={
+            "slug": hb.slug,
+            "input": {"name": "Hackeado", "ownerName": hb.owner_name},
+        },
+    )
+    assert "errors" not in data, data
+    assert data["data"]["updateHymnBook"]["__typename"] == "PermissionDeniedError"
+    hb.refresh_from_db()
+    assert hb.name == "Original"
