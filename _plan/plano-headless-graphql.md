@@ -464,11 +464,43 @@ Este é o motor da "feature destravada pelo SPA": o player não pode reiniciar a
 **Total daqui em diante: 5 PRs** (Marco 4 split + Marcos 5, 6, 7 individuais), em vez dos ~30 do plano original (1 PR por sub-marco).
 
 **Mecânica de cada PR:**
-- Branch base: `main` (sem stacked PRs).
+- Branch base: **`development`** (não `main` — staging buffer pré-deploy; ver "Workflow de duas etapas" abaixo).
 - Branch-mãe do Marco: `feat/headless-marco<N>` (ou `marco4-schema` e `marco4-spa` no caso de Marco 4).
 - Cada sub-marco vira **uma seção do PR description** com sua tabela de ciclos TDD + lista dos commits que cobrem essa seção. Revisor (você) varre por sub-marco; merge é único squash.
 - Auto-merge ativado imediatamente após criar a PR (memória `feedback_auto_merge`).
 - CI roda contra a soma de tudo — sub-marco quebrado **dentro** da branch-mãe não passa: a disciplina é rodar `pnpm test && pnpm check && uv run pytest` localmente a cada ciclo.
+
+---
+
+## Workflow de desenvolvimento — duas etapas (`development` → `main`)
+
+**Problema:** `main` tem auto-deploy pra Railway via `.github/workflows/deploy.yml`. Cada PR mergeado em `main` virava deploy imediato — sem buffer pra integrar mudanças vindas em paralelo (Marco 4 SPA + outras PRs UX) antes que produção sentisse o impacto.
+
+**Solução:** introduzir `development` como branch de staging entre features e produção:
+
+```
+feature/* ─PR─▶ development ─PR(release)─▶ main ─auto-deploy─▶ Railway
+```
+
+**Regras:**
+- **Todo PR de feature aponta pra `development`** (não pra `main`). CI roda normal.
+- **Push em `development` NÃO dispara deploy** — só rodam CI checks.
+- **`main` só recebe PR vindo de `development`** ("release PRs"). São abertos manualmente quando estiver hora de promover (`gh pr create --base main --head development --title "release: <data ou resumo>"`).
+- Branch protection:
+  - `main`: required checks (Lint/Unit/E2E), `strict: true`, `enforce_admins: true`.
+  - `development`: required checks idênticos, `strict: true`, `enforce_admins: false` (admin pode pushar direto em emergências).
+
+**Implicação prática pros marcos restantes deste plano:**
+- Sub-marco 4.I, Marco 5, Marco 6, Marco 7 — todos os PRs apontam pra `development`.
+- Quando um conjunto de marcos estiver estável em `development`, abre-se um release PR `development → main` pra promover.
+- Marco 7 (cutover) é a primeira release PR que efetivamente troca a UI servida — o último de muitas mergeagens em development.
+
+**Setup operacional** (já feito):
+- Branch `development` criada apontando pro HEAD de `main` em 2026-06-16.
+- Protections aplicadas via `gh api -X PUT /repos/.../branches/<branch>/protection`.
+- PRs #51, #55, #56 retargetados pra `development`.
+- Workflow `ci.yml` ajustado pra rodar em PRs contra `development`.
+- Workflow `deploy.yml` continua disparando apenas em `push: branches: [main]`.
 
 **Trade-offs aceitos:**
 - ✅ Menos overhead de revisão, menos CI runs caros, `main` com histórico semântico claro.
