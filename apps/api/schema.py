@@ -16,9 +16,21 @@ from django.utils import timezone
 from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
+from apps.hymns.featured import hourly_featured
+from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
+from apps.users import models as user_models
 
 from .mutations import Mutation
-from .types import HymnAudioType, HymnBookType, HymnType, UserType
+from .types import (
+    HymnAudioType,
+    HymnBookType,
+    HymnType,
+    NotificationType,
+    SearchKind,
+    SearchResultsType,
+    UserProfileType,
+    UserType,
+)
 
 
 def _user(info: Info):
@@ -54,6 +66,60 @@ class Query:
     def current_user(self, info: Info) -> Optional[UserType]:
         user = _user(info)
         return user if getattr(user, "is_authenticated", False) else None
+
+    @strawberry.field
+    def user_profile(self, username: str) -> Optional[UserProfileType]:
+        """Perfil público do usuário (`None` se username não existir)."""
+        user = user_models.User.objects.filter(username=username).first()
+        if user is None:
+            return None
+        return UserProfileType(user=user)
+
+    @strawberry.field
+    def notifications(self, info: Info, unread_only: bool = False) -> list[NotificationType]:
+        """Feed de notificações do usuário autenticado.
+
+        Anônimo recebe erro de permissão (não há `notifications` global). É
+        uma queries com efeito de "self-read", então faz sentido como
+        exception (não union) — o cliente nunca vai querer renderizar feed
+        sem login.
+        """
+        user = _user(info)
+        if not getattr(user, "is_authenticated", False):
+            from graphql import GraphQLError
+
+            raise GraphQLError("Autenticação necessária para listar notificações.")
+        qs = user_models.Notification.objects.filter(recipient=user)
+        if unread_only:
+            qs = qs.filter(is_read=False)
+        return list(qs.order_by("-created_at"))
+
+    @strawberry.field
+    def hourly_featured(self, info: Info) -> list[HymnBookType]:
+        """Hinários "em destaque" da home, com sample determinístico por hora.
+
+        Reusa `apps.hymns.featured.hourly_featured` — mesma seed/ordering
+        prevista pelo `_hourly_featured` do monolito (a versão do worktree
+        ainda não tem `is_featured`, então o helper devolve um sample puro)."""
+        visible_qs = hymn_models.HymnBook.objects.visible_to(_user(info))
+        return hourly_featured(visible_qs, n=6)
+
+    @strawberry.field
+    def search(self, info: Info, q: str, kind: SearchKind = SearchKind.ALL) -> SearchResultsType:
+        """Busca unificada hinos/hinários.
+
+        Reusa `apps.hymns.search.build_*_search_qs` (FTS + trigram no Postgres)
+        — mesma lógica de `apps/hymns/views.py::search_view`. `kind` zera o
+        bucket que não foi pedido. Visibilidade segue `HymnBook.visible_to`.
+        """
+        user = _user(info)
+        hymns: list = []
+        hymnbooks: list = []
+        if kind in (SearchKind.ALL, SearchKind.HYMN):
+            hymns = list(build_hymn_search_qs(q, user)[:50])
+        if kind in (SearchKind.ALL, SearchKind.HYMNBOOK):
+            hymnbooks = list(build_book_search_qs(q, user)[:25])
+        return SearchResultsType(hymns=hymns, hymnbooks=hymnbooks)
 
     @strawberry.field
     def global_stats(self) -> GlobalStats:
