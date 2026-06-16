@@ -1,3 +1,5 @@
+union ApproveAudioResult = HymnAudioType | PermissionDeniedError | NotFoundError
+
 union CreateHymnBookResult = HymnBookType | PermissionDeniedError | ValidationError
 
 union CreateHymnResult = HymnType | PermissionDeniedError | NotFoundError | ValidationError
@@ -127,6 +129,7 @@ type Mutation {
   deleteHymn(pk: ID!): DeleteHymnResult!
   quickReviewHymn(pk: ID!, style: String!, repetitions: String!): QuickReviewHymnResult!
   uploadAudio(hymnPk: ID!, file: Upload!, title: String, source: String, credits: String, allowDownload: Boolean): UploadAudioResult!
+  approveAudio(pk: ID!): ApproveAudioResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 

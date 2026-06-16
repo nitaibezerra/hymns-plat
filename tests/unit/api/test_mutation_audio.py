@@ -116,4 +116,47 @@ def test_upload_audio_anon_blocked(client, hymn_book_factory, hymn_factory):
     assert not HymnAudio.objects.filter(hymn=h).exists()
 
 
+# ---------- Ciclo 5A.11 — approveAudio ----------
+
+APPROVE_MUTATION = """
+mutation($pk: ID!) {
+  approveAudio(pk: $pk) {
+    __typename
+    ... on HymnAudioType { id }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+  }
+}
+"""
+
+
+def _make_audio(hymn, *, is_approved=False, uploaded_by=None):
+    return HymnAudio.objects.create(
+        hymn=hymn, audio_file="x.mp3", is_approved=is_approved, uploaded_by=uploaded_by
+    )
+
+
+def test_approve_audio_editor_succeeds(editor_client, hymn_book_factory, hymn_factory):
+    hb = hymn_book_factory()
+    h = hymn_factory(hymn_book=hb)
+    a = _make_audio(h, is_approved=False)
+
+    data = gql(editor_client, APPROVE_MUTATION, variables={"pk": str(a.pk)})
+    assert "errors" not in data, data
+    assert data["data"]["approveAudio"]["__typename"] == "HymnAudioType"
+    a.refresh_from_db()
+    assert a.is_approved is True
+
+
+def test_approve_audio_non_editor_blocked(authenticated_client, hymn_book_factory, hymn_factory):
+    hb = hymn_book_factory()
+    h = hymn_factory(hymn_book=hb)
+    a = _make_audio(h, is_approved=False)
+    data = gql(authenticated_client, APPROVE_MUTATION, variables={"pk": str(a.pk)})
+    assert "errors" not in data, data
+    assert data["data"]["approveAudio"]["__typename"] == "PermissionDeniedError"
+    a.refresh_from_db()
+    assert a.is_approved is False
+
+
 _ = gql  # silenciar import não-usado (mantemos pra outros ciclos do arquivo)
