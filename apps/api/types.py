@@ -72,6 +72,8 @@ class HymnBookType:
     name: strawberry.auto
     slug: strawberry.auto
     is_published: strawberry.auto
+    priority: strawberry.auto
+    is_featured: strawberry.auto
 
     @strawberry.field
     def stats(self) -> HymnBookStatsType:

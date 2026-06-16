@@ -283,3 +283,48 @@ def test_delete_hymnbook_cascade(editor_client, hymn_book_factory, hymn_factory)
     assert "errors" not in data, data
     assert data["data"]["deleteHymnBook"]["__typename"] == "DeleteResult"
     assert Hymn.objects.filter(hymn_book__slug="com-filhos").count() == 0
+
+
+# ---------- Ciclo 5A.6 — updateHymnBookEditorial ----------
+
+EDITORIAL_MUTATION = """
+mutation($slug: String!, $priority: String, $isFeatured: Boolean) {
+  updateHymnBookEditorial(slug: $slug, priority: $priority, isFeatured: $isFeatured) {
+    __typename
+    ... on HymnBookType { slug priority isFeatured }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+  }
+}
+"""
+
+
+def test_update_hymnbook_editorial_staff_succeeds(admin_client, hymn_book_factory):
+    hb = hymn_book_factory(name="Editorial", slug="editorial", priority="P3", is_featured=False)
+    data = gql(
+        admin_client,
+        EDITORIAL_MUTATION,
+        variables={"slug": hb.slug, "priority": "P1", "isFeatured": True},
+    )
+    assert "errors" not in data, data
+    result = data["data"]["updateHymnBookEditorial"]
+    assert result["__typename"] == "HymnBookType"
+    assert result["priority"] == "P1"
+    assert result["isFeatured"] is True
+    hb.refresh_from_db()
+    assert hb.priority == "P1"
+    assert hb.is_featured is True
+
+
+def test_update_hymnbook_editorial_non_staff_blocked(editor_client, hymn_book_factory):
+    """Editor comum (sem is_staff) não consegue mudar campos editoriais P1/featured."""
+    hb = hymn_book_factory(name="Locked", slug="locked", priority="P3")
+    data = gql(
+        editor_client,
+        EDITORIAL_MUTATION,
+        variables={"slug": hb.slug, "priority": "P1"},
+    )
+    assert "errors" not in data, data
+    assert data["data"]["updateHymnBookEditorial"]["__typename"] == "PermissionDeniedError"
+    hb.refresh_from_db()
+    assert hb.priority == "P3"

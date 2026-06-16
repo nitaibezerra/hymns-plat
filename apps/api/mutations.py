@@ -269,6 +269,41 @@ class Mutation:
         hymnbook.delete()
         return DeleteResult(ok=True, deleted_id=pk)
 
+    @strawberry.mutation(name="updateHymnBookEditorial")
+    def update_hymnbook_editorial(
+        self,
+        info: Info,
+        slug: str,
+        priority: str | None = strawberry.UNSET,
+        is_featured: bool | None = strawberry.UNSET,
+    ) -> Annotated[
+        Union[HymnBookType, PermissionDeniedError, NotFoundError],
+        strawberry.union("UpdateHymnBookEditorialResult"),
+    ]:
+        """Curadoria editorial (prioridade da fila + flag "em destaque"). Restrito
+        a `is_staff` — editor comum pode editar conteúdo do hinário, mas
+        curadoria global é decisão da equipe editorial."""
+        user = _request(info).user
+        if not getattr(user, "is_authenticated", False) or not user.is_staff:
+            return PermissionDeniedError()
+
+        hymnbook = hymn_models.HymnBook.objects.filter(slug=slug).first()
+        if hymnbook is None:
+            return NotFoundError()
+
+        update_fields: list[str] = []
+        if priority is not strawberry.UNSET and priority is not None:
+            if priority in hymn_models.HymnBook.Priority.values:
+                hymnbook.priority = priority
+                update_fields.append("priority")
+        if is_featured is not strawberry.UNSET and is_featured is not None:
+            hymnbook.is_featured = bool(is_featured)
+            update_fields.append("is_featured")
+        if update_fields:
+            update_fields.append("updated_at")
+            hymnbook.save(update_fields=update_fields)
+        return hymnbook
+
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[
         Union[ToggleFavoriteSuccess, PermissionDeniedError, NotFoundError],
