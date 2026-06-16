@@ -114,3 +114,4 @@ Ver documentação em `_plan/plano-implementacao.md`
 ## Licença
 
 TBD
+
