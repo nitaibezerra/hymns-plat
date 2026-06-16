@@ -126,6 +126,7 @@ type Mutation {
   createHymn(hymnbookSlug: String!, input: HymnInput!): CreateHymnResult!
   deleteHymn(pk: ID!): DeleteHymnResult!
   quickReviewHymn(pk: ID!, style: String!, repetitions: String!): QuickReviewHymnResult!
+  uploadAudio(hymnPk: ID!, file: Upload!, title: String, source: String, credits: String, allowDownload: Boolean): UploadAudioResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 
@@ -202,6 +203,11 @@ union UpdateHymnBookEditorialResult = HymnBookType | PermissionDeniedError | Not
 union UpdateHymnBookResult = HymnBookType | PermissionDeniedError | NotFoundError | ValidationError
 
 union UpdateHymnResult = HymnType | PermissionDeniedError | NotFoundError | ValidationError
+
+"""Represents a file upload."""
+scalar Upload
+
+union UploadAudioResult = HymnAudioType | PermissionDeniedError | NotFoundError | ValidationError
 
 type UserProfileType {
   user: UserType!

@@ -18,12 +18,13 @@ import strawberry
 from django.contrib.auth import authenticate
 from django.contrib.auth import login as django_login
 from django.contrib.auth import logout as django_logout
+from strawberry.file_uploads import Upload
 from strawberry.types import Info
 
 from django.utils import timezone
 
 from apps.hymns import models as hymn_models
-from apps.hymns.forms import HymnBookForm, HymnForm, QuickReviewForm
+from apps.hymns.forms import HymnAudioUploadForm, HymnBookForm, HymnForm, QuickReviewForm
 from apps.hymns.permissions import (
     _is_editor_or_admin,
     can_create_hymnbook,
@@ -35,6 +36,7 @@ from apps.hymns.services.review import publish_readiness
 from .errors import NotFoundError, PermissionDeniedError, ValidationError
 from .types import (
     DeleteResult,
+    HymnAudioType,
     HymnBookInput,
     HymnBookType,
     HymnInput,
@@ -396,6 +398,56 @@ class Mutation:
             return ValidationError(message=errors[0], field=field)
         form.save()
         return hymn
+
+    @strawberry.mutation(name="uploadAudio")
+    def upload_audio(
+        self,
+        info: Info,
+        hymn_pk: strawberry.ID,
+        file: Upload,
+        title: str | None = strawberry.UNSET,
+        source: str | None = strawberry.UNSET,
+        credits: str | None = strawberry.UNSET,
+        allow_download: bool | None = strawberry.UNSET,
+    ) -> Annotated[
+        Union[HymnAudioType, PermissionDeniedError, NotFoundError, ValidationError],
+        strawberry.union("UploadAudioResult"),
+    ]:
+        """Upload de áudio (paridade com `upload_audio` view). Multipart via
+        `strawberry.file_uploads.Upload`. Signal `_generate_waveform_for_audio`
+        dispara automaticamente após o save."""
+        user = _request(info).user
+        if not getattr(user, "is_authenticated", False):
+            return PermissionDeniedError(message="É preciso estar autenticado para enviar áudios.")
+
+        hymn = hymn_models.Hymn.objects.filter(pk=hymn_pk).first()
+        if hymn is None:
+            return NotFoundError()
+
+        form_data = {
+            "title": "" if title is strawberry.UNSET or title is None else title,
+            "source": "" if source is strawberry.UNSET or source is None else source,
+            "credits": "" if credits is strawberry.UNSET or credits is None else credits,
+            "allow_download": True if allow_download is strawberry.UNSET or allow_download is None else allow_download,
+        }
+        form = HymnAudioUploadForm(data=form_data, files={"audio_file": file})
+        if not form.is_valid():
+            field, errors = next(iter(form.errors.items()))
+            return ValidationError(message=errors[0], field=field)
+
+        audio = form.save(commit=False)
+        audio.hymn = hymn
+        audio.uploaded_by = user
+        name_lower = audio.audio_file.name.lower()
+        if name_lower.endswith(".mp3"):
+            audio.format = "MP3"
+        elif name_lower.endswith(".ogg"):
+            audio.format = "OGG"
+        elif name_lower.endswith(".flac"):
+            audio.format = "FLAC"
+        audio.file_size = audio.audio_file.size
+        audio.save()
+        return audio
 
     @strawberry.mutation
     def toggle_favorite(self, info: Info, hymn_pk: strawberry.ID) -> Annotated[
