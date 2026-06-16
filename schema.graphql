@@ -17,6 +17,8 @@ scalar Date
 """Date with time (isoformat)"""
 scalar DateTime
 
+union DeleteAudioResult = DeleteResult | PermissionDeniedError | NotFoundError
+
 union DeleteHymnBookResult = DeleteResult | PermissionDeniedError | NotFoundError
 
 union DeleteHymnResult = DeleteResult | PermissionDeniedError | NotFoundError
@@ -145,6 +147,7 @@ type Mutation {
   approveAudio(pk: ID!): ApproveAudioResult!
   rejectAudio(pk: ID!): RejectAudioResult!
   reviewAudio(pk: ID!, input: AudioReviewInput!): ReviewAudioResult!
+  deleteAudio(pk: ID!): DeleteAudioResult!
   toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
 }
 

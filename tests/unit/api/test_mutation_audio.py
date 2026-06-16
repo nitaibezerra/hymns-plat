@@ -283,4 +283,62 @@ def test_review_audio_non_editor_blocked(authenticated_client, hymn_book_factory
     assert data["data"]["reviewAudio"]["__typename"] == "PermissionDeniedError"
 
 
+# ---------- Ciclo 5A.14 — deleteAudio ----------
+
+DELETE_AUDIO_MUTATION = """
+mutation($pk: ID!) {
+  deleteAudio(pk: $pk) {
+    __typename
+    ... on DeleteResult { ok deletedId }
+    ... on PermissionDeniedError { message }
+    ... on NotFoundError { message }
+  }
+}
+"""
+
+
+def test_delete_audio_editor_succeeds(editor_client, hymn_book_factory, hymn_factory):
+    hb = hymn_book_factory()
+    h = hymn_factory(hymn_book=hb)
+    a = _make_audio(h)
+    pk = str(a.pk)
+
+    data = gql(editor_client, DELETE_AUDIO_MUTATION, variables={"pk": pk})
+    assert "errors" not in data, data
+    assert data["data"]["deleteAudio"]["__typename"] == "DeleteResult"
+    assert not HymnAudio.objects.filter(pk=pk).exists()
+
+
+def test_delete_audio_uploader_can_delete_own(
+    client, user_factory, hymn_book_factory, hymn_factory
+):
+    """Uploader pode deletar seu próprio áudio (mesmo sem ser editor)."""
+    hb = hymn_book_factory()
+    h = hymn_factory(hymn_book=hb)
+    uploader = user_factory(email="uploader@x.com")
+    a = _make_audio(h, uploaded_by=uploader)
+
+    client.force_login(uploader)
+    data = gql(client, DELETE_AUDIO_MUTATION, variables={"pk": str(a.pk)})
+    assert "errors" not in data, data
+    assert data["data"]["deleteAudio"]["__typename"] == "DeleteResult"
+
+
+def test_delete_audio_other_user_blocked(
+    client, user_factory, hymn_book_factory, hymn_factory
+):
+    """Outro usuário (não-editor, não-uploader) é bloqueado."""
+    hb = hymn_book_factory()
+    h = hymn_factory(hymn_book=hb)
+    uploader = user_factory(email="up@x.com")
+    other = user_factory(email="other@x.com")
+    a = _make_audio(h, uploaded_by=uploader)
+
+    client.force_login(other)
+    data = gql(client, DELETE_AUDIO_MUTATION, variables={"pk": str(a.pk)})
+    assert "errors" not in data, data
+    assert data["data"]["deleteAudio"]["__typename"] == "PermissionDeniedError"
+    assert HymnAudio.objects.filter(pk=a.pk).exists()
+
+
 _ = gql  # silenciar import não-usado (mantemos pra outros ciclos do arquivo)
