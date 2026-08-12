@@ -25,12 +25,10 @@ class TestBaseLayout:
         resp = client.get(reverse("hymns:home")).content.decode()
         assert "data-theme-toggle" in resp
 
-    def test_header_renders_nav_when_authenticated(self, authenticated_client):
+    def test_header_hides_contribuir_link(self, authenticated_client):
+        """Contribuir foi removido do menu principal (desktop e mobile)."""
         resp = authenticated_client.get(reverse("hymns:home")).content.decode()
-        # Fila de revisão saiu do nav central — vira CTA pill ao lado do avatar
-        # apenas para users com permissão de editor. Aqui pinamos só Contribuir,
-        # que continua no nav para qualquer authenticated user.
-        assert ">Contribuir<" in resp
+        assert ">Contribuir<" not in resp
 
     def test_header_hides_editor_cta_for_plain_authenticated(self, authenticated_client):
         """User sem perm de revisor não vê a CTA `Fila de revisão`."""
