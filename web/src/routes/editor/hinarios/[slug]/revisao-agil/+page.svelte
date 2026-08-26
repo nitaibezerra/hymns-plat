@@ -36,9 +36,12 @@
 
   let saving = $state(false);
   let error = $state<string | null>(null);
+  /** Virou true quando o último incompleto foi salvo nesta sessão (5E.4). */
+  let finished = $state(false);
 
   const detailHref = $derived(`/editor/hinarios/${data.hymnbook.slug}/`);
   const quickHref = $derived(`/editor/hinarios/${data.hymnbook.slug}/revisao-agil/`);
+  const done = $derived(finished || data.allComplete);
 
   /**
    * Grava os dois campos e pula pro próximo incompleto.
@@ -70,10 +73,15 @@
       error = next.error;
       return;
     }
-    // Nada incompleto sobrando: o hinário acabou (5E.4).
-    await goto(next.hymn ? `${quickHref}?h=${next.hymn.number}` : `${detailHref}?revisaoAgil=fim`, {
-      invalidateAll: true,
-    });
+    if (!next.hymn) {
+      // Acabou o hinário. O Django redireciona pro detalhe com um
+      // `messages.info`, mas a SPA não tem flash bag: um redirect aqui
+      // engoliria a mensagem. Mostramos a conclusão na própria tela, com o
+      // link de volta em destaque.
+      finished = true;
+      return;
+    }
+    await goto(`${quickHref}?h=${next.hymn.number}`, { invalidateAll: true });
   }
 
   /**
@@ -106,13 +114,29 @@
 
 <section class="quick-review" data-testid="quick-review-page">
   <header class="topbar">
-    <a class="back" href={`/editor/hinarios/${data.hymnbook.slug}/`}>← {data.hymnbook.name}</a>
+    <a class="back" href={detailHref}>← {data.hymnbook.name}</a>
     <div class="headline">
       <p class="screen-name">Revisão ágil · Estilo &amp; Repetições</p>
     </div>
   </header>
 
-  {#if data.current}
+  {#if data.hymns.length === 0}
+    <div class="panel" data-testid="quick-review-empty">
+      <p class="panel-message">Hinário sem hinos para revisar.</p>
+      <a class="panel-back" href={detailHref} data-testid="quick-review-empty-back">
+        Voltar para o hinário
+      </a>
+    </div>
+  {:else if done}
+    <div class="panel" data-testid="quick-review-done">
+      <p class="panel-message">
+        Você completou estilo e repetições de todos os hinos deste hinário.
+      </p>
+      <a class="panel-back" href={detailHref} data-testid="quick-review-done-back">
+        Voltar para o hinário
+      </a>
+    </div>
+  {:else if data.current}
     <div class="columns">
       <section class="preview" data-testid="quick-review-preview">
         <p class="eyebrow">Prévia · como o leitor vai ver</p>
@@ -271,5 +295,29 @@
   .submit[disabled] {
     cursor: progress;
     opacity: 0.6;
+  }
+  .panel {
+    align-items: start;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-soft);
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 2rem 1.5rem;
+    text-align: center;
+  }
+  .panel-message {
+    font-family: var(--font-display, serif);
+    font-size: 1.25rem;
+    margin: 0;
+  }
+  .panel-back {
+    background: var(--color-accent);
+    border-radius: var(--radius-pill, 9999px);
+    color: var(--color-bg);
+    font-size: 0.875rem;
+    padding: 0.625rem 1.25rem;
+    text-decoration: none;
   }
 </style>

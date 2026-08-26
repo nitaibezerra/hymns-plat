@@ -297,3 +297,81 @@ describe("/editor/hinarios/[slug]/revisao-agil — submit (5E.3)", () => {
     expect(body.query).toContain("quickReviewHymn");
   });
 });
+
+const ALL_COMPLETE = {
+  ...HYMNBOOK,
+  hymns: [hymn(1, "Marcha", "1-4"), hymn(2, "Valsa", "1-2,3-4")],
+};
+
+describe("/editor/hinarios/[slug]/revisao-agil — conclusão (5E.4)", () => {
+  it("a load marca o hinário como concluído quando nenhum hino está incompleto", async () => {
+    const ev = { ...event(), fetch: fakeFetch(payload(ALL_COMPLETE)) };
+    const result = await _loadQuickReview(ev);
+    expect(result.allComplete).toBe(true);
+  });
+
+  it("a load não marca concluído enquanto sobrar um incompleto", async () => {
+    const result = await _loadQuickReview(event());
+    expect(result.allComplete).toBe(false);
+  });
+
+  it("hinário sem hinos não conta como concluído", async () => {
+    const ev = { ...event(), fetch: fakeFetch(payload({ ...HYMNBOOK, hymns: [] })) };
+    const result = await _loadQuickReview(ev);
+    expect(result.allComplete).toBe(false);
+    expect(result.current).toBeNull();
+  });
+
+  it("mostra a mensagem de conclusão do Django quando tudo está completo", () => {
+    render(Page, {
+      props: {
+        data: pageData({ hymns: ALL_COMPLETE.hymns, current: ALL_COMPLETE.hymns[0], allComplete: true }),
+      },
+    });
+    expect(screen.getByTestId("quick-review-done")).toHaveTextContent(
+      /completou estilo e repetições de todos os hinos deste hinário/i,
+    );
+  });
+
+  it("a conclusão leva de volta pro hinário", () => {
+    render(Page, {
+      props: {
+        data: pageData({ hymns: ALL_COMPLETE.hymns, current: ALL_COMPLETE.hymns[0], allComplete: true }),
+      },
+    });
+    expect(screen.getByTestId("quick-review-done-back")).toHaveAttribute(
+      "href",
+      "/editor/hinarios/cruzeiro/",
+    );
+  });
+
+  it("esconde o formulário quando tudo está completo", () => {
+    render(Page, {
+      props: {
+        data: pageData({ hymns: ALL_COMPLETE.hymns, current: ALL_COMPLETE.hymns[0], allComplete: true }),
+      },
+    });
+    expect(screen.queryByTestId("quick-review-form")).toBeNull();
+  });
+
+  it("hinário sem hinos avisa e volta pro hinário", () => {
+    render(Page, { props: { data: pageData({ hymns: [], current: null }) } });
+    expect(screen.getByTestId("quick-review-empty")).toHaveTextContent(/sem hinos para revisar/i);
+    expect(screen.getByTestId("quick-review-empty-back")).toHaveAttribute(
+      "href",
+      "/editor/hinarios/cruzeiro/",
+    );
+  });
+
+  it("salvar o último hino incompleto cai na conclusão sem sair da tela", async () => {
+    stubSequence(savedPayload(), nextIncompletePayload(null));
+    render(Page, { props: { data: pageData() } });
+    await submit();
+    await waitFor(() =>
+      expect(screen.getByTestId("quick-review-done")).toHaveTextContent(
+        /completou estilo e repetições/i,
+      ),
+    );
+    expect(goto).not.toHaveBeenCalled();
+  });
+});

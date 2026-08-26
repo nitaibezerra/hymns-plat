@@ -44,6 +44,12 @@ export interface QuickReviewData {
   hymnbook: QuickReviewHymnbook;
   hymns: QuickReviewHymn[];
   current: QuickReviewHymn | null;
+  /**
+   * Todo hino do hinário já tem estilo E repetições. Hinário vazio é `false`:
+   * "não há o que revisar" é outro estado, com outra mensagem (o Django
+   * também os separa).
+   */
+  allComplete: boolean;
 }
 
 /**
@@ -109,6 +115,7 @@ export async function _loadQuickReview(event: {
     hymnbook,
     hymns,
     current: _pickCurrent(hymns, event.url.searchParams.get("h")),
+    allComplete: hymns.length > 0 && !hymns.some(_isIncomplete),
   };
 }
 
