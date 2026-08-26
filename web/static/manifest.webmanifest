@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "Hinaria — Portal de Hinários do Santo Daime",
+  "short_name": "Hinaria",
+  "description": "Leia as letras, ouça os áudios e acompanhe os hinos de cada hinário — também offline.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6EFE2",
+  "theme_color": "#F6EFE2",
+  "categories": ["music", "books", "education"]
+}
