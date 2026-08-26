@@ -37,32 +37,15 @@ def _annotate_card_counts(queryset):
 def _hourly_featured(visible_qs, n=6):
     """Sample determinístico por hora cheia para a seção 'Em destaque' da home.
 
-    Embaralha primeiro os `is_featured=True`; se sobrar espaço, completa
-    com os demais. A seed é o timestamp da hora cheia atual, então a
-    mesma seleção volta dentro da mesma hora e troca quando a hora vira.
+    Delegado: a regra canônica vive em `apps.hymns.featured.hourly_featured`
+    (era duplicada, e a cópia de lá havia perdido o passo do `is_featured`).
+    `now` é resolvido aqui de propósito, para que a seed continue observável
+    por quem mocka `apps.hymns.views.timezone.now`; `_annotate_card_counts`
+    entra como `annotate` pra alimentar os cards da home.
     """
-    import random
+    from .featured import hourly_featured
 
-    now = timezone.now()
-    seed = int(now.replace(minute=0, second=0, microsecond=0).timestamp())
-    rng = random.Random(seed)
-
-    featured_ids = [str(pk) for pk in visible_qs.filter(is_featured=True).values_list("id", flat=True)]
-    rng.shuffle(featured_ids)
-    selected = featured_ids[:n]
-
-    if len(selected) < n:
-        rest_ids = [str(pk) for pk in visible_qs.exclude(id__in=selected).values_list("id", flat=True)]
-        rng.shuffle(rest_ids)
-        selected.extend(rest_ids[: n - len(selected)])
-
-    if not selected:
-        return []
-
-    order = {pk: i for i, pk in enumerate(selected)}
-    books = list(_annotate_card_counts(visible_qs.filter(id__in=selected)))
-    books.sort(key=lambda b: order[str(b.id)])
-    return books
+    return hourly_featured(visible_qs, n=n, now=timezone.now(), annotate=_annotate_card_counts)
 
 
 class UnaccentFunc(Func):

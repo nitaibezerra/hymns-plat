@@ -125,9 +125,9 @@ class Query:
     def hourly_featured(self, info: Info) -> list[HymnBookType]:
         """Hinários "em destaque" da home, com sample determinístico por hora.
 
-        Reusa `apps.hymns.featured.hourly_featured` — mesma seed/ordering
-        prevista pelo `_hourly_featured` do monolito (a versão do worktree
-        ainda não tem `is_featured`, então o helper devolve um sample puro)."""
+        Reusa `apps.hymns.featured.hourly_featured`, a MESMA função que
+        `views.py::_hourly_featured` chama — então `is_featured` (curadoria do
+        admin / `updateHymnBookEditorial`) manda aqui igual manda na home."""
         visible_qs = hymn_models.HymnBook.objects.visible_to(_user(info))
         return hourly_featured(visible_qs, n=6)
 
