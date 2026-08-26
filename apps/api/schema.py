@@ -17,7 +17,13 @@ from django.utils import timezone
 from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
-from apps.hymns.editor_views import _editor_visible_books, _has_editor_access, _pending_audios_for
+from apps.hymns.editor_views import (
+    _editor_visible_books,
+    _has_editor_access,
+    _parse_sort,
+    _pending_audios_for,
+    _sort_expression,
+)
 from apps.hymns.featured import hourly_featured
 from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
 from apps.users import models as user_models
@@ -40,28 +46,18 @@ from .types import (
     UserType,
 )
 
-_SORT_COLUMN_TO_FIELD = {
-    "review_pct": F("review_pct"),
-    "name": F("name"),
-    "priority": F("priority"),
-    "created_at": F("created_at"),
-}
-
 
 def _build_sort_expressions(sort_inputs):
     """Converte lista de `SortInput` em lista de OrderBy aplicáveis ao qs.
 
-    Colunas/direções inválidas são silenciosamente filtradas — a UI controla
-    o vocabulário e deve mandar valores válidos."""
-    if not sort_inputs:
-        return []
-    out = []
-    for s in sort_inputs:
-        expr = _SORT_COLUMN_TO_FIELD.get(s.column)
-        if expr is None:
-            continue
-        out.append(expr.asc() if s.direction == "asc" else expr.desc())
-    return out
+    Serializa os pares no mesmo formato da URL do workspean(`metric:dir,...`)
+    e delega a `_parse_sort` + `_sort_expression` de `editor_views.py`: assim
+    o vocabulário (`review`, `comp`, `audio`, `recent`), a validação de direção,
+    a deduplicação (1ª ocorrência vence) e a ordem de prioridade dos cliques
+    são exatamente os mesmos do dashboard HTML — uma única fonte da verdade.
+    """
+    raw = ",".join(f"{s.column}:{s.direction}" for s in (sort_inputs or []))
+    return [expr for expr in (_sort_expression(m, d) for m, d in _parse_sort(raw)) if expr is not None]
 
 
 def _user(info: Info):
@@ -154,24 +150,30 @@ class Query:
 
     @strawberry.field(name="editorHymnbooks")
     def editor_hymnbooks(
-        self, info: Info, sort: list[SortInput] | None = None, priority: str | None = None
+        self, info: Info, sort: list[SortInput] | None = None, priority: str = "all"
     ) -> list[HymnBookType]:
         """Lista de hinários do workspace editorial.
 
-        Paridade conceitual com `editor_hymnbook_list`: usa `_editor_visible_books`
-        + `with_review_progress` pra anotar `review_pct` e permite multi-sort +
-        filter por prioridade. `name` como tie-breaker final é sempre aplicado.
+        Paridade de comportamento com `editor_hymnbook_list`: `_editor_visible_books`
+        + `with_review_progress()`, multi-sort no vocabulário dos chips
+        (`review`/`comp`/`audio`/`recent`) e filtro por prioridade.
+
+        `priority="all"` (default) não filtra e promove `priority` a sort
+        PRIMÁRIO — P1 antes de P2 antes de P3 — deixando os sorts do usuário
+        como secundários, igual à view. `name` fecha como tie-breaker estável.
         """
         user = _user(info)
         if not _has_editor_access(user):
             raise_permission_denied()
         qs = _editor_visible_books(user).with_review_progress()
-        if priority and priority in hymn_models.HymnBook.Priority.values:
+        if priority in hymn_models.HymnBook.Priority.values:
             qs = qs.filter(priority=priority)
-        order_args = _build_sort_expressions(sort or [])
+        order_args: list = []
+        if priority == "all":
+            order_args.append("priority")  # CharField P1/P2/P3 — asc = P1 primeiro
+        order_args.extend(_build_sort_expressions(sort or []))
         order_args.append(F("name").asc())
-        qs = qs.order_by(*order_args)
-        return list(qs)
+        return list(qs.order_by(*order_args))
 
     @strawberry.field(name="editorDashboardStats")
     def editor_dashboard_stats(self, info: Info) -> EditorDashboardStatsType:

@@ -39,8 +39,12 @@ def test_editor_hymnbooks_query_superuser_sees_all(admin_client, hymn_book_facto
     assert slugs == {"a", "b"}
 
 
-def test_editor_hymnbooks_sort_by_review_pct_desc(editor_client, hymn_book_factory, hymn_factory):
-    """Sort por review_pct desc: hinário com mais hinos revisados vem primeiro."""
+def test_editor_hymnbooks_sort_by_review_desc(editor_client, hymn_book_factory, hymn_factory):
+    """Sort por `review` desc: hinário com mais hinos revisados vem primeiro.
+
+    Tarefa B3 renomeou a coluna de `review_pct` para `review` — vocabulário
+    dos chips da URL do workspace. Cobertura exaustiva das 4 chaves fica em
+    `test_query_editor_sort.py`."""
     high = hymn_book_factory(name="High", slug="high")
     low = hymn_book_factory(name="Low", slug="low")
     h1 = hymn_factory(hymn_book=high, number=1)
@@ -54,7 +58,7 @@ def test_editor_hymnbooks_sort_by_review_pct_desc(editor_client, hymn_book_facto
     data = gql(
         editor_client,
         EDITOR_HYMNBOOKS,
-        variables={"sort": [{"column": "review_pct", "direction": "desc"}]},
+        variables={"sort": [{"column": "review", "direction": "desc"}]},
     )
     assert "errors" not in data, data
     slugs = [row["slug"] for row in data["data"]["editorHymnbooks"]]

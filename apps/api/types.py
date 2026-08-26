@@ -42,9 +42,12 @@ class HymnBookInput:
 class SortInput:
     """Par ordenado `(coluna, direção)` para ordenação multi-key.
 
-    Colunas suportadas em queries editoriais: `review_pct`, `name`, `priority`,
-    `created_at`. Direções: `"asc"` ou `"desc"`. Colunas inválidas são
-    ignoradas pelo resolver (não erro — degradação silenciosa)."""
+    Colunas suportadas em queries editoriais: `review`, `comp` (style+reps),
+    `audio` e `recent` — o MESMO vocabulário dos chips de sort da URL do
+    workspace (`?sort=review:asc,audio:desc`). Direções: `"asc"` ou `"desc"`.
+    A ordem da lista é a prioridade do ORDER BY (cliques mais antigos vencem).
+    Colunas/direções inválidas são ignoradas pelo resolver (não erro —
+    degradação silenciosa, igual à view)."""
 
     column: str
     direction: str
@@ -203,6 +206,20 @@ class HymnBookStatsType:
     audios_approved: int
 
 
+@strawberry.type
+class HymnBookReviewProgressType:
+    """As 4 métricas de completude anotadas por `HymnBookQuerySet.with_review_progress()`.
+
+    São exatamente as colunas que os chips de sort do dashboard usam
+    (`review`, `comp` = style+reps, `audio`), então o cliente consegue mostrar
+    o % que a ordenação usou."""
+
+    review_pct: int
+    style_pct: int
+    reps_pct: int
+    audio_pct: int
+
+
 @strawberry_django.type(hymn_models.HymnBook)
 class HymnBookType:
     id: strawberry.auto
@@ -211,6 +228,25 @@ class HymnBookType:
     is_published: strawberry.auto
     priority: strawberry.auto
     is_featured: strawberry.auto
+
+    @strawberry.field
+    def review_progress(self) -> HymnBookReviewProgressType:
+        """Percentuais de completude do hinário.
+
+        Quando a instância vem de um queryset já anotado (`editorHymnbooks`),
+        lê as anotações — zero query extra. Fora dele (`Query.hymnbook`,
+        `Query.search`) reanota a própria linha via `with_review_progress()`,
+        reusando o manager em vez de recalcular a regra aqui.
+        """
+        row = self
+        if not hasattr(row, "review_pct"):
+            row = hymn_models.HymnBook.objects.filter(pk=self.pk).with_review_progress().first() or self
+        return HymnBookReviewProgressType(
+            review_pct=getattr(row, "review_pct", 0) or 0,
+            style_pct=getattr(row, "style_pct", 0) or 0,
+            reps_pct=getattr(row, "reps_pct", 0) or 0,
+            audio_pct=getattr(row, "audio_pct", 0) or 0,
+        )
 
     @strawberry.field
     def stats(self) -> HymnBookStatsType:
