@@ -28,6 +28,53 @@ export const EDITOR_CURRENT_USER_QUERY = `
 `;
 
 /**
+ * Detalhe de um hinário na visão do editor.
+ *
+ * `hymnbook(slug:)` é a query pública, e é o certo aqui: ela usa
+ * `visible_to(user)`, então o editor vê o próprio rascunho não publicado
+ * enquanto o anônimo não vê nada — sem precisar de uma query paralela.
+ *
+ * `nextPendingHymn` (sem `currentPk`) é o primeiro hino não revisado do
+ * hinário — é o que alimenta o botão "Próximo pendente" (5B.9). Vem do
+ * backend porque a fila de revisão tem regra de wrap-around que não deve
+ * ser reimplementada no cliente.
+ */
+export const EDITOR_HYMNBOOK_DETAIL_QUERY = `
+  query EditorHymnBookDetail($slug: String!) {
+    hymnbook(slug: $slug) {
+      id
+      name
+      slug
+      ownerName
+      priority
+      isPublished
+      reviewProgress {
+        reviewPct
+        stylePct
+        repsPct
+        audioPct
+      }
+      stats {
+        hymnsTotal
+        hymnsReviewed
+        audiosApproved
+      }
+      nextPendingHymn {
+        id
+        number
+        title
+      }
+      hymns {
+        id
+        number
+        title
+        reviewStatus
+      }
+    }
+  }
+`;
+
+/**
  * Dashboard do editor num único round-trip: as stats agregadas + a fila de
  * hinários. São duas queries no mesmo documento de propósito — a tela não
  * renderiza metade útil, e um POST é mais barato que dois em SSR.
