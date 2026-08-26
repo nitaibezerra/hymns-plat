@@ -18,19 +18,7 @@ import { GRAPHQL_URL } from "$lib/config";
 import { gqlFetch } from "$lib/graphql/fetcher";
 import { OCR_DUPLICATES_QUERY } from "$lib/graphql/operations/contribuir";
 
-export interface DuplicateBook {
-  id: string;
-  name: string;
-  slug: string;
-  ownerName: string;
-  hymnsTotal: number;
-}
-
-export interface SimilarBook {
-  hymnbook: DuplicateBook;
-  nameScore: number;
-  contentScore: number;
-}
+import type { DuplicateBook, SimilarBook } from "$lib/components/contribuir/duplicates";
 
 export interface OcrDuplicates {
   exactMatch: DuplicateBook | null;
@@ -107,3 +95,5 @@ export async function fetchOcrDuplicates(
     unavailable: false,
   };
 }
+
+export type { DuplicateBook, SimilarBook };
