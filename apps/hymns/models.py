@@ -88,6 +88,16 @@ class HymnBook(models.Model):
         help_text="Define a urgência da revisão na fila de revisão (P1 = mais urgente).",
     )
 
+    # Contador monotônico de sincronização (Marco 6 — offline-first). Qualquer
+    # mudança em Hymn/HymnAudio deste hinário incrementa este valor via
+    # signal (F() + update()). O cliente offline compara o valor que tem em
+    # cache com o do servidor para saber se precisa re-sincronizar.
+    sync_version = models.PositiveIntegerField(
+        "Versão de sincronização",
+        default=0,
+        help_text="Incrementa a cada mudança em hinos/áudios. Usado pelo cliente offline.",
+    )
+
     created_at = models.DateTimeField("Criado em", auto_now_add=True)
     updated_at = models.DateTimeField("Atualizado em", auto_now=True)
 
