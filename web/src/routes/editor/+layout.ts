@@ -14,11 +14,17 @@
  * preservando o destino em `next`. Isso difere do shell raiz, que engole
  * erros e segue como anônimo — lá a UI pública funciona degradada, aqui
  * não existe workspace degradado.
+ *
+ * Consolidação (Frente B, B1): o usuário vem de `event.parent()`, ou seja da
+ * `CURRENT_USER_QUERY` que o layout raiz já executou — que agora pede
+ * `isEditor`. Antes o guard fazia uma query própria, um round-trip extra por
+ * navegação dentro de `/editor/`. Nada se perde na troca porque os quatro
+ * caminhos de negativa desembocam no mesmo lugar: o shell engole erro de
+ * permissão e queda de backend virando `currentUser: null`, e `null` aqui já
+ * significava redirect. O guard não distingue "anônimo" de "backend fora do
+ * ar" — nunca distinguiu.
  */
 
-import { GRAPHQL_URL } from "$lib/config";
-import { gqlFetch } from "$lib/graphql/fetcher";
-import { EDITOR_CURRENT_USER_QUERY } from "$lib/graphql/operations/editor-dashboard";
 import { redirect } from "@sveltejs/kit";
 
 import type { LayoutLoad } from "./$types";
@@ -83,33 +89,45 @@ export function _editorReviseHref(hymnPk: string): string {
   return `/editor/hinos/${hymnPk}/revisar/`;
 }
 
+/**
+ * Valida em runtime o `currentUser` que desceu do shell.
+ *
+ * Por que não confiar no tipo: `LayoutUser` (em `src/routes/+layout.ts`)
+ * declara só `id`/`username`/`email` — o `isEditor` está no wire, não na
+ * interface. Em vez de assumir a forma, o guard checa: qualquer coisa que
+ * não seja um usuário com `isEditor === true` é negativa. Assim um campo
+ * ausente (schema mudou, resolver parcial) fecha a porta em vez de abri-la.
+ */
+export function _asEditor(candidate: unknown): EditorUser | null {
+  if (typeof candidate !== "object" || candidate === null) return null;
+  const user = candidate as Partial<EditorUser>;
+  if (typeof user.id !== "string" || typeof user.username !== "string") return null;
+  if (user.isEditor !== true) return null;
+  return { id: user.id, username: user.username, isEditor: true };
+}
+
 export async function _loadEditorLayout(event: {
-  fetch: typeof globalThis.fetch;
+  parent: () => Promise<{ currentUser?: unknown }>;
   url: URL;
 }): Promise<EditorLayoutData> {
   const target = _editorLoginRedirect(event.url.pathname);
 
-  let user: EditorUser | null = null;
+  let editor: EditorUser | null = null;
   try {
-    const response = await gqlFetch<{ currentUser: EditorUser | null }>(
-      event.fetch,
-      GRAPHQL_URL,
-      EDITOR_CURRENT_USER_QUERY,
-    );
-    if (response.errors?.length) {
-      throw redirect(302, target);
-    }
-    user = response.data?.currentUser ?? null;
+    const { currentUser } = await event.parent();
+    editor = _asEditor(currentUser);
   } catch (error: unknown) {
     // `redirect()` do SvelteKit é um throw legítimo — repassa intacto.
     if (isRedirect(error)) throw error;
+    // O shell engole os próprios erros, então cair aqui é anomalia; ainda
+    // assim, sem editor confirmado não existe workspace.
     throw redirect(302, target);
   }
 
-  if (!user?.isEditor) {
+  if (!editor) {
     throw redirect(302, target);
   }
-  return { editor: user };
+  return { editor };
 }
 
 function isRedirect(error: unknown): boolean {

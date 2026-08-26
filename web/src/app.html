@@ -2,10 +2,13 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <!-- TODO(Marco 6): `static/favicon.png` e os ícones do manifest ainda não
-         existem — não há arte de marca no repo. Gap registrado em
-         `_plan/marco6-decisoes.md` (seção "Ícones PWA"). -->
+    <!-- Ícones: monograma tipográfico gerado por `scripts/gerar-icones.mjs`
+         a partir do design system (o glifo `h` da Cormorant Garamond 600).
+         Raciocínio e geometrias em `_plan/marco6-decisoes.md`, seção 6. -->
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
+    <!-- O iOS acha `/apple-touch-icon.png` por convenção e ignora os ícones
+         do manifest; a tag deixa a dependência explícita. -->
+    <link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
     <!-- Dois theme-color: a UI do navegador acompanha claro/escuro. Valores
