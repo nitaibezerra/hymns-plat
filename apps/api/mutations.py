@@ -176,6 +176,11 @@ class Mutation:
 
         hymn.review_status = status.value if hasattr(status, "value") else status
         hymn.last_reviewed_by = user
+        # `last_reviewed_at` anda junto com `last_reviewed_by` — é o que
+        # `hymn_review_view` (views.py) e `editor_hymn_review` (editor_views.py)
+        # fazem. Sem isso o hino marcado REVIEWED via GraphQL ficava com
+        # timestamp nulo/velho e as telas de revisão mentiam a data.
+        hymn.last_reviewed_at = timezone.now()
         hymn.save()
         return hymn
 
