@@ -17,10 +17,12 @@ from django.utils import timezone
 from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
+from apps.hymns.editor_views import _editor_visible_books, _has_editor_access, _pending_audios_for
 from apps.hymns.featured import hourly_featured
 from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
 from apps.users import models as user_models
 
+from .errors import raise_permission_denied
 from .mutations import Mutation
 from .types import (
     EditorDashboardStatsType,
@@ -37,17 +39,6 @@ from .types import (
     UserProfileType,
     UserType,
 )
-
-
-def _editor_visible_books(user):
-    """Espelha o helper de `editor_views.py`: editor/admin vê tudo,
-    dono comum vê só os seus."""
-    if not getattr(user, "is_authenticated", False):
-        return hymn_models.HymnBook.objects.none()
-    if user.is_superuser or user.has_perm("hymns.can_review_any_hymnbook"):
-        return hymn_models.HymnBook.objects.all()
-    return hymn_models.HymnBook.objects.filter(owner_user=user)
-
 
 _SORT_COLUMN_TO_FIELD = {
     "review_pct": F("review_pct"),
@@ -172,6 +163,8 @@ class Query:
         filter por prioridade. `name` como tie-breaker final é sempre aplicado.
         """
         user = _user(info)
+        if not _has_editor_access(user):
+            raise_permission_denied()
         qs = _editor_visible_books(user).with_review_progress()
         if priority and priority in hymn_models.HymnBook.Priority.values:
             qs = qs.filter(priority=priority)
@@ -185,9 +178,11 @@ class Query:
         """Stats agregadas do workspace (paridade com `editor_hymnbook_list` stats inline)."""
         from datetime import timedelta
 
-        from apps.hymns.models import HymnAudio, HymnRevision
+        from apps.hymns.models import HymnRevision
 
         user = _user(info)
+        if not _has_editor_access(user):
+            raise_permission_denied()
         visible_qs = _editor_visible_books(user)
         visible_ids = list(visible_qs.values_list("pk", flat=True))
 
@@ -205,22 +200,16 @@ class Query:
         ).count()
         p1 = visible_qs.filter(priority=hymn_models.HymnBook.Priority.P1).count()
 
-        pending_audios = (
-            HymnAudio.objects.filter(is_approved=False, hymn__hymn_book_id__in=visible_ids).count()
-            if getattr(user, "is_authenticated", False)
-            else 0
-        )
+        pending_audios = _pending_audios_for(user).count()
 
-        resume_hymn = None
-        if getattr(user, "is_authenticated", False):
-            rev = (
-                HymnRevision.objects.filter(revised_by=user)
-                .exclude(hymn__review_status=hymn_models.Hymn.ReviewStatus.REVIEWED)
-                .select_related("hymn")
-                .order_by("-revised_at")
-                .first()
-            )
-            resume_hymn = rev.hymn if rev else None
+        rev = (
+            HymnRevision.objects.filter(revised_by=user)
+            .exclude(hymn__review_status=hymn_models.Hymn.ReviewStatus.REVIEWED)
+            .select_related("hymn")
+            .order_by("-revised_at")
+            .first()
+        )
+        resume_hymn = rev.hymn if rev else None
 
         return EditorDashboardStatsType(
             total_hinarios=total,
@@ -233,16 +222,14 @@ class Query:
 
     @strawberry.field(name="pendingAudios")
     def pending_audios(self, info: Info) -> list[HymnAudioType]:
-        """Áudios aguardando aprovação que o usuário pode revisar."""
-        from apps.hymns.models import HymnAudio
+        """Áudios aguardando aprovação que o usuário pode revisar.
 
+        Reusa `_pending_audios_for` de `editor_views` — mesma regra de escopo
+        que a tela `/editor/audios-pendentes/`."""
         user = _user(info)
-        if not getattr(user, "is_authenticated", False):
-            return []
-        qs = HymnAudio.objects.filter(is_approved=False).select_related("hymn__hymn_book")
-        if user.is_superuser or user.has_perm("hymns.can_review_any_hymnbook"):
-            return list(qs.order_by("-created_at"))
-        return list(qs.filter(hymn__hymn_book__owner_user=user).order_by("-created_at"))
+        if not _has_editor_access(user):
+            raise_permission_denied()
+        return list(_pending_audios_for(user).order_by("-created_at"))
 
     @strawberry.field(name="publishReadiness")
     def publish_readiness_query(self, info: Info, slug: str) -> Optional[PublishReadinessType]:
