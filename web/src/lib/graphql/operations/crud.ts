@@ -225,6 +225,26 @@ export interface HymnBookRef {
   name: string;
 }
 
+/**
+ * Form de edição. `description`, `ownerName`, `introName` e `coverImage` só
+ * existem em `HymnBookType` desde o 5.A½ — antes disso o form de edição não
+ * tinha como pré-popular nada além do nome.
+ */
+export const HYMNBOOK_FORM_QUERY = `
+  query HymnBookForm($slug: String!) {
+    hymnbook(slug: $slug) {
+      id
+      name
+      slug
+      introName
+      ownerName
+      description
+      coverImage
+      isPublished
+    }
+  }
+`;
+
 export const CREATE_HYMNBOOK_MUTATION = `
   mutation CreateHymnBook($input: HymnBookInput!) {
     createHymnBook(input: $input) {
