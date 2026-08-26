@@ -4,10 +4,14 @@ Django signals do app hymns.
 1. Mantêm `Hymn.search_vector` atualizado via PostgreSQL FTS (sem TypeSense).
 2. Marco 1.3 — gravam `HymnRevision` em cada UPDATE editorial de `Hymn`,
    capturando o diff dos campos alterados para a trilha de auditoria.
+3. Marco 6 (pré-requisito) — incrementam `HymnBook.sync_version` a cada
+   mudança em `Hymn`/`HymnAudio`, para o cliente offline saber que o hinário
+   que tem em cache ficou obsoleto.
 """
 
 from django.db import connection
-from django.db.models.signals import post_save, pre_save
+from django.db.models import F
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
 from .models import Hymn, HymnAudio, HymnBook, HymnRevision
@@ -159,3 +163,76 @@ def _generate_waveform_for_audio(sender, instance, created, raw=False, **kwargs)
     if not instance.audio_file:
         return
     audio_service._run_in_thread(audio_service.populate_waveform_for_audio, instance.pk)
+
+
+# --------------------------------------------------------------------------- #
+# Marco 6 — HymnBook.sync_version
+# --------------------------------------------------------------------------- #
+#
+# O incremento usa `F()` + `.update()` de propósito:
+# - `.update()` não dispara `post_save` de `HymnBook`, então não há cascata de
+#   signals (nem re-cômputo desnecessário dos search vectors dos filhos);
+# - `F()` resolve o incremento no banco, então duas transações concorrentes não
+#   se sobrescrevem (o que aconteceria com `instance.sync_version += 1; save()`).
+
+
+def _bump_sync_version(hymn_book_id):
+    """Incrementa o contador de sincronização de um hinário, se ele existir."""
+    if not hymn_book_id:
+        return
+    HymnBook.objects.filter(pk=hymn_book_id).update(sync_version=F("sync_version") + 1)
+
+
+def _hymn_book_id_for_audio(instance):
+    """
+    Descobre o hinário de um áudio sem materializar o `Hymn` inteiro.
+
+    Durante o cascade de `Hymn.delete()` os áudios são removidos antes do hino,
+    mas o hino já pode ter desaparecido em outros caminhos (ex.: cascade a
+    partir do próprio hinário). Nesse caso devolve `None` e o bump é ignorado.
+    """
+    if not instance.hymn_id:
+        return None
+    return Hymn.objects.filter(pk=instance.hymn_id).values_list("hymn_book_id", flat=True).first()
+
+
+@receiver(pre_save, sender=HymnBook)
+def _preserve_sync_version_on_hymnbook_save(sender, instance, raw=False, **kwargs):
+    """
+    Protege o contador de saves que carregam uma instância stale.
+
+    Um `HymnBook` lido antes de um bump guarda o valor antigo em memória; um
+    `save()` completo (o que as views/forms editoriais fazem) reescreveria
+    esse valor e faria o contador ANDAR PRA TRÁS — o cliente offline nunca
+    perceberia que o cache dele expirou. Aqui o valor é relido do banco
+    imediatamente antes do UPDATE.
+    """
+    if raw or not instance.pk:
+        return
+    atual = HymnBook.objects.filter(pk=instance.pk).values_list("sync_version", flat=True).first()
+    if atual is not None:
+        instance.sync_version = atual
+
+
+@receiver(post_save, sender=Hymn)
+def _bump_sync_version_on_hymn_save(sender, instance, raw=False, **kwargs):
+    if raw:
+        return
+    _bump_sync_version(instance.hymn_book_id)
+
+
+@receiver(post_delete, sender=Hymn)
+def _bump_sync_version_on_hymn_delete(sender, instance, **kwargs):
+    _bump_sync_version(instance.hymn_book_id)
+
+
+@receiver(post_save, sender=HymnAudio)
+def _bump_sync_version_on_audio_save(sender, instance, raw=False, **kwargs):
+    if raw:
+        return
+    _bump_sync_version(_hymn_book_id_for_audio(instance))
+
+
+@receiver(post_delete, sender=HymnAudio)
+def _bump_sync_version_on_audio_delete(sender, instance, **kwargs):
+    _bump_sync_version(_hymn_book_id_for_audio(instance))

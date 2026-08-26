@@ -15,36 +15,42 @@ import enum
 import strawberry
 import strawberry_django
 from django.db.models import Count, Q
+from strawberry.file_uploads import Upload
 from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
-from apps.hymns.permissions import _is_editor_or_admin
 from apps.users import models as user_models
 
-
-def _user_from_info(info: Info):
-    """Atalho pra extrair `request.user` do contexto Strawberry."""
-    request = info.context["request"] if isinstance(info.context, dict) else info.context.request
-    return request.user
+from .context import user_from_info
+from .permissions import is_editor_or_admin
 
 
 @strawberry.input
 class HymnBookInput:
-    """Payload de criação/edição de HymnBook — espelha `HymnBookForm.Meta.fields`."""
+    """Payload de criação/edição de HymnBook — espelha `HymnBookForm.Meta.fields`.
+
+    `cover_image` é arquivo: usa o scalar `Upload` e chega pelo multipart spec
+    do GraphQL (igual a `uploadAudio`). Deixá-lo UNSET preserva a capa atual —
+    mesma regra de UNSET dos demais campos opcionais.
+    """
 
     name: str
     owner_name: str
     intro_name: str | None = strawberry.UNSET
     description: str | None = strawberry.UNSET
+    cover_image: Upload | None = strawberry.UNSET
 
 
 @strawberry.input
 class SortInput:
     """Par ordenado `(coluna, direção)` para ordenação multi-key.
 
-    Colunas suportadas em queries editoriais: `review_pct`, `name`, `priority`,
-    `created_at`. Direções: `"asc"` ou `"desc"`. Colunas inválidas são
-    ignoradas pelo resolver (não erro — degradação silenciosa)."""
+    Colunas suportadas em queries editoriais: `review`, `comp` (style+reps),
+    `audio` e `recent` — o MESMO vocabulário dos chips de sort da URL do
+    workspace (`?sort=review:asc,audio:desc`). Direções: `"asc"` ou `"desc"`.
+    A ordem da lista é a prioridade do ORDER BY (cliques mais antigos vencem).
+    Colunas/direções inválidas são ignoradas pelo resolver (não erro —
+    degradação silenciosa, igual à view)."""
 
     column: str
     direction: str
@@ -155,7 +161,11 @@ class OCRTaskType:
     total_pages: int
     error_message: str
     pdf_filename: str
-    result_data: strawberry.scalars.JSON
+    # `OCRTask.result_data` é `null=True`: task pendente/processando ainda não
+    # tem resultado. Declarar como JSON! estourava
+    # "Cannot return null for non-nullable field" na primeira consulta a uma
+    # task que ainda não terminou.
+    result_data: strawberry.scalars.JSON | None
 
     @strawberry.field
     def progress_pct(self) -> int:
@@ -203,14 +213,66 @@ class HymnBookStatsType:
     audios_approved: int
 
 
+@strawberry.type
+class HymnBookReviewProgressType:
+    """As 4 métricas de completude anotadas por `HymnBookQuerySet.with_review_progress()`.
+
+    São exatamente as colunas que os chips de sort do dashboard usam
+    (`review`, `comp` = style+reps, `audio`), então o cliente consegue mostrar
+    o % que a ordenação usou."""
+
+    review_pct: int
+    style_pct: int
+    reps_pct: int
+    audio_pct: int
+
+
 @strawberry_django.type(hymn_models.HymnBook)
 class HymnBookType:
     id: strawberry.auto
     name: strawberry.auto
     slug: strawberry.auto
+    intro_name: strawberry.auto
+    owner_name: strawberry.auto
+    description: strawberry.auto
     is_published: strawberry.auto
+    published_at: strawberry.auto
     priority: strawberry.auto
     is_featured: strawberry.auto
+    created_at: strawberry.auto
+
+    @strawberry.field
+    def cover_image(self) -> str | None:
+        """URL da capa no storage ativo (`None` quando o hinário não tem capa).
+
+        Devolve URL em vez do path porque em produção o storage é R2 e o
+        cliente precisa do domínio de mídia."""
+        return self.cover_image.url if self.cover_image else None
+
+    @strawberry.field
+    def published_by(self) -> "UserType | None":
+        """Quem publicou (`None` em rascunho, ou se o usuário foi removido —
+        a FK é SET_NULL)."""
+        return self.published_by
+
+    @strawberry.field
+    def review_progress(self) -> HymnBookReviewProgressType:
+        """Percentuais de completude do hinário.
+
+        Quando a instância vem de um queryset já anotado (`editorHymnbooks`),
+        lê as anotações — zero query extra. Fora dele (`Query.hymnbook`,
+        `Query.search`) reanota a própria linha via `with_review_progress()`,
+        reusando o manager em vez de recalcular a regra aqui.
+        """
+        row = self
+        if not hasattr(row, "review_pct"):
+            row = hymn_models.HymnBook.objects.filter(pk=self.pk).with_review_progress().first() or self
+        return HymnBookReviewProgressType(
+            review_pct=getattr(row, "review_pct", 0) or 0,
+            style_pct=getattr(row, "style_pct", 0) or 0,
+            reps_pct=getattr(row, "reps_pct", 0) or 0,
+            audio_pct=getattr(row, "audio_pct", 0) or 0,
+        )
 
     @strawberry.field
     def stats(self) -> HymnBookStatsType:
@@ -287,7 +349,35 @@ class HymnType:
     section: strawberry.auto
     source: strawberry.auto
     ocr_text: strawberry.auto
+    received_at: strawberry.auto
+    last_reviewed_at: strawberry.auto
     review_status: ReviewStatus
+
+    @strawberry.field
+    def last_reviewed_by(self) -> "UserType | None":
+        """Quem assinou a última revisão (`None` se nunca revisado ou se o
+        usuário foi removido — a FK é SET_NULL)."""
+        return self.last_reviewed_by
+
+    @strawberry.field
+    def hymn_book(self) -> "HymnBookType":
+        """Hinário ao qual o hino pertence.
+
+        Não-nulável: `Hymn.hymn_book` é FK obrigatória com CASCADE. É o campo
+        que permite breadcrumb, desambiguação por número e resultados de busca
+        dizerem de onde cada hino veio."""
+        return self.hymn_book
+
+    @strawberry.field
+    def is_favorited(self, info: Info) -> bool:
+        """True se o usuário da sessão favoritou este hino.
+
+        Contraparte de leitura da mutation `toggleFavorite`. Anônimo recebe
+        `False` — coração apagado é resposta natural, não erro."""
+        user = user_from_info(info)
+        if not getattr(user, "is_authenticated", False):
+            return False
+        return hymn_models.Favorite.objects.filter(user=user, hymn=self).exists()
 
     @strawberry.field
     def inline_diff(self) -> InlineDiffType | None:
@@ -364,7 +454,7 @@ class HymnType:
         Espelha a disambiguação que o monolito faz no detalhe do hino (links
         "este número aparece também em…"). Exclui o próprio hino.
         """
-        user = _user_from_info(info)
+        user = user_from_info(info)
         visible_books = hymn_models.HymnBook.objects.visible_to(user)
         return list(
             hymn_models.Hymn.objects.filter(number=self.number, hymn_book__in=visible_books)
@@ -383,11 +473,11 @@ class HymnType:
           vê todos; uploader autenticado vê os próprios (+ aprovados de qualquer
           um); anônimo segue restrito a aprovados.
         """
-        user = _user_from_info(info)
+        user = user_from_info(info)
         base = hymn_models.HymnAudio.objects.filter(hymn=self)
         if approved_only or not getattr(user, "is_authenticated", False):
             return list(base.filter(is_approved=True).order_by("-created_at"))
-        if _is_editor_or_admin(user):
+        if is_editor_or_admin(user):
             return list(base.order_by("-created_at"))
         return list(base.filter(Q(is_approved=True) | Q(uploaded_by=user)).order_by("-created_at"))
 
@@ -397,11 +487,33 @@ class HymnAudioType:
     id: strawberry.auto
     waveform_peaks: list[int]
     title: strawberry.auto
+    source: strawberry.auto
+    credits: strawberry.auto
+    recorded_at: strawberry.auto
+    format: strawberry.auto
+    file_size: strawberry.auto
+    allow_download: strawberry.auto
     is_approved: strawberry.auto
     is_match: strawberry.auto
     quality_rating: strawberry.auto
     quality_observations: list[str]
     mismatch_reason: strawberry.auto
+    reviewed_at: strawberry.auto
+    created_at: strawberry.auto
+
+    @strawberry.field
+    def hymn(self) -> "HymnType":
+        """Hino a que este áudio pertence.
+
+        Não-nulável (FK obrigatória com CASCADE). Sem ele a tela de áudios
+        pendentes recebia uma lista sem forma de identificar cada gravação."""
+        return self.hymn
+
+    @strawberry.field
+    def reviewed_by(self) -> "UserType | None":
+        """Quem revisou o áudio (`None` se ainda não revisado, ou se o usuário
+        foi removido — a FK é SET_NULL)."""
+        return self.reviewed_by
 
     @strawberry.field
     def url(self) -> str:
@@ -423,6 +535,14 @@ class UserType:
     id: strawberry.auto
     username: strawberry.auto
     email: strawberry.auto
+
+    @strawberry.field
+    def is_editor(self) -> bool:
+        """True quando o usuário tem papel editorial (grupo `editor` ou superuser).
+
+        Reusa `apps.api.permissions.is_editor_or_admin` — mesma regra que
+        gateia as views do workspace. O guard de rota do SPA depende disso."""
+        return is_editor_or_admin(self)
 
 
 @strawberry.enum
@@ -463,6 +583,12 @@ class NotificationType:
     link: str
     is_read: bool
     created_at: datetime.datetime
+
+    @strawberry.field
+    def sender(self) -> "UserType | None":
+        """Quem gerou a notificação. `None` em notificação de sistema (a FK é
+        `null=True`), como "áudio aprovado"."""
+        return self.sender
 
 
 @strawberry.type
@@ -514,7 +640,7 @@ class UserProfileType:
     @strawberry.field
     def is_followed_by_current_user(self, info: Info) -> bool:
         """True se o `currentUser` segue esse perfil. Anônimo recebe False."""
-        viewer = _user_from_info(info)
+        viewer = user_from_info(info)
         if not getattr(viewer, "is_authenticated", False):
             return False
         if viewer == self.user:
