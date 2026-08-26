@@ -3,9 +3,11 @@ name: CI
 on:
   pull_request:
     branches: [ main, development ]
-    paths-ignore:
-      - '_design/**'
-      - '_plan/**'
+    # Sem paths-ignore: `development` e `main` exigem os checks Lint/Unit/E2E,
+    # e um PR que so toca _plan/ ou _design/ nao dispara o workflow -- os
+    # contextos nunca reportam e a PR fica BLOCKED pra sempre. Rodar a suite
+    # inteira num PR de documentacao custa alguns minutos; PR travada custa
+    # commit de whitespace pra forcar o trigger (ja aconteceu duas vezes).
   workflow_dispatch:
 
 jobs:
