@@ -1,36 +1,58 @@
 <script lang="ts">
   /**
-   * Marco 4.E — stub mínimo de `HymnBody`.
+   * Marco 4.D — Ciclo 4D.3.
    *
-   * Renderiza a letra do hino preservando quebras de linha (whitespace pre-wrap)
-   * pra cobrir o caso do detalhe de hino enquanto o sub-marco 4.D (carrossel/
-   * reading modes) ainda não foi mergeado.
+   * Renderiza a letra de um hino linha por linha. Wrapper recebe a classe
+   * global `hymn-body-centered` que aplica `width: max-content` + `margin-
+   * inline: auto` (look "página-de-cantador" — bloco horizontal centralizado
+   * com versos alinhados à esquerda).
    *
-   * O 4.D vai sobrescrever este componente com a versão completa
-   * (centragem `width: max-content`, headings de verso, tags HTML sanitizadas
-   * etc.). Pra evitar conflito de merge, mantemos a interface enxuta:
-   *   - `body: string`     — texto bruto do hino (pode vir vazio enquanto o
-   *                          schema GraphQL não expõe `body`/`text`).
-   *   - `class`/`testid`   — passthrough opcional, sem comportamento extra.
+   * Compartilhado por `HymnCorrido`, `HymnCarousel` e (em 4.E) o detalhe
+   * individual do hino.
    */
-  let {
-    body = "",
-    class: className = "",
-  }: { body?: string; class?: string } = $props();
+
+  let { body }: { body: string | null | undefined } = $props();
+
+  // `split("\n")` preserva linhas em branco (estrofes). Quando body é
+  // null/undefined/"", renderiza sem itens.
+  let lines = $derived.by(() => {
+    if (!body) return [] as string[];
+    return body.split("\n");
+  });
 </script>
 
-<div class="hymn-body {className}" data-testid="hymn-body">{body}</div>
+<div data-testid="hymn-body" class="hymn-body hymn-body-centered">
+  {#each lines as line, i (i)}
+    <p data-testid="hymn-line" class="hymn-line">{line}</p>
+  {/each}
+</div>
 
 <style>
+  /* `width: max-content` + centralização ficam aqui (espelhando o monolito
+     `static/css/components.css` `.hymn-body-centered`). Versos left-aligned. */
   .hymn-body {
-    font-family: var(--font-serif);
-    font-size: 1.125rem;
-    line-height: 1.6;
-    white-space: pre-wrap;
+    text-align: center;
+  }
+  .hymn-body :global(.hymn-line),
+  .hymn-line {
+    display: block;
+    margin: 0;
     text-align: left;
-    width: max-content;
+  }
+  :global(.hymn-body-centered) {
+    text-align: center;
+  }
+  :global(.hymn-body-centered) > .hymn-line,
+  :global(.hymn-body-centered) :global(.hymn-line) {
+    display: block;
+    margin: 0;
+    text-align: left;
+  }
+  /* O bloco em si fica com largura do maior verso. */
+  .hymn-body {
+    display: block;
+    margin-inline: auto;
     max-width: 100%;
-    margin-left: auto;
-    margin-right: auto;
+    width: max-content;
   }
 </style>
