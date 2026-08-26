@@ -3,9 +3,10 @@
 # rodar contra ambos.
 #
 # Uso:
-#   ./scripts/dev-fullstack.sh           # sobe ambos e volta
+#   ./scripts/dev-fullstack.sh           # semeia, sobe ambos e volta
 #   ./scripts/dev-fullstack.sh down      # mata os dois
 #   ./scripts/dev-fullstack.sh env       # só imprime a config resolvida
+#   ./scripts/dev-fullstack.sh seed      # só (re)semeia o banco
 #
 # Pré-requisitos:
 #   - docker compose up -d  (Postgres + Redis no main worktree)
@@ -30,6 +31,15 @@
 #     pra dois worktrees não se atropelarem.
 #   - Espera as duas portas responderem (até 60s) e aborta se o processo que
 #     subimos morrer no meio.
+#   - **Semeia o banco antes de subir** (`manage.py seed_e2e`, Frente C).
+#     "Subir o ambiente" e "ter dados previsíveis" viram um passo só: sem
+#     isso, quem roda a suíte mede o banco que estiver por perto, que é
+#     justamente o que reprovou as duas tentativas anteriores de job de
+#     Playwright no CI. `SEED_E2E=0` desliga; `--reset` limpa o que corridas
+#     anteriores da suíte deixaram (`SEED_E2E_ARGS=--reset`).
+#   - A senha da fixture NÃO é impressa. `env` mostra só a origem dela
+#     (`ambiente` ou `default-de-dev`) — o suficiente pra diagnosticar
+#     "por que meu login falhou" sem despejar credencial em log de CI.
 
 set -euo pipefail
 
@@ -43,6 +53,21 @@ SVELTE_LOG="/tmp/hinaria-svelte-${SVELTE_PORT}.log"
 DJANGO_PID="/tmp/hinaria-django-${DJANGO_PORT}.pid"
 SVELTE_PID="/tmp/hinaria-svelte-${SVELTE_PORT}.pid"
 
+# --- fixture E2E (ver apps/hymns/management/commands/seed_e2e.py) -----------
+# Os defaults abaixo TÊM que bater com os do comando Django e com os de
+# `tests/e2e/_helpers/seed-fixture.ts`: são as três pontas do mesmo contrato.
+DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-config.settings.local}"
+SEED_E2E="${SEED_E2E:-1}"
+SEED_E2E_ARGS="${SEED_E2E_ARGS:-}"
+SEED_COMMAND="uv run python manage.py seed_e2e ${SEED_E2E_ARGS}"
+HINARIA_E2E_EDITOR_USERNAME="${HINARIA_E2E_EDITOR_USERNAME:-e2e-editor}"
+HINARIA_E2E_VIEWER_USERNAME="${HINARIA_E2E_VIEWER_USERNAME:-e2e-viewer}"
+if [[ -n "${HINARIA_E2E_PASSWORD:-}" ]]; then
+  HINARIA_E2E_PASSWORD_ORIGEM="ambiente"
+else
+  HINARIA_E2E_PASSWORD_ORIGEM="default-de-dev"
+fi
+
 print_env() {
   cat <<EOF
 DJANGO_REPO_ROOT=$DJANGO_REPO_ROOT
@@ -54,9 +79,27 @@ DJANGO_LOG=$DJANGO_LOG
 SVELTE_LOG=$SVELTE_LOG
 DJANGO_PID=$DJANGO_PID
 SVELTE_PID=$SVELTE_PID
+DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS_MODULE
+SEED_E2E=$SEED_E2E
+SEED_COMMAND=$SEED_COMMAND
+HINARIA_E2E_EDITOR_USERNAME=$HINARIA_E2E_EDITOR_USERNAME
+HINARIA_E2E_VIEWER_USERNAME=$HINARIA_E2E_VIEWER_USERNAME
+HINARIA_E2E_PASSWORD_ORIGEM=$HINARIA_E2E_PASSWORD_ORIGEM
 HINARIA_DJANGO_BASE_URL=http://localhost:$DJANGO_PORT
 HINARIA_SVELTE_BASE_URL=http://localhost:$SVELTE_PORT
 EOF
+}
+
+run_seed() {
+  if [[ "$SEED_E2E" != "1" ]]; then
+    echo "[dev-fullstack] SEED_E2E=$SEED_E2E — pulando o seed."
+    return 0
+  fi
+  echo "[dev-fullstack] semeando o banco ($SEED_COMMAND)..."
+  (
+    cd "$DJANGO_REPO_ROOT"
+    DJANGO_SETTINGS_MODULE="$DJANGO_SETTINGS_MODULE" $SEED_COMMAND
+  )
 }
 
 stop_all() {
@@ -118,6 +161,11 @@ case "${1:-up}" in
     stop_all
     exit 0
     ;;
+  seed)
+    SEED_E2E=1
+    run_seed
+    exit 0
+    ;;
 esac
 
 # limpa qualquer corrida anterior NOSSA (mesmas portas)
@@ -125,10 +173,15 @@ stop_all
 require_free_port "$DJANGO_PORT" "DJANGO"
 require_free_port "$SVELTE_PORT" "SVELTE"
 
+# Antes de subir: com o servidor no ar o seed continuaria funcionando, mas um
+# `runserver` que já respondeu request contra banco vazio confunde quem lê o
+# log. Semear primeiro deixa a ordem dos fatos legível.
+run_seed
+
 echo "[dev-fullstack] subindo Django em :$DJANGO_PORT ..."
 (
   cd "$DJANGO_REPO_ROOT"
-  DJANGO_SETTINGS_MODULE=config.settings.local \
+  DJANGO_SETTINGS_MODULE="$DJANGO_SETTINGS_MODULE" \
     uv run python manage.py runserver "$DJANGO_PORT" --noreload \
     > "$DJANGO_LOG" 2>&1 &
   echo $! > "$DJANGO_PID"
@@ -149,7 +202,16 @@ wait_port "$SVELTE_PORT" "SvelteKit" "$SVELTE_PID"
 echo "[dev-fullstack] tudo no ar."
 echo "  Django  → http://localhost:$DJANGO_PORT/ (log: $DJANGO_LOG)"
 echo "  Svelte  → http://localhost:$SVELTE_PORT/ (log: $SVELTE_LOG)"
-echo "  Suíte   → HINARIA_DJANGO_BASE_URL=http://localhost:$DJANGO_PORT \\"
-echo "            HINARIA_SVELTE_BASE_URL=http://localhost:$SVELTE_PORT \\"
-echo "            pnpm test:e2e:parity"
+echo "  Fixture → editor=$HINARIA_E2E_EDITOR_USERNAME comum=$HINARIA_E2E_VIEWER_USERNAME"
+echo "            senha: $HINARIA_E2E_PASSWORD_ORIGEM"
+echo "  Paridade → HINARIA_DJANGO_BASE_URL=http://localhost:$DJANGO_PORT \\"
+echo "             HINARIA_SVELTE_BASE_URL=http://localhost:$SVELTE_PORT \\"
+echo "             pnpm test:e2e:parity"
+echo "  Workspace → HINARIA_E2E_PLAYWRIGHT_READY=1 \\"
+echo "              HINARIA_SVELTE_BASE_URL=http://localhost:$SVELTE_PORT \\"
+echo "              HINARIA_DJANGO_BASE_URL=http://localhost:$DJANGO_PORT \\"
+echo "              pnpm exec playwright test --project=chromium \\"
+echo "                tests/e2e/editor-dashboard.spec.ts \\"
+echo "                tests/e2e/editor-crud.spec.ts \\"
+echo "                tests/e2e/revise-hymn.spec.ts"
 echo "  Pra parar: $0 down"
