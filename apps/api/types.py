@@ -225,9 +225,28 @@ class HymnBookType:
     id: strawberry.auto
     name: strawberry.auto
     slug: strawberry.auto
+    intro_name: strawberry.auto
+    owner_name: strawberry.auto
+    description: strawberry.auto
     is_published: strawberry.auto
+    published_at: strawberry.auto
     priority: strawberry.auto
     is_featured: strawberry.auto
+    created_at: strawberry.auto
+
+    @strawberry.field
+    def cover_image(self) -> str | None:
+        """URL da capa no storage ativo (`None` quando o hinário não tem capa).
+
+        Devolve URL em vez do path porque em produção o storage é R2 e o
+        cliente precisa do domínio de mídia."""
+        return self.cover_image.url if self.cover_image else None
+
+    @strawberry.field
+    def published_by(self) -> "UserType | None":
+        """Quem publicou (`None` em rascunho, ou se o usuário foi removido —
+        a FK é SET_NULL)."""
+        return self.published_by
 
     @strawberry.field
     def review_progress(self) -> HymnBookReviewProgressType:
