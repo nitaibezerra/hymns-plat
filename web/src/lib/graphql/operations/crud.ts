@@ -427,6 +427,30 @@ export function updateHymn(
   );
 }
 
+export const DELETE_HYMN_MUTATION = `
+  mutation DeleteHymn($pk: ID!) {
+    deleteHymn(pk: $pk) {
+      __typename
+      ... on DeleteResult { ok deletedId }
+      ... on PermissionDeniedError { message }
+      ... on NotFoundError { message }
+    }
+  }
+`;
+
+export function deleteHymn(
+  fetchFn: typeof globalThis.fetch,
+  pk: string,
+): Promise<MutationOutcome<DeleteRef>> {
+  return runMutation<DeleteRef>(
+    fetchFn,
+    DELETE_HYMN_MUTATION,
+    { pk },
+    "deleteHymn",
+    ["DeleteResult"],
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 5D.6 / 5D.7 — checklist e publicação
 // ---------------------------------------------------------------------------
