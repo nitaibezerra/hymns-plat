@@ -1,21 +1,23 @@
 """
 Roteamento do endpoint GraphQL.
 
-- POST /graphql/ é protegido por CSRF (middleware padrão do Django).
-- GET /graphql/ aplica `ensure_csrf_cookie` para que o cliente SPA possa
-  inicializar a sessão e ler o cookie `csrftoken` antes da primeira mutation.
+CSRF não é decidido aqui e nem pelo middleware: `csrf_exempt` tira o endpoint
+do `CsrfViewMiddleware` global e `GraphQLCsrfView` (apps/api/csrf.py) reintroduz
+a exigência DENTRO do pipeline, só quando a operação muda estado — query passa
+sem token (é o que o SSR do SvelteKit faz), mutation continua exigindo
+`X-CSRFToken`. O GET segue semeando o cookie `csrftoken`.
 """
 
 from __future__ import annotations
 
 from django.urls import path
-from django.views.decorators.csrf import ensure_csrf_cookie
-from strawberry.django.views import GraphQLView
+from django.views.decorators.csrf import csrf_exempt
 
+from .csrf import GraphQLCsrfView
 from .schema import schema
 
-graphql_view = ensure_csrf_cookie(
-    GraphQLView.as_view(schema=schema, graphql_ide="graphiql", multipart_uploads_enabled=True)
+graphql_view = csrf_exempt(
+    GraphQLCsrfView.as_view(schema=schema, graphql_ide="graphiql", multipart_uploads_enabled=True)
 )
 
 urlpatterns = [

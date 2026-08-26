@@ -43,6 +43,29 @@ describe("gqlFetch", () => {
     expect((init.headers as Record<string, string>)["X-CSRFToken"]).toBe("ABC");
   });
 
+  it("forwards the visitor cookie header when provided", async () => {
+    const fakeFetch = mockOk({ data: null });
+    await gqlFetch(fakeFetch, URL, "{ x }", undefined, {
+      cookie: "sessionid=abc123; csrftoken=def456",
+    });
+    const [, init] = fakeFetch.mock.calls[0];
+    expect((init.headers as Record<string, string>).cookie).toBe("sessionid=abc123; csrftoken=def456");
+  });
+
+  it("omits the cookie header when none is provided", async () => {
+    const fakeFetch = mockOk({ data: null });
+    await gqlFetch(fakeFetch, URL, "{ x }");
+    const [, init] = fakeFetch.mock.calls[0];
+    expect(init.headers as Record<string, string>).not.toHaveProperty("cookie");
+  });
+
+  it("omits the cookie header when the visitor has no cookies", async () => {
+    const fakeFetch = mockOk({ data: null });
+    await gqlFetch(fakeFetch, URL, "{ x }", undefined, { cookie: null });
+    const [, init] = fakeFetch.mock.calls[0];
+    expect(init.headers as Record<string, string>).not.toHaveProperty("cookie");
+  });
+
   it("returns the data envelope on success", async () => {
     const fakeFetch = mockOk({ data: { globalStats: { hymnbooks: 3 } } });
     const result = await gqlFetch<{ globalStats: { hymnbooks: number } }>(fakeFetch, URL, "{ ... }");

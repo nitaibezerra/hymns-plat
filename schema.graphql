@@ -53,7 +53,7 @@ type HeatmapBucketType {
 
 type HymnAudioType {
   id: UUID!
-  waveformPeaks: [Int!]!
+  waveformPeaks: [Float!]!
   title: String!
   source: String!
   credits: String!
@@ -108,6 +108,7 @@ type HymnBookType {
   priority: String!
   isFeatured: Boolean!
   createdAt: DateTime!
+  syncVersion: Int!
   coverImage: String
   publishedBy: UserType
   reviewProgress: HymnBookReviewProgressType!
