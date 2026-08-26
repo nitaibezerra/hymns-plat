@@ -8,7 +8,7 @@
    * Não navega e não recarrega listas: avisa `onuploaded` e quem embute
    * decide (invalidar a rota, fechar o drawer, mostrar toast).
    */
-  import { uploadAudio } from "$lib/graphql/operations/crud";
+  import { uploadAudio, validateAudioFile } from "$lib/graphql/operations/crud";
 
   export interface AudioTargetHymn {
     id: string;
@@ -36,17 +36,28 @@
   let uploading = $state(false);
   let error = $state<string | null>(null);
 
+  /**
+   * 5D.13 — valida na hora da escolha (feedback imediato) e de novo no
+   * submit (o input pode ser preenchido por drag-and-drop ou por script).
+   */
   function handleFileChange(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
     file = input.files && input.files.length > 0 ? input.files[0] : null;
-    error = null;
+    error = file ? validateAudioFile(file) : null;
   }
+
+  const fileInvalid = $derived(file !== null && validateAudioFile(file) !== null);
 
   async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
     if (uploading) return;
     if (!file) {
       error = "Selecione um arquivo de áudio.";
+      return;
+    }
+    const invalid = validateAudioFile(file);
+    if (invalid) {
+      error = invalid;
       return;
     }
 
@@ -131,7 +142,7 @@
       {/if}
 
       <div class="actions">
-        <button type="submit" disabled={uploading} data-testid="submit-upload">
+        <button type="submit" disabled={uploading || fileInvalid} data-testid="submit-upload">
           {uploading ? "Enviando…" : "Enviar"}
         </button>
         <button type="button" onclick={() => onclose?.()} data-testid="cancel-upload">

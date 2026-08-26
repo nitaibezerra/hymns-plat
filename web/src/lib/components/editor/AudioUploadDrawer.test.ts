@@ -159,3 +159,70 @@ describe("AudioUploadDrawer — envio (5D.12)", () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// 5D.13 — validação client-side de extensão e tamanho ANTES de subir
+// ---------------------------------------------------------------------------
+
+describe("AudioUploadDrawer — validação client-side (5D.13)", () => {
+  it("recusa extensão fora de mp3/ogg/flac sem chamar a mutation", async () => {
+    const fetchFn = stubFetch(OK_PAYLOAD);
+    renderDrawer();
+    await selectFile(makeFile("gravacao.wav", 2 * MB, "audio/wav"));
+    await fireEvent.submit(screen.getByTestId("audio-upload-form"));
+
+    expect(screen.getByTestId("upload-error")).toHaveTextContent(/mp3.*ogg.*flac/i);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("recusa arquivo acima de 25 MB sem chamar a mutation", async () => {
+    const fetchFn = stubFetch(OK_PAYLOAD);
+    renderDrawer();
+    await selectFile(makeFile("gravacao.mp3", 26 * MB));
+    await fireEvent.submit(screen.getByTestId("audio-upload-form"));
+
+    expect(screen.getByTestId("upload-error")).toHaveTextContent(/25 MB/i);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("aceita exatamente 25 MB", async () => {
+    const fetchFn = stubFetch(OK_PAYLOAD);
+    renderDrawer();
+    await selectFile(makeFile("gravacao.mp3", 25 * MB));
+    await fireEvent.submit(screen.getByTestId("audio-upload-form"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+  });
+
+  it("aceita extensão em maiúsculas (.MP3)", async () => {
+    const fetchFn = stubFetch(OK_PAYLOAD);
+    renderDrawer();
+    await selectFile(makeFile("GRAVACAO.MP3", 2 * MB));
+    await fireEvent.submit(screen.getByTestId("audio-upload-form"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+  });
+
+  it("mostra o erro assim que o arquivo inválido é escolhido (antes do submit)", async () => {
+    stubFetch(OK_PAYLOAD);
+    renderDrawer();
+    await selectFile(makeFile("gravacao.wav", 2 * MB, "audio/wav"));
+    expect(screen.getByTestId("upload-error")).toHaveTextContent(/mp3.*ogg.*flac/i);
+  });
+
+  it("limpa o erro quando um arquivo válido substitui o inválido", async () => {
+    stubFetch(OK_PAYLOAD);
+    renderDrawer();
+    await selectFile(makeFile("gravacao.wav", 2 * MB, "audio/wav"));
+    expect(screen.getByTestId("upload-error")).toBeInTheDocument();
+    await selectFile(makeFile("gravacao.ogg", 2 * MB, "audio/ogg"));
+    expect(screen.queryByTestId("upload-error")).not.toBeInTheDocument();
+  });
+
+  it("botão de enviar fica desabilitado enquanto o arquivo é inválido", async () => {
+    stubFetch(OK_PAYLOAD);
+    renderDrawer();
+    await selectFile(makeFile("gravacao.mp3", 30 * MB));
+    expect(screen.getByTestId("submit-upload")).toBeDisabled();
+  });
+});

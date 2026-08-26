@@ -431,6 +431,28 @@ export function updateHymn(
 // 5D.12 / 5D.13 — upload de áudio
 // ---------------------------------------------------------------------------
 
+export const AUDIO_ALLOWED_EXTENSIONS = ["mp3", "ogg", "flac"] as const;
+export const AUDIO_MAX_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Validação client-side do arquivo de áudio (5D.13). Roda ANTES do upload:
+ * subir 25 MB pra descobrir que a extensão é inválida seria cruel com quem
+ * está em conexão ruim. O backend continua validando — isto é conveniência,
+ * não segurança.
+ *
+ * Devolve `null` quando o arquivo passa, ou a mensagem em PT-BR pra exibir.
+ */
+export function validateAudioFile(file: File): string | null {
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (!AUDIO_ALLOWED_EXTENSIONS.includes(extension as (typeof AUDIO_ALLOWED_EXTENSIONS)[number])) {
+    return "Formato não aceito. Envie um arquivo MP3, OGG ou FLAC.";
+  }
+  if (file.size > AUDIO_MAX_BYTES) {
+    return "Arquivo muito grande. O tamanho máximo é 25 MB.";
+  }
+  return null;
+}
+
 export const UPLOAD_AUDIO_MUTATION = `
   mutation UploadAudio(
     $hymnPk: ID!
