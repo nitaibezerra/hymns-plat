@@ -1140,4 +1140,18 @@ Tempo →    Semana 1         Semana 2              Semana 3
 
 ## Próximo passo
 
-Após go-ahead, executar **Marco 1** (spike GraphQL read-only) numa branch `feat/api-graphql-spike`. Tempo estimado: 1 semana. Se Strawberry-Django se mostrar incompatível com alguma peça do domínio (ex: Wagtail Page polymorphism), revisar plano antes de seguir pro Marco 2.
+**Onde estamos (2026-08-26).** Marcos 1, 2 e 3 mergeados. Marco 4 com 4.A-4.H mergeados e 4.I em integração. Marco 5 com 5.A mergeado. `development` está com a SPA **sem compilar** por duas regressões do merge da fase F3 do Marco 4.
+
+**Ordem de retomada — não pular etapa, cada uma desbloqueia a seguinte:**
+
+1. **Destravar `development`.** Corrigir as duas regressões da F3: `CURRENT_USER_QUERY` duplicado em `web/src/lib/graphql/operations.ts` e o `HymnBody.svelte` stub do 4.E que venceu a versão do 4.D. Sem isso nada de frontend avança. *(em andamento)*
+2. **Fechar o Marco 4.** Integrar o 4.I (`feat/headless-marco4i-visual-diff`), que traz também o `web/playwright.config.ts` que faltava desde o Marco 3. Só então **medir** a paridade visual e produzir a tabela de % por rota — o critério de ≥95% ainda não foi verificado uma única vez.
+3. **Consertar o CI antes de abrir novos PRs de frontend.** Trocar `[main, develop]` → `[main, development]` no `.github/workflows/ci-web.yml` e promover **"Web Test & Build" a required check** em `development` e `main`. Esta é a causa-raiz de a regressão da F3 ter passado; deixar pra depois é convidar a próxima.
+4. **Fechar a 5.A½** (dívidas de schema que bloqueiam todo o frontend do Marco 5): `UserType.isEditor`, guard `_has_editor_access` nos 3 resolvers editoriais, vocabulário de `sort` alinhado com a URL, `HymnType.hymnBook`, campos faltantes de `HymnBookType`/`HymnAudioType`/`NotificationType`, `last_reviewed_at`, curadoria `is_featured`, e a primeira cobertura de `Query.ocrTask`. *(em andamento)*
+5. **Executar o Marco 5, fase F2:** 5.B + 5.C + 5.D + **5.F** em paralelo (4 subagentes, arquivos disjuntos), depois F3 (merge + 5.E) e F4 (PR contra `development`).
+6. **Marco 6 (offline).** Começar pela lista de pré-requisitos ausentes do status do marco (criar `web/static/`, instalar o stack de PWA, migration de `HymnBook.sync_version`) — não assumir que existem.
+7. **Marco 7 (cutover).** Começar pelo **passo 0**: fechar ou descontinuar explicitamente as 22 páginas Django sem par na SPA. Só depois mexer no Worker.
+
+**Revisões deste plano que ficaram pendentes de decisão do usuário:**
+- `/hinarios/<slug>/ler/` (leitura sincronizada) e `/perfil/<username>/editar/` não estão em nenhum marco — portar ou descontinuar?
+- Destino do catch-all Wagtail (`config/urls.py`, com `HomePage` real em `apps/cms/models.py`) na troca de rotas do Worker.
