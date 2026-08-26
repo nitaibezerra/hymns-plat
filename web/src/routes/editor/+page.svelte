@@ -11,6 +11,8 @@
    * ele muda quando o editor reordena, e é exatamente esse o recado — "este
    * é o próximo que você deveria pegar".
    */
+  import EditorStatsBar from "$lib/components/editor/EditorStatsBar.svelte";
+
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
@@ -51,6 +53,8 @@
         aprovado.
       </p>
     </div>
+
+    <EditorStatsBar stats={data.stats} />
   </header>
 
   {#if data.error}

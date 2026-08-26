@@ -170,3 +170,12 @@ describe("render do dashboard editorial (5B.2)", () => {
     expect(screen.getByTestId("editor-error")).toHaveTextContent(/não foi possível carregar/i);
   });
 });
+
+describe("stats no dashboard (5B.3)", () => {
+  it("o header hospeda a EditorStatsBar com os números do load", () => {
+    render(Page, { props: { data: buildData() } });
+    expect(screen.getByTestId("editor-stats-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("stat-value-pendentes")).toHaveTextContent("37");
+    expect(screen.getByTestId("stat-value-p1")).toHaveTextContent("2");
+  });
+});
