@@ -584,6 +584,12 @@ class NotificationType:
     is_read: bool
     created_at: datetime.datetime
 
+    @strawberry.field
+    def sender(self) -> "UserType | None":
+        """Quem gerou a notificação. `None` em notificação de sistema (a FK é
+        `null=True`), como "áudio aprovado"."""
+        return self.sender
+
 
 @strawberry.type
 class UserProfileType:
