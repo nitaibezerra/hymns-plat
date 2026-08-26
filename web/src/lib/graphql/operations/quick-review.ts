@@ -11,6 +11,8 @@
  * `__typename` é uma só e não se reescreve.
  */
 
+import { GRAPHQL_URL } from "$lib/config";
+import { gqlFetch } from "$lib/graphql/fetcher";
 import { runMutation, type MutationOutcome } from "$lib/graphql/operations/crud";
 
 // ---------------------------------------------------------------------------
@@ -69,8 +71,54 @@ export const QUICK_REVIEW_QUERY = `
 `;
 
 // ---------------------------------------------------------------------------
-// 5E.3 — quickReviewHymn
+// 5E.3 — quickReviewHymn + destino seguinte
 // ---------------------------------------------------------------------------
+
+/**
+ * Quem é o próximo hino ainda incompleto, DEPOIS de gravar.
+ *
+ * Perguntamos ao servidor em vez de recalcular sobre `data.hymns` porque o
+ * critério de "incompleto" é do backend (`Q(style="") | Q(repetitions="")` em
+ * `HymnBookType.nextIncompleteHymn`) e porque outro editor pode ter mexido no
+ * hinário no meio da sessão. O hino recém-salvo já não aparece aqui: acabou
+ * de ficar completo.
+ */
+export const NEXT_INCOMPLETE_HYMN_QUERY = `
+  query NextIncompleteHymn($slug: String!) {
+    hymnbook(slug: $slug) {
+      id
+      nextIncompleteHymn {
+        id
+        number
+        title
+      }
+    }
+  }
+`;
+
+export interface NextIncompleteHymn {
+  id: string;
+  number: number;
+  title: string;
+}
+
+export interface NextIncompleteOutcome {
+  hymn: NextIncompleteHymn | null;
+  error: string | null;
+}
+
+export async function fetchNextIncompleteHymn(
+  fetchFn: typeof globalThis.fetch,
+  slug: string,
+): Promise<NextIncompleteOutcome> {
+  const response = await gqlFetch<{
+    hymnbook: { id: string; nextIncompleteHymn: NextIncompleteHymn | null } | null;
+  }>(fetchFn, GRAPHQL_URL, NEXT_INCOMPLETE_HYMN_QUERY, { slug });
+
+  const error = response.errors?.[0]?.message ?? null;
+  if (error) return { hymn: null, error };
+  return { hymn: response.data?.hymnbook?.nextIncompleteHymn ?? null, error: null };
+}
 
 /**
  * Grava SÓ `style` e `repetitions`.
