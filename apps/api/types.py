@@ -424,6 +424,14 @@ class UserType:
     username: strawberry.auto
     email: strawberry.auto
 
+    @strawberry.field
+    def is_editor(self) -> bool:
+        """True quando o usuário tem papel editorial (grupo `editor` ou superuser).
+
+        Reusa `apps.hymns.permissions._is_editor_or_admin` — mesma regra que
+        gateia as views do workspace. O guard de rota do SPA depende disso."""
+        return _is_editor_or_admin(self)
+
 
 @strawberry.enum
 class SearchKind(enum.Enum):
