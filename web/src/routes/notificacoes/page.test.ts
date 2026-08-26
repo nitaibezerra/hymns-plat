@@ -79,6 +79,8 @@ function buildData(overrides: Record<string, unknown> = {}) {
         link: "/perfil/joao",
         isRead: false,
         createdAt: "2025-01-01T10:00:00Z",
+        // 5E.8 — `sender` passou a ser obrigatório em `NotificationItem`.
+        sender: null,
       },
     ],
     unreadOnly: false,

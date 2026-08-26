@@ -119,13 +119,24 @@ describe("/editor/hinarios/[slug]/revisao-agil — load (5E.1)", () => {
   });
 });
 
-/** `data` já resolvido, do jeito que a load devolve. */
+/**
+ * `data` já resolvido. `PageData` desta rota é a união do que a load devolve
+ * com o `editor` do `+layout` de `/editor/` e o `currentUser` do shell raiz —
+ * o helper monta a forma inteira pro `svelte-check` não reclamar de campo
+ * faltando (foi assim que o 5.C acumulou 38 erros).
+ */
 function pageData(overrides: Record<string, unknown> = {}) {
   const hymns = HYMNBOOK.hymns;
+  const current = (overrides.current ?? hymns[1]) as (typeof hymns)[number] | null;
   return {
+    editor: { id: "u1", username: "ana", isEditor: true },
+    currentUser: null,
     hymnbook: { id: HYMNBOOK.id, name: HYMNBOOK.name, slug: HYMNBOOK.slug },
     hymns,
-    current: hymns[1],
+    current,
+    allComplete: false,
+    position: current ? hymns.indexOf(current) + 1 : 0,
+    total: hymns.length,
     ...overrides,
   };
 }

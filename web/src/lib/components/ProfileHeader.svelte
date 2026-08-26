@@ -44,48 +44,49 @@
   const canFollow = $derived(currentUser !== null && !isSelf);
 
   /**
-   * Estado exibido. Nasce das props e passa a ser local a partir do primeiro
-   * clique — a partir daí quem manda é a mutation, não o `data` da load, que
-   * só volta a valer numa navegação nova.
+   * Enquanto ninguém clicou, o que vale são as props (que vêm da load e
+   * sobrevivem ao SSR). O clique instala um `override` local, e a partir daí
+   * quem manda é a mutation — o `data` da load só volta a valer numa
+   * navegação nova, que remonta o componente.
+   *
+   * `null` significa "sem override": é o valor pro qual o rollback volta
+   * quando a falha acontece no primeiro clique.
    */
-  let following = $state(isFollowedByCurrentUser);
-  let followers = $state(followersCount);
+  let override = $state<{ following: boolean; followers: number } | null>(null);
   let pending = $state(false);
   let followError = $state<string | null>(null);
-  let touched = $state(false);
 
-  $effect(() => {
-    if (touched) return;
-    following = isFollowedByCurrentUser;
-    followers = followersCount;
-  });
+  const following = $derived(override ? override.following : isFollowedByCurrentUser);
+  const followers = $derived(override ? override.followers : followersCount);
 
   async function toggleFollow() {
     if (pending) return;
 
     // Otimismo: guarda o estado atual, aplica o desejado e só então pergunta.
-    const previous = { following, followers };
+    const previous = override;
     const desired = !following;
-    touched = true;
     pending = true;
     followError = null;
-    following = desired;
-    followers = Math.max(0, followers + (desired ? 1 : -1));
+    override = {
+      following: desired,
+      followers: Math.max(0, followers + (desired ? 1 : -1)),
+    };
 
     const result = await setFollowing(fetch, user.username, desired);
     pending = false;
 
     if (!result.ok) {
-      following = previous.following;
-      followers = previous.followers;
+      override = previous;
       followError = result.message;
       return;
     }
     // A contagem otimista era um palpite; a do servidor é a verdade (outra
     // pessoa pode ter seguido no mesmo segundo).
     if (result.data) {
-      following = result.data.isFollowedByCurrentUser;
-      followers = result.data.followersCount;
+      override = {
+        following: result.data.isFollowedByCurrentUser,
+        followers: result.data.followersCount,
+      };
     }
   }
 </script>
