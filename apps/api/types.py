@@ -326,6 +326,15 @@ class HymnType:
     review_status: ReviewStatus
 
     @strawberry.field
+    def hymn_book(self) -> "HymnBookType":
+        """Hinário ao qual o hino pertence.
+
+        Não-nulável: `Hymn.hymn_book` é FK obrigatória com CASCADE. É o campo
+        que permite breadcrumb, desambiguação por número e resultados de busca
+        dizerem de onde cada hino veio."""
+        return self.hymn_book
+
+    @strawberry.field
     def inline_diff(self) -> InlineDiffType | None:
         """Diff visual OCR×revisão. Vazio quando não há `ocr_text`."""
         from apps.hymns.editor_views import _compute_inline_diff
