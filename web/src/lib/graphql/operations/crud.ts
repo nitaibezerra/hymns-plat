@@ -427,6 +427,78 @@ export function updateHymn(
   );
 }
 
+// ---------------------------------------------------------------------------
+// 5D.12 / 5D.13 — upload de áudio
+// ---------------------------------------------------------------------------
+
+export const UPLOAD_AUDIO_MUTATION = `
+  mutation UploadAudio(
+    $hymnPk: ID!
+    $file: Upload!
+    $title: String
+    $source: String
+    $credits: String
+    $allowDownload: Boolean
+  ) {
+    uploadAudio(
+      hymnPk: $hymnPk
+      file: $file
+      title: $title
+      source: $source
+      credits: $credits
+      allowDownload: $allowDownload
+    ) {
+      __typename
+      ... on HymnAudioType { id title }
+      ... on ValidationError { message field }
+      ... on PermissionDeniedError { message }
+      ... on NotFoundError { message }
+    }
+  }
+`;
+
+export interface AudioRef {
+  __typename: string;
+  id: string;
+  title: string;
+}
+
+export interface UploadAudioMeta {
+  title: string;
+  source: string;
+  credits: string;
+  allowDownload: boolean;
+}
+
+/**
+ * `Upload` só viaja por multipart — não existe forma JSON. A validação de
+ * extensão e tamanho acontece ANTES daqui, no componente (5D.13): mandar 25
+ * MB pra descobrir que a extensão é inválida seria cruel com quem está em
+ * conexão ruim.
+ */
+export function uploadAudio(
+  fetchFn: typeof globalThis.fetch,
+  hymnPk: string,
+  file: File,
+  meta: UploadAudioMeta,
+): Promise<MutationOutcome<AudioRef>> {
+  return runMultipartMutation<AudioRef>(
+    fetchFn,
+    UPLOAD_AUDIO_MUTATION,
+    {
+      hymnPk,
+      file: null,
+      title: meta.title,
+      source: meta.source,
+      credits: meta.credits,
+      allowDownload: meta.allowDownload,
+    },
+    { "variables.file": file },
+    "uploadAudio",
+    ["HymnAudioType"],
+  );
+}
+
 export const DELETE_HYMN_MUTATION = `
   mutation DeleteHymn($pk: ID!) {
     deleteHymn(pk: $pk) {
