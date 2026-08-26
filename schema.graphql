@@ -53,7 +53,7 @@ type HeatmapBucketType {
 
 type HymnAudioType {
   id: UUID!
-  waveformPeaks: [Int!]!
+  waveformPeaks: [Float!]!
   title: String!
   source: String!
   credits: String!

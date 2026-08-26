@@ -489,7 +489,10 @@ class HymnType:
 @strawberry_django.type(hymn_models.HymnAudio)
 class HymnAudioType:
     id: strawberry.auto
-    waveform_peaks: list[int]
+    # `compute_waveform_peaks` devolve RMS normalizado 0..1 — float, não int.
+    # Estava tipado `list[int]` e todo áudio real derrubava a operação com
+    # "Int cannot represent non-integer value".
+    waveform_peaks: list[float]
     title: strawberry.auto
     source: strawberry.auto
     credits: strawberry.auto
