@@ -12,6 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:parity": "HINARIA_E2E_PLAYWRIGHT_READY=1 playwright test --project=chromium tests/e2e/visual-parity.spec.ts",
+    "test:e2e:helpers": "playwright test --project=chromium tests/e2e/_helpers",
     "codegen": "graphql-codegen --config codegen.config.ts"
   },
   "devDependencies": {
@@ -27,8 +29,11 @@
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/svelte": "^5.2.0",
     "@types/node": "^22.0.0",
+    "@types/pngjs": "^6.0.5",
     "graphql": "^16.10.0",
     "jsdom": "^25.0.0",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
     "svelte": "^5.0.0",
     "svelte-check": "^4.1.0",
     "svelte2tsx": "^0.7.55",
