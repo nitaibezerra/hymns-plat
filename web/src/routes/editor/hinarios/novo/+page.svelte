@@ -9,8 +9,10 @@
    * de `PageData` acoplaria esta rota ao shape do layout do vizinho e
    * quebraria os testes no merge.
    */
+  import { goto } from "$app/navigation";
   import HymnBookFormView from "$lib/components/editor/HymnBookFormView.svelte";
   import type { HymnBookFormSubmit } from "$lib/components/editor/HymnBookFormView.svelte";
+  import { createHymnBook } from "$lib/graphql/operations/crud";
 
   import type { NovoHymnBookData } from "./+page";
 
@@ -19,9 +21,16 @@
   let submitting = $state(false);
   let error = $state<string | null>(null);
 
-  async function handleSubmit(_payload: HymnBookFormSubmit) {
-    // 5D.2 implementa a mutation.
+  async function handleSubmit(payload: HymnBookFormSubmit) {
+    submitting = true;
+    error = null;
+    const result = await createHymnBook(fetch, payload.values, payload.coverFile);
     submitting = false;
+    if (result.ok && result.data) {
+      await goto(`/editor/hinarios/${result.data.slug}/`);
+      return;
+    }
+    error = result.message;
   }
 </script>
 
