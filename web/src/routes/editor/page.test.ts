@@ -221,6 +221,45 @@ describe("sort multi-critério vindo da URL (5B.5)", () => {
   });
 });
 
+describe("filtro de prioridade vindo da URL (5B.6)", () => {
+  it("?priority=P1 vai como argumento pra query", async () => {
+    const fetchFn = fakeFetch(dashboardPayload());
+    const result = await _loadEditorDashboard({ fetch: fetchFn, url: editorUrl("?priority=P1") });
+
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.variables.priority).toBe("P1");
+    expect(result.priority).toBe("P1");
+  });
+
+  it("prioridade desconhecida cai pra 'all' — o argumento é String! e não aceita lixo", async () => {
+    const fetchFn = fakeFetch(dashboardPayload());
+    const result = await _loadEditorDashboard({
+      fetch: fetchFn,
+      url: editorUrl("?priority=urgentissimo"),
+    });
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.variables.priority).toBe("all");
+    expect(result.priority).toBe("all");
+  });
+
+  it("sort e prioridade convivem na mesma URL", async () => {
+    const fetchFn = fakeFetch(dashboardPayload());
+    await _loadEditorDashboard({
+      fetch: fetchFn,
+      url: editorUrl("?priority=P2&sort=audio:asc"),
+    });
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.variables.priority).toBe("P2");
+    expect(body.variables.sort).toEqual([{ column: "audio", direction: "asc" }]);
+  });
+
+  it("a tela mostra a fileira de prioridade com a chip ativa", () => {
+    render(Page, { props: { data: buildData({ priority: "P1" }) } });
+    expect(screen.getByTestId("priority-chips")).toBeInTheDocument();
+    expect(screen.getByTestId("priority-chip-P1")).toHaveAttribute("aria-current", "true");
+  });
+});
+
 describe("card de retomada no dashboard (5B.4)", () => {
   const resumeHymn = {
     id: "h9",

@@ -74,6 +74,18 @@ export interface EditorDashboardData {
   error: string | null;
 }
 
+/**
+ * Prioridades aceitas. `all` é o default do schema
+ * (`priority: String! = "all"`) e NÃO filtra: nesse caso o backend promove
+ * a prioridade a ORDER BY primário, deixando P1 no topo.
+ */
+const PRIORITIES = new Set(["all", "P1", "P2", "P3"]);
+
+/** Querystring é entrada de usuário: valor fora do conjunto cai pra "all". */
+function parsePriority(raw: string | null): string {
+  return raw && PRIORITIES.has(raw) ? raw : "all";
+}
+
 /** Stats neutras pra quando o backend falha — a tela renderiza zerada. */
 const EMPTY_STATS: EditorDashboardStats = {
   totalHinarios: 0,
@@ -88,7 +100,7 @@ export async function _loadEditorDashboard(event: {
   fetch: typeof globalThis.fetch;
   url: URL;
 }): Promise<EditorDashboardData> {
-  const priority = "all";
+  const priority = parsePriority(event.url.searchParams.get("priority"));
   // A URL é a fonte da verdade do sort: `parseSort` é defensiva e devolve
   // [] pra querystring editada à mão, então a tela cai nos defaults em vez
   // de estourar (mesmo contrato da view Django).

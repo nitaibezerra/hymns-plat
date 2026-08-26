@@ -12,6 +12,7 @@
    * é o próximo que você deveria pegar".
    */
   import EditorStatsBar from "$lib/components/editor/EditorStatsBar.svelte";
+  import PriorityChips from "$lib/components/editor/PriorityChips.svelte";
   import ResumeCard from "$lib/components/editor/ResumeCard.svelte";
   import SortChips from "$lib/components/editor/SortChips.svelte";
 
@@ -76,6 +77,7 @@
 
   <div class="filters">
     <SortChips pairs={data.sort} priority={data.priority} total={data.hymnbooks.length} />
+    <PriorityChips priority={data.priority} pairs={data.sort} />
   </div>
 
   <div class="queue-grid">
