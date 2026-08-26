@@ -18,7 +18,7 @@
   import HymnStatusList from "$lib/components/editor/HymnStatusList.svelte";
   import ReviewProgressBar from "$lib/components/editor/ReviewProgressBar.svelte";
 
-  import { editorReviseHref } from "../../+layout";
+  import { _editorReviseHref } from "../../+layout";
 
   import type { PageData } from "./$types";
 
@@ -29,7 +29,7 @@
 
   function goToNextPending() {
     if (!next) return;
-    goto(editorReviseHref(next.id));
+    goto(_editorReviseHref(next.id));
   }
 </script>
 
@@ -75,7 +75,7 @@
     />
   </div>
 
-  <HymnStatusList hymns={book.hymns} hrefFor={editorReviseHref} />
+  <HymnStatusList hymns={book.hymns} hrefFor={_editorReviseHref} />
 </section>
 
 <style>

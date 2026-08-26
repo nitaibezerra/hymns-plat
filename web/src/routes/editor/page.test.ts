@@ -7,7 +7,7 @@
  * Paridade de referência: `templates/hymns/editor/hymnbook_list.html`.
  */
 
-import { render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
 import Page from "./+page.svelte";
@@ -116,8 +116,17 @@ describe("load do dashboard editorial (5B.2)", () => {
   });
 });
 
-function buildData(overrides: Partial<EditorDashboardData> = {}): EditorDashboardData {
+/**
+ * `PageData` da rota inclui o que o layout do editor e o shell raiz
+ * carregam (`editor`, `currentUser`), então o helper devolve o pacote
+ * completo — é o que a página realmente recebe em runtime.
+ */
+function buildData(
+  overrides: Partial<EditorDashboardData> = {},
+): EditorDashboardData & { editor: null; currentUser: null } {
   return {
+    editor: null,
+    currentUser: null,
     stats: {
       totalHinarios: 4,
       pendingHymns: 37,
@@ -216,7 +225,7 @@ describe("sort multi-critério vindo da URL (5B.5)", () => {
   it("a tela mostra a fileira de chips com o estado atual e a contagem", () => {
     render(Page, { props: { data: buildData({ sort: [["review", "asc"]] }) } });
     expect(screen.getByTestId("sort-chips")).toBeInTheDocument();
-    expect(screen.getByTestId("sort-chip-review")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("sort-chip-review")).toHaveAttribute("aria-current", "true");
     expect(screen.getByTestId("sort-count")).toHaveTextContent("1 hinário");
   });
 });
@@ -338,5 +347,69 @@ describe("stats no dashboard (5B.3)", () => {
     expect(screen.getByTestId("editor-stats-bar")).toBeInTheDocument();
     expect(screen.getByTestId("stat-value-pendentes")).toHaveTextContent("37");
     expect(screen.getByTestId("stat-value-p1")).toHaveTextContent("2");
+  });
+});
+
+/**
+ * Ciclo 5B.10 — os casos que o plano previa como Playwright
+ * (`tests/e2e/editor-dashboard.spec.ts`) escritos aqui como teste de
+ * unidade: `web/tests/e2e/` está sendo mexido por outra frente nesta
+ * rodada, e criar arquivo lá garantiria conflito. O E2E propriamente dito
+ * fica pra fase seguinte — ver as notas de entrega.
+ */
+describe("jornadas do 5B.10 (E2E adiado — casos cobertos como unidade)", () => {
+  it("jornada 1: editor abre /editor/ e recebe a fila na ordem do backend", async () => {
+    const p2 = bookPayload({ id: "b2", name: "O Justiceiro", slug: "o-justiceiro", priority: "P2" });
+    const p1 = bookPayload();
+    // O backend já devolve ordenado (priority=all põe P1 primeiro). A tela
+    // NÃO reordena: se reordenasse, o multi-sort do backend viraria enfeite.
+    const fetchFn = fakeFetch(dashboardPayload([p1, p2]));
+    const result = await _loadEditorDashboard({ fetch: fetchFn, url: editorUrl() });
+
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.variables.priority).toBe("all");
+
+    render(Page, { props: { data: buildData({ hymnbooks: result.hymnbooks }) } });
+    const cards = screen.getAllByTestId(/^queue-card-/);
+    expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual([
+      "queue-card-o-cruzeiro",
+      "queue-card-o-justiceiro",
+    ]);
+  });
+
+  it("jornada 2: clicar 'Revisão' ordena por revisão asc e o load traduz a URL", async () => {
+    gotoMock.mockClear();
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.click(screen.getByTestId("sort-chip-review"));
+    expect(gotoMock.mock.calls[0][0]).toBe("/editor/?sort=review:asc");
+
+    // A URL que o clique produziu vira a variável que o backend recebe.
+    const fetchFn = fakeFetch(dashboardPayload());
+    await _loadEditorDashboard({ fetch: fetchFn, url: editorUrl("?sort=review:asc") });
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.variables.sort).toEqual([{ column: "review", direction: "asc" }]);
+  });
+
+  it("jornada 3: badge de áudios pendentes mostra a contagem que o load trouxe", () => {
+    render(Page, { props: { data: buildData() } });
+    const badge = screen.getByTestId("pending-audios-badge");
+    expect(badge).toHaveTextContent("5");
+    expect(badge).toHaveTextContent(/aguardando aprovação/i);
+  });
+
+  it("jornada 3b: sem áudio pendente, o badge não aparece", () => {
+    const data = buildData();
+    data.stats.pendingAudiosCount = 0;
+    render(Page, { props: { data } });
+    expect(screen.queryByTestId("pending-audios-badge")).not.toBeInTheDocument();
+  });
+
+  it("jornada 3c: um áudio só usa o singular", () => {
+    const data = buildData();
+    data.stats.pendingAudiosCount = 1;
+    render(Page, { props: { data } });
+    expect(screen.getByTestId("pending-audios-badge")).toHaveTextContent(
+      /1 áudio aguardando aprovação/i,
+    );
   });
 });

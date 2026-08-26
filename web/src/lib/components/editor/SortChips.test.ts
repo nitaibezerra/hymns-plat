@@ -3,7 +3,7 @@
  *
  * As 4 chips de ordenação. Paridade com o `[data-sort-row]` de
  * `templates/hymns/editor/hymnbook_list.html`: rótulo, seta de direção,
- * numerinho de prioridade quando há sort combinado, `aria-pressed`.
+ * numerinho de prioridade quando há sort combinado, `aria-current`.
  *
  * Cada chip é um `<a href>` REAL (compartilhável, clicável com o meio do
  * mouse, funciona sem JS) e o clique normal é interceptado pra fazer
@@ -41,18 +41,18 @@ describe("SortChips (5B.5)", () => {
     expect(screen.getByRole("link", { name: /recentes/i })).toBeInTheDocument();
   });
 
-  it("chip inativa: aria-pressed=false, sem seta", () => {
+  it("chip inativa: sem aria-current e sem seta", () => {
     mount();
     const chip = screen.getByTestId("sort-chip-review");
-    expect(chip).toHaveAttribute("aria-pressed", "false");
+    expect(chip).not.toHaveAttribute("aria-current");
     expect(chip).not.toHaveTextContent("↑");
     expect(chip).not.toHaveTextContent("↓");
   });
 
-  it("chip em asc mostra ↑ e aria-pressed=true", () => {
+  it("chip em asc mostra ↑ e aria-current=true", () => {
     mount([["review", "asc"]]);
     const chip = screen.getByTestId("sort-chip-review");
-    expect(chip).toHaveAttribute("aria-pressed", "true");
+    expect(chip).toHaveAttribute("aria-current", "true");
     expect(chip).toHaveTextContent("↑");
   });
 

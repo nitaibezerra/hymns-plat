@@ -8,7 +8,7 @@
  * quem não é editor desde o 5.A½ (antes vazavam dados). O guard do
  * `+layout.ts` já barra o não-editor antes daqui, então um erro de permissão
  * nesta altura significa sessão que morreu no meio do caminho: refazemos o
- * mesmo redirect, reusando `isEditorAccessError` do layout em vez de
+ * mesmo redirect, reusando `_isEditorAccessError` do layout em vez de
  * reescrever a classificação. Erro técnico (5xx, rede) é outra história —
  * vira `data.error` e a página mostra um aviso, sem expulsar o editor.
  */
@@ -19,7 +19,7 @@ import { gqlFetch } from "$lib/graphql/fetcher";
 import { EDITOR_DASHBOARD_QUERY } from "$lib/graphql/operations/editor-dashboard";
 import { redirect } from "@sveltejs/kit";
 
-import { editorLoginRedirect, isEditorAccessError } from "./+layout";
+import { _editorLoginRedirect, _isEditorAccessError } from "./+layout";
 
 import type { PageLoad } from "./$types";
 
@@ -115,8 +115,8 @@ export async function _loadEditorDashboard(event: {
   });
 
   const errorMessage = response.errors?.[0]?.message;
-  if (errorMessage && !errorMessage.startsWith("HTTP ") && isEditorAccessError(errorMessage)) {
-    throw redirect(302, editorLoginRedirect("/editor/"));
+  if (errorMessage && !errorMessage.startsWith("HTTP ") && _isEditorAccessError(errorMessage)) {
+    throw redirect(302, _editorLoginRedirect("/editor/"));
   }
 
   return {

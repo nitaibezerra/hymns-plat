@@ -19,7 +19,7 @@ import { gqlFetch } from "$lib/graphql/fetcher";
 import { EDITOR_HYMNBOOK_DETAIL_QUERY } from "$lib/graphql/operations/editor-dashboard";
 import { error, redirect } from "@sveltejs/kit";
 
-import { editorLoginRedirect, isEditorAccessError } from "../../+layout";
+import { _editorLoginRedirect, _isEditorAccessError } from "../../+layout";
 
 import type { PageLoad } from "./$types";
 import type { EditorHymnbookStats, EditorReviewProgress } from "../../+page";
@@ -70,8 +70,8 @@ export async function _loadEditorHymnbookDetail(event: {
 
   const errorMessage = response.errors?.[0]?.message;
   if (errorMessage) {
-    if (!errorMessage.startsWith("HTTP ") && isEditorAccessError(errorMessage)) {
-      throw redirect(302, editorLoginRedirect(`/editor/hinarios/${slug}/`));
+    if (!errorMessage.startsWith("HTTP ") && _isEditorAccessError(errorMessage)) {
+      throw redirect(302, _editorLoginRedirect(`/editor/hinarios/${slug}/`));
     }
     throw error(503, "Não foi possível carregar o hinário agora. Tente novamente em instantes.");
   }

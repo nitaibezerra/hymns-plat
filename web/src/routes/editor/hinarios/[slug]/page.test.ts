@@ -111,8 +111,17 @@ describe("load do detalhe do hinário (5B.8)", () => {
   });
 });
 
+/**
+ * `PageData` soma o que o layout do editor e o shell raiz carregam
+ * (`editor`, `currentUser`) ao retorno do load desta rota.
+ */
 function buildData(overrides: Partial<EditorHymnbookDetail> = {}) {
-  return { hymnbook: hymnbookPayload(overrides), error: null };
+  return {
+    editor: null,
+    currentUser: null,
+    hymnbook: hymnbookPayload(overrides),
+    error: null,
+  };
 }
 
 describe("render do detalhe do hinário (5B.8)", () => {

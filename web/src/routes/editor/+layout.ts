@@ -33,6 +33,13 @@ export interface EditorLayoutData {
   editor: EditorUser | null;
 }
 
+/*
+ * Os três helpers abaixo levam prefixo `_` porque o SvelteKit só aceita
+ * exports conhecidos (`load`, `prerender`, `csr`, `ssr`, …) num módulo de
+ * rota — qualquer outro nome sem underscore quebra o `vite build`. É a mesma
+ * convenção que o repo já usa em `_loadLayout`/`_loadEditorDashboard`.
+ */
+
 /**
  * Reconhece "você não tem acesso" nas várias formas em que o backend fala.
  *
@@ -45,7 +52,7 @@ export interface EditorLayoutData {
  * Exportado porque as `+page.ts` de `/editor/` reusam a mesma classificação
  * nas 3 queries do workspace, que agora LEVANTAM erro pra não-editor.
  */
-export function isEditorAccessError(message: string): boolean {
+export function _isEditorAccessError(message: string): boolean {
   const m = message.toLowerCase();
   return (
     m.includes("permissão") ||
@@ -60,7 +67,7 @@ export function isEditorAccessError(message: string): boolean {
 }
 
 /** `/login?next=<destino>` — o destino é o path real, sem querystring. */
-export function editorLoginRedirect(pathname: string): string {
+export function _editorLoginRedirect(pathname: string): string {
   return `/login?next=${pathname}`;
 }
 
@@ -72,7 +79,7 @@ export function editorLoginRedirect(pathname: string): string {
  * Centralizar aqui deixa um ponto único pra ajustar se o 5.C escolher outro
  * path — em vez de dois literais espalhados pelas telas.
  */
-export function editorReviseHref(hymnPk: string): string {
+export function _editorReviseHref(hymnPk: string): string {
   return `/editor/hinos/${hymnPk}/revisar/`;
 }
 
@@ -80,7 +87,7 @@ export async function _loadEditorLayout(event: {
   fetch: typeof globalThis.fetch;
   url: URL;
 }): Promise<EditorLayoutData> {
-  const target = editorLoginRedirect(event.url.pathname);
+  const target = _editorLoginRedirect(event.url.pathname);
 
   let user: EditorUser | null = null;
   try {

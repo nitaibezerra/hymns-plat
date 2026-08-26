@@ -17,7 +17,7 @@
   import ReviewProgressBar from "$lib/components/editor/ReviewProgressBar.svelte";
   import SortChips from "$lib/components/editor/SortChips.svelte";
 
-  import { editorReviseHref } from "./+layout";
+  import { _editorReviseHref } from "./+layout";
 
   import type { PageData } from "./$types";
 
@@ -63,10 +63,23 @@
     <EditorStatsBar stats={data.stats} />
   </header>
 
+  <!--
+    Áudios aguardando aprovação. O template Django faz disto um link pra
+    `/editor/audios-pendentes/`, rota que pertence ao sub-marco 5.D — até ela
+    existir, o aviso fica como badge informativo em vez de um link morto.
+  -->
+  {#if data.stats.pendingAudiosCount > 0}
+    <p class="pending-audios" data-testid="pending-audios-badge">
+      <span class="pending-audios-glyph" aria-hidden="true">♫</span>
+      {data.stats.pendingAudiosCount}
+      {data.stats.pendingAudiosCount === 1 ? "áudio" : "áudios"} aguardando aprovação
+    </p>
+  {/if}
+
   {#if data.stats.resumeHymn}
     <ResumeCard
       hymn={data.stats.resumeHymn}
-      href={editorReviseHref(data.stats.resumeHymn.id)}
+      href={_editorReviseHref(data.stats.resumeHymn.id)}
     />
   {/if}
 
@@ -175,6 +188,27 @@
   .page-lede {
     color: var(--color-text-soft);
     margin: 0.5rem 0 0;
+  }
+  .pending-audios {
+    align-items: center;
+    background: color-mix(in srgb, var(--color-gold) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-gold) 40%, transparent);
+    border-radius: var(--radius-lg);
+    color: var(--color-text);
+    display: flex;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0.75rem 1.125rem;
+  }
+  .pending-audios-glyph {
+    align-items: center;
+    background: color-mix(in srgb, var(--color-gold) 30%, transparent);
+    border-radius: var(--radius-pill);
+    color: var(--color-gold);
+    display: inline-flex;
+    height: 2rem;
+    justify-content: center;
+    width: 2rem;
   }
   .alert {
     background: color-mix(in srgb, var(--color-status-not) 12%, transparent);

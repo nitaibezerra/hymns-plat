@@ -15,6 +15,12 @@
    *
    * Toda a regra do ciclo mora em `$lib/editor-sort` (porte de
    * `editor_views.py`); aqui só há apresentação e navegação.
+   *
+   * Nota de a11y: o template Django usa `aria-pressed` nestas chips, mas
+   * `aria-pressed` não é válido no papel implícito de `<a>` (role="link") —
+   * o estado ativo vai em `aria-current`, que é o atributo próprio pra
+   * "este é o item vigente do conjunto". O `title` continua descrevendo o
+   * que o próximo clique faz.
    */
   import { goto } from "$app/navigation";
   import { buildSortChips, type SortPair } from "$lib/editor-sort";
@@ -77,7 +83,7 @@
       {href}
       data-testid={`sort-chip-${chip.key}`}
       data-sort-state={chip.state}
-      aria-pressed={chip.state !== "off"}
+      aria-current={chip.state !== "off" ? "true" : undefined}
       title={SORT_TITLES[chip.state](chip.label)}
       onclick={(event) => handleClick(event, href)}
     >
