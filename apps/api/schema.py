@@ -29,6 +29,7 @@ from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
 from apps.users import models as user_models
 
 from .errors import raise_permission_denied
+from .lookups import get_or_none
 from .mutations import Mutation
 from .types import (
     EditorDashboardStatsType,
@@ -87,7 +88,7 @@ class Query:
     @strawberry.field
     def hymn(self, info: Info, pk: strawberry.ID) -> Optional[HymnType]:
         visible_books = hymn_models.HymnBook.objects.visible_to(_user(info))
-        return hymn_models.Hymn.objects.filter(pk=pk, hymn_book__in=visible_books).first()
+        return get_or_none(hymn_models.Hymn.objects, pk=pk, hymn_book__in=visible_books)
 
     @strawberry.field
     def current_user(self, info: Info) -> Optional[UserType]:
@@ -256,7 +257,7 @@ class Query:
         user = _user(info)
         if not getattr(user, "is_authenticated", False):
             return None
-        task = hymn_models.OCRTask.objects.filter(pk=id).first()
+        task = get_or_none(hymn_models.OCRTask.objects, pk=id)
         if task is None:
             return None
         if user.is_superuser or user.has_perm("hymns.can_review_any_hymnbook") or task.user_id == user.pk:

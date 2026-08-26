@@ -29,6 +29,7 @@ from apps.hymns.services.review import publish_readiness
 from apps.users import models as user_models
 
 from .errors import NotFoundError, PermissionDeniedError, ValidationError
+from .lookups import get_or_none
 from .types import (
     AudioReviewInput,
     DeleteResult,
@@ -170,7 +171,7 @@ class Mutation:
         if not _is_editor_or_admin(user):
             return PermissionDeniedError()
 
-        hymn = hymn_models.Hymn.objects.filter(pk=pk).first()
+        hymn = get_or_none(hymn_models.Hymn.objects, pk=pk)
         if hymn is None:
             return NotFoundError()
 
@@ -193,7 +194,7 @@ class Mutation:
         if not _is_editor_or_admin(user):
             return PermissionDeniedError()
 
-        hymn = hymn_models.Hymn.objects.filter(pk=pk).first()
+        hymn = get_or_none(hymn_models.Hymn.objects, pk=pk)
         if hymn is None:
             return NotFoundError()
 
@@ -381,7 +382,7 @@ class Mutation:
     ]:
         """Deleta um Hymn (paridade com `hymn_delete_view`)."""
         user = _request(info).user
-        hymn = hymn_models.Hymn.objects.filter(pk=pk).first()
+        hymn = get_or_none(hymn_models.Hymn.objects, pk=pk)
         if hymn is None:
             return NotFoundError()
         if not can_edit_hymnbook(user, hymn.hymn_book):
@@ -401,7 +402,7 @@ class Mutation:
         mutation completa. Signal `_create_hymn_revision_on_edit` grava a
         HymnRevision automaticamente."""
         user = _request(info).user
-        hymn = hymn_models.Hymn.objects.filter(pk=pk).first()
+        hymn = get_or_none(hymn_models.Hymn.objects, pk=pk)
         if hymn is None:
             return NotFoundError()
         if not can_edit_hymnbook(user, hymn.hymn_book):
@@ -435,7 +436,7 @@ class Mutation:
         if not getattr(user, "is_authenticated", False):
             return PermissionDeniedError(message="É preciso estar autenticado para enviar áudios.")
 
-        hymn = hymn_models.Hymn.objects.filter(pk=hymn_pk).first()
+        hymn = get_or_none(hymn_models.Hymn.objects, pk=hymn_pk)
         if hymn is None:
             return NotFoundError()
 
@@ -471,7 +472,7 @@ class Mutation:
     ]:
         """Aprova um HymnAudio (paridade com `editor_approve_audio`)."""
         user = _request(info).user
-        audio = hymn_models.HymnAudio.objects.filter(pk=pk).select_related("hymn__hymn_book").first()
+        audio = get_or_none(hymn_models.HymnAudio.objects.select_related("hymn__hymn_book"), pk=pk)
         if audio is None:
             return NotFoundError()
         if not can_edit_hymnbook(user, audio.hymn.hymn_book):
@@ -487,7 +488,7 @@ class Mutation:
     ]:
         """Rejeita = deleta o áudio (paridade com `editor_reject_audio`)."""
         user = _request(info).user
-        audio = hymn_models.HymnAudio.objects.filter(pk=pk).select_related("hymn__hymn_book").first()
+        audio = get_or_none(hymn_models.HymnAudio.objects.select_related("hymn__hymn_book"), pk=pk)
         if audio is None:
             return NotFoundError()
         if not can_edit_hymnbook(user, audio.hymn.hymn_book):
@@ -507,7 +508,7 @@ class Mutation:
         e zera `quality_*` — replicamos a regra delegando ao model.
         """
         user = _request(info).user
-        audio = hymn_models.HymnAudio.objects.filter(pk=pk).select_related("hymn__hymn_book").first()
+        audio = get_or_none(hymn_models.HymnAudio.objects.select_related("hymn__hymn_book"), pk=pk)
         if audio is None:
             return NotFoundError()
         if not can_edit_hymnbook(user, audio.hymn.hymn_book):
@@ -548,7 +549,7 @@ class Mutation:
         retratar do envio enquanto está pendente.
         """
         user = _request(info).user
-        audio = hymn_models.HymnAudio.objects.filter(pk=pk).select_related("hymn__hymn_book").first()
+        audio = get_or_none(hymn_models.HymnAudio.objects.select_related("hymn__hymn_book"), pk=pk)
         if audio is None:
             return NotFoundError()
         if not getattr(user, "is_authenticated", False):
@@ -616,7 +617,7 @@ class Mutation:
         user = _request(info).user
         if not getattr(user, "is_authenticated", False):
             return PermissionDeniedError()
-        notif = user_models.Notification.objects.filter(pk=pk, recipient=user).first()
+        notif = get_or_none(user_models.Notification.objects, pk=pk, recipient=user)
         if notif is None:
             return NotFoundError()
         if not notif.is_read:
@@ -645,7 +646,7 @@ class Mutation:
         if not getattr(user, "is_authenticated", False):
             return PermissionDeniedError(message="É preciso estar autenticado para favoritar hinos.")
 
-        hymn = hymn_models.Hymn.objects.filter(pk=hymn_pk).first()
+        hymn = get_or_none(hymn_models.Hymn.objects, pk=hymn_pk)
         if hymn is None:
             return NotFoundError()
 
