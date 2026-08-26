@@ -297,6 +297,61 @@ export const UPDATE_HYMNBOOK_MUTATION = `
   }
 `;
 
+// ---------------------------------------------------------------------------
+// 5D.6 / 5D.7 — checklist e publicação
+// ---------------------------------------------------------------------------
+
+export interface PublishReadinessCheck {
+  key: string;
+  label: string;
+  ok: boolean;
+}
+
+export interface PublishReadiness {
+  canPublish: boolean;
+  checks: PublishReadinessCheck[];
+}
+
+export const PUBLISH_READINESS_QUERY = `
+  query PublishReadiness($slug: String!) {
+    publishReadiness(slug: $slug) {
+      canPublish
+      checks {
+        key
+        label
+        ok
+      }
+    }
+  }
+`;
+
+/**
+ * O checklist é sempre do backend (`apps/hymns/services/review.py::
+ * publish_readiness`). O cliente NÃO reimplementa nenhuma regra — só desenha
+ * o resultado e respeita `canPublish`.
+ */
+export async function fetchPublishReadiness(
+  fetchFn: typeof globalThis.fetch,
+  slug: string,
+): Promise<{ readiness: PublishReadiness | null; error: string | null }> {
+  const response = await gqlFetch<{ publishReadiness: PublishReadiness | null }>(
+    fetchFn,
+    GRAPHQL_URL,
+    PUBLISH_READINESS_QUERY,
+    { slug },
+  );
+  const readiness = response.data?.publishReadiness ?? null;
+  if (!readiness) {
+    return {
+      readiness: null,
+      error:
+        response.errors?.[0]?.message ??
+        "Não foi possível carregar o checklist de publicação.",
+    };
+  }
+  return { readiness, error: null };
+}
+
 export interface DeleteRef {
   __typename: string;
   ok: boolean;
