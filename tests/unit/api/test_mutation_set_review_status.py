@@ -74,3 +74,44 @@ def test_set_review_status_blocks_regular_user(authenticated_client, hymn_book_f
     data = gql(authenticated_client, MUTATION, variables={"pk": str(h.pk), "status": "REVIEWED"})
     assert "errors" not in data, data
     assert data["data"]["setReviewStatus"]["__typename"] == "PermissionDeniedError"
+
+
+# ---------- Marco 5.A½ · Tarefa B6 ----------
+
+
+def test_set_review_status_sets_last_reviewed_at(editor_client, hymn_book_factory, hymn_factory):
+    """Divergência de dado corrigida: a mutation setava `last_reviewed_by` mas
+    não `last_reviewed_at`, que tanto `hymn_review_view` (views.py) quanto
+    `editor_hymn_review` (editor_views.py) setam junto. Hino marcado REVIEWED
+    via GraphQL ficava com timestamp nulo/velho."""
+    from django.utils import timezone
+
+    hb = hymn_book_factory(is_published=True)
+    h = hymn_factory(hymn_book=hb)
+    assert h.last_reviewed_at is None
+
+    before = timezone.now()
+    data = gql(editor_client, MUTATION, variables={"pk": str(h.pk), "status": "REVIEWED"})
+    assert "errors" not in data, data
+
+    h.refresh_from_db()
+    assert h.last_reviewed_at is not None
+    assert h.last_reviewed_at >= before
+    assert h.last_reviewed_by == editor_client.user
+
+
+def test_set_review_status_refreshes_stale_last_reviewed_at(editor_client, hymn_book_factory, hymn_factory):
+    """Timestamp antigo tem que ser sobrescrito, não preservado."""
+    import datetime
+
+    from django.utils import timezone
+
+    hb = hymn_book_factory(is_published=True)
+    h = hymn_factory(hymn_book=hb)
+    stale = timezone.now() - datetime.timedelta(days=30)
+    Hymn.objects.filter(pk=h.pk).update(last_reviewed_at=stale)
+
+    gql(editor_client, MUTATION, variables={"pk": str(h.pk), "status": "IN_REVIEW"})
+
+    h.refresh_from_db()
+    assert h.last_reviewed_at > stale

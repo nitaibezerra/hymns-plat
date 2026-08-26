@@ -55,11 +55,21 @@ type HymnAudioType {
   id: UUID!
   waveformPeaks: [Int!]!
   title: String!
+  source: String!
+  credits: String!
+  recordedAt: Date
+  format: String!
+  fileSize: Int
+  allowDownload: Boolean!
   isApproved: Boolean!
   isMatch: Boolean
   qualityRating: Int
   qualityObservations: [String!]!
   mismatchReason: String!
+  reviewedAt: DateTime
+  createdAt: DateTime!
+  hymn: HymnType!
+  reviewedBy: UserType
   url: String!
   durationSeconds: Float
   uploadedBy: UserType
@@ -70,6 +80,14 @@ input HymnBookInput {
   ownerName: String!
   introName: String
   description: String
+  coverImage: Upload
+}
+
+type HymnBookReviewProgressType {
+  reviewPct: Int!
+  stylePct: Int!
+  repsPct: Int!
+  audioPct: Int!
 }
 
 type HymnBookStatsType {
@@ -82,9 +100,17 @@ type HymnBookType {
   id: UUID!
   name: String!
   slug: String!
+  introName: String!
+  ownerName: String!
+  description: String!
   isPublished: Boolean!
+  publishedAt: DateTime
   priority: String!
   isFeatured: Boolean!
+  createdAt: DateTime!
+  coverImage: String
+  publishedBy: UserType
+  reviewProgress: HymnBookReviewProgressType!
   stats: HymnBookStatsType!
   hymns: [HymnType!]!
   nextPendingHymn(currentPk: ID = null): HymnType
@@ -123,7 +149,12 @@ type HymnType {
   section: String!
   source: String!
   ocrText: String!
+  receivedAt: Date
+  lastReviewedAt: DateTime
   reviewStatus: ReviewStatus!
+  lastReviewedBy: UserType
+  hymnBook: HymnBookType!
+  isFavorited: Boolean!
   inlineDiff: InlineDiffType
   ocrLineConfidences: [Int!]!
   revisions: [HymnRevisionType!]!
@@ -221,6 +252,7 @@ type NotificationType {
   link: String!
   isRead: Boolean!
   createdAt: DateTime!
+  sender: UserType
 }
 
 type OCRTaskType {
@@ -230,7 +262,7 @@ type OCRTaskType {
   totalPages: Int!
   errorMessage: String!
   pdfFilename: String!
-  resultData: JSON!
+  resultData: JSON
   progressPct: Int!
 }
 
@@ -265,7 +297,7 @@ type Query {
   notifications(unreadOnly: Boolean! = false): [NotificationType!]!
   hourlyFeatured: [HymnBookType!]!
   search(q: String!, kind: SearchKind! = ALL): SearchResultsType!
-  editorHymnbooks(sort: [SortInput!] = null, priority: String = null): [HymnBookType!]!
+  editorHymnbooks(sort: [SortInput!] = null, priority: String! = "all"): [HymnBookType!]!
   editorDashboardStats: EditorDashboardStatsType!
   pendingAudios: [HymnAudioType!]!
   publishReadiness(slug: String!): PublishReadinessType
@@ -341,6 +373,7 @@ type UserType {
   id: ID!
   username: String!
   email: String!
+  isEditor: Boolean!
 }
 
 type ValidationError {
