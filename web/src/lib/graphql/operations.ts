@@ -70,12 +70,23 @@ export const HYMNBOOK_DETAIL_QUERY = `
   }
 `;
 
+/**
+ * Usuário da sessão, carregado uma única vez pelo layout raiz.
+ *
+ * `isEditor` (contrato 5.A½) vem NESTA query de propósito: o guard de
+ * `/editor/` decide por esse campo e antes disparava uma query própria só
+ * para obtê-lo — um round-trip extra em cada navegação dentro do workspace.
+ * Pedir o campo aqui custa um booleano no payload do shell e elimina a
+ * segunda ida ao backend. Quem quer o guard, use `isEditor`; inferir editor
+ * de `currentUser !== null` é o bug que o 5.A½ veio corrigir.
+ */
 export const CURRENT_USER_QUERY = `
   query CurrentUser {
     currentUser {
       id
       username
       email
+      isEditor
     }
   }
 `;

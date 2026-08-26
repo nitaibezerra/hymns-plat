@@ -1,5 +1,5 @@
 /**
- * Marco 5.B — Ciclo 5B.1.
+ * Marco 5.B — Ciclo 5B.1; consolidação da query do usuário (Frente B, B1).
  *
  * Guard do workspace editorial. Regra do contrato 5.A½: quem decide é
  * `UserType.isEditor`, NUNCA `currentUser !== null` — usuário logado comum
@@ -7,13 +7,22 @@
  *
  * O guard mora no layout (e não em cada `+page.ts`) porque as frentes 5.C e
  * 5.D penduram rotas dentro de `/editor/` contando com ele.
+ *
+ * Desde a consolidação (B1) ele NÃO faz query própria: consome o
+ * `currentUser` que o layout raiz já carregou, via `event.parent()`. Por isso
+ * os cenários abaixo montam o `parent` chamando o loader real do shell
+ * (`_loadLayout`) sobre um fetch falso — assim o teste cobre a cadeia inteira
+ * (resposta do backend → shell → guard) em vez de fingir o meio dela.
  */
 
 import { render, screen } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
+import { CURRENT_USER_QUERY } from "$lib/graphql/operations";
+
 import Layout from "./+layout.svelte";
 import { _loadEditorLayout } from "./+layout";
+import { _loadLayout } from "../+layout";
 
 function fakeFetch<T>(payload: T, status = 200) {
   return vi.fn().mockResolvedValue(
@@ -24,17 +33,28 @@ function fakeFetch<T>(payload: T, status = 200) {
   );
 }
 
+/** `parent()` real do shell: mesma `_loadLayout` de `src/routes/+layout.ts`. */
+function parentOf(fetchFn: typeof globalThis.fetch) {
+  return () => _loadLayout({ fetch: fetchFn });
+}
+
 function editorUrl(pathname = "/editor/") {
   return new URL(`http://localhost${pathname}`);
 }
 
 describe("guard do /editor/ (5B.1)", () => {
-  it("pede currentUser { isEditor } ao backend", async () => {
+  it("a query compartilhada do shell pede isEditor — o guard não precisa de outra", () => {
+    expect(CURRENT_USER_QUERY).toMatch(/isEditor/);
+  });
+
+  it("consome o currentUser do layout raiz sem disparar request própria", async () => {
     const fetchFn = fakeFetch({
       data: { currentUser: { id: "u1", username: "ana", isEditor: true } },
     });
-    await _loadEditorLayout({ fetch: fetchFn, url: editorUrl() });
+    await _loadEditorLayout({ parent: parentOf(fetchFn), url: editorUrl() });
 
+    // Uma única ida ao backend, a do shell. Antes eram duas por navegação.
+    expect(fetchFn).toHaveBeenCalledTimes(1);
     const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
     expect(body.query).toMatch(/currentUser/);
     expect(body.query).toMatch(/isEditor/);
@@ -44,13 +64,15 @@ describe("guard do /editor/ (5B.1)", () => {
     const fetchFn = fakeFetch({
       data: { currentUser: { id: "u1", username: "ana", isEditor: true } },
     });
-    const result = await _loadEditorLayout({ fetch: fetchFn, url: editorUrl() });
+    const result = await _loadEditorLayout({ parent: parentOf(fetchFn), url: editorUrl() });
     expect(result.editor).toEqual({ id: "u1", username: "ana", isEditor: true });
   });
 
   it("anônimo (currentUser null) redireciona pra /login?next=/editor/", async () => {
     const fetchFn = fakeFetch({ data: { currentUser: null } });
-    await expect(_loadEditorLayout({ fetch: fetchFn, url: editorUrl() })).rejects.toMatchObject({
+    await expect(
+      _loadEditorLayout({ parent: parentOf(fetchFn), url: editorUrl() }),
+    ).rejects.toMatchObject({
       status: 302,
       location: "/login?next=/editor/",
     });
@@ -60,16 +82,28 @@ describe("guard do /editor/ (5B.1)", () => {
     const fetchFn = fakeFetch({
       data: { currentUser: { id: "u2", username: "joao", isEditor: false } },
     });
-    await expect(_loadEditorLayout({ fetch: fetchFn, url: editorUrl() })).rejects.toMatchObject({
+    await expect(
+      _loadEditorLayout({ parent: parentOf(fetchFn), url: editorUrl() }),
+    ).rejects.toMatchObject({
       status: 302,
       location: "/login?next=/editor/",
     });
   });
 
+  it("usuário sem o campo isEditor na resposta é barrado (falha fecha a porta)", async () => {
+    const fetchFn = fakeFetch({ data: { currentUser: { id: "u3", username: "maria" } } });
+    await expect(
+      _loadEditorLayout({ parent: parentOf(fetchFn), url: editorUrl() }),
+    ).rejects.toMatchObject({ status: 302 });
+  });
+
   it("preserva o destino real no `next` (rotas filhas de 5.C/5.D)", async () => {
     const fetchFn = fakeFetch({ data: { currentUser: null } });
     await expect(
-      _loadEditorLayout({ fetch: fetchFn, url: editorUrl("/editor/hinarios/o-cruzeiro/") }),
+      _loadEditorLayout({
+        parent: parentOf(fetchFn),
+        url: editorUrl("/editor/hinarios/o-cruzeiro/"),
+      }),
     ).rejects.toMatchObject({
       status: 302,
       location: "/login?next=/editor/hinarios/o-cruzeiro/",
@@ -81,7 +115,9 @@ describe("guard do /editor/ (5B.1)", () => {
       data: { currentUser: null },
       errors: [{ message: "Você não tem permissão para realizar essa ação." }],
     });
-    await expect(_loadEditorLayout({ fetch: fetchFn, url: editorUrl() })).rejects.toMatchObject({
+    await expect(
+      _loadEditorLayout({ parent: parentOf(fetchFn), url: editorUrl() }),
+    ).rejects.toMatchObject({
       status: 302,
       location: "/login?next=/editor/",
     });
@@ -89,14 +125,26 @@ describe("guard do /editor/ (5B.1)", () => {
 
   it("backend fora do ar (HTTP 500) redireciona — sem editor confirmado, sem workspace", async () => {
     const fetchFn = vi.fn().mockResolvedValue(new Response("", { status: 500 }));
-    await expect(_loadEditorLayout({ fetch: fetchFn, url: editorUrl() })).rejects.toMatchObject({
+    await expect(
+      _loadEditorLayout({ parent: parentOf(fetchFn), url: editorUrl() }),
+    ).rejects.toMatchObject({
       status: 302,
     });
   });
 
   it("exceção de rede não escapa como stack trace — vira redirect", async () => {
     const fetchFn = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
-    await expect(_loadEditorLayout({ fetch: fetchFn, url: editorUrl() })).rejects.toMatchObject({
+    await expect(
+      _loadEditorLayout({ parent: parentOf(fetchFn), url: editorUrl() }),
+    ).rejects.toMatchObject({
+      status: 302,
+      location: "/login?next=/editor/",
+    });
+  });
+
+  it("parent() que rejeita também vira redirect, não 500 na cara do editor", async () => {
+    const parent = () => Promise.reject(new Error("load do shell explodiu"));
+    await expect(_loadEditorLayout({ parent, url: editorUrl() })).rejects.toMatchObject({
       status: 302,
       location: "/login?next=/editor/",
     });
