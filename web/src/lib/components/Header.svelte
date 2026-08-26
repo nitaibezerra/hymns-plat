@@ -5,9 +5,11 @@
    * Header global do shell headless. Renderiza:
    *
    *   - Brand "hinária" linkando pra `/`.
-   *   - Links de navegação: Hinários, Buscar.
+   *   - Links de navegação: Hinários (`/hinarios`), Buscar (`/busca` — a
+   *     rota implementada; `/buscar` é 404).
    *   - ThemeToggle (botão de alternar tema; comportamento no ciclo 4B.5).
-   *   - Slot de usuário: avatar+username se autenticado; link "Entrar" se não.
+   *   - Slot de usuário: avatar+username linkando `/perfil/<username>` se
+   *     autenticado (a rota é `/perfil/[username]`); link "Entrar" se não.
    *
    * `currentUser` chega do `+layout.ts` (ciclo 4B.7). Pode ser null.
    */
@@ -28,14 +30,14 @@
 
     <nav aria-label="Navegação principal" class="nav">
       <a href="/hinarios">Hinários</a>
-      <a href="/buscar">Buscar</a>
+      <a href="/busca">Buscar</a>
     </nav>
 
     <div class="actions">
       <ThemeToggle />
       {#if currentUser}
         <a
-          href="/perfil"
+          href="/perfil/{currentUser.username}"
           class="user"
           data-testid="user-avatar"
           aria-label="Perfil de {currentUser.username}"

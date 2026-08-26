@@ -2,7 +2,7 @@ name: CI Web
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main, development]
     paths:
       - "web/**"
       - "schema.graphql"
