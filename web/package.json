@@ -14,7 +14,8 @@
     "test:e2e": "playwright test",
     "test:e2e:parity": "HINARIA_E2E_PLAYWRIGHT_READY=1 playwright test --project=chromium tests/e2e/visual-parity.spec.ts",
     "test:e2e:helpers": "playwright test --project=chromium tests/e2e/_helpers",
-    "codegen": "graphql-codegen --config codegen.config.ts"
+    "codegen": "graphql-codegen --config codegen.config.ts",
+    "gerar-icones": "node scripts/gerar-icones.mjs"
   },
   "devDependencies": {
     "@graphql-codegen/cli": "^5.0.0",
