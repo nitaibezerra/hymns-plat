@@ -298,6 +298,33 @@ export const UPDATE_HYMNBOOK_MUTATION = `
 `;
 
 // ---------------------------------------------------------------------------
+// 5D.8 / 5D.9 — criar hino
+// ---------------------------------------------------------------------------
+
+/**
+ * Contexto do form de novo hino: nome do hinário pro cabeçalho e os números
+ * já usados, pra sugerir `max + 1` (paridade com `hymn_create_view`).
+ */
+export const HYMNBOOK_HYMN_NUMBERS_QUERY = `
+  query HymnBookHymnNumbers($slug: String!) {
+    hymnbook(slug: $slug) {
+      id
+      name
+      slug
+      hymns {
+        id
+        number
+      }
+    }
+  }
+`;
+
+export function suggestNextNumber(numbers: number[]): number {
+  if (numbers.length === 0) return 1;
+  return Math.max(...numbers) + 1;
+}
+
+// ---------------------------------------------------------------------------
 // 5D.6 / 5D.7 — checklist e publicação
 // ---------------------------------------------------------------------------
 
