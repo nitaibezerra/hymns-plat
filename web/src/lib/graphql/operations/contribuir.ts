@@ -147,3 +147,24 @@ export const CREATE_HYMNBOOK_VERSION_FROM_OCR_MUTATION = `
     }
   }
 `;
+
+/**
+ * Resumo do hinário de destino, pro passo "adicionar como nova versão".
+ *
+ * Não reusa `HYMNBOOK_DETAIL_QUERY` de propósito: aquela traz o corpo de todos
+ * os hinos (é a query da página de leitura) e não traz `ownerName` nem
+ * `stats` — aqui só precisamos do cabeçalho do cartão.
+ */
+export const CONTRIBUIR_TARGET_HYMNBOOK_QUERY = `
+  query ContribuirTargetHymnBook($slug: String!) {
+    hymnbook(slug: $slug) {
+      id
+      name
+      slug
+      ownerName
+      stats {
+        hymnsTotal
+      }
+    }
+  }
+`;
