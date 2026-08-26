@@ -729,3 +729,83 @@ describe("5C.11 — Salvar rascunho e voltar", () => {
     expect(screen.getByTestId("autosave-status")).toHaveTextContent("Sem permissão.");
   });
 });
+
+/**
+ * 5C.17 — a jornada que o Playwright cobriria (autosave → histórico →
+ * avançar) escrita como teste de unidade.
+ *
+ * O spec `web/tests/e2e/revise-hymn.spec.ts` fica PENDENTE de propósito:
+ * `web/tests/e2e/` é território de outra frente neste ciclo de merges e criar
+ * arquivo lá garantiria conflito. O caminho crítico está coberto aqui com o
+ * `fetch` roteado por URL; o que o E2E acrescenta é a integração real com o
+ * Django (sessão, CSRF e o HTML de verdade do `render_hymn_body`).
+ */
+describe("5C.17 — jornada completa (cobertura de unidade do E2E pendente)", () => {
+  beforeEach(() => {
+    vi.mocked(goto).mockClear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("edita → autosava → consulta histórico → marca revisado e avança", async () => {
+    const fetchFn = stubFetch(
+      {
+        data: {
+          updateHymn: { __typename: "HymnType", id: "h-1" },
+          setReviewStatus: { __typename: "HymnType", id: "h-1", reviewStatus: "REVIEWED" },
+        },
+      },
+      { html: "<p data-testid=\"rendered-line\">Eu vou subindo</p>" },
+    );
+    render(Page, {
+      props: {
+        data: {
+          ...sampleData,
+          hymn: {
+            ...sampleData.hymn!,
+            revisions: [
+              {
+                id: "r-1",
+                previousStatus: "not_reviewed",
+                newStatus: "in_review",
+                changeSummary: "Primeira passada",
+                fieldDiff: { text: { old: "subiudo", new: "subindo" } },
+                revisedAt: "2026-08-01T09:30:00",
+                revisedBy: { id: "u-1", username: "ana" },
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    // 1. A prévia chega do servidor.
+    await vi.advanceTimersByTimeAsync(600);
+    expect(screen.getByTestId("rendered-line")).toBeInTheDocument();
+
+    // 2. Editar a letra dispara autosave depois de 2s, sem redirecionar.
+    await fireEvent.input(screen.getByLabelText("Letra"), {
+      target: { value: "Eu vou subindo\nPara o firmamento" },
+    });
+    await vi.advanceTimersByTimeAsync(2100);
+    expect(bodyOf(fetchFn).query).toContain("updateHymn");
+    expect(goto).not.toHaveBeenCalled();
+    expect(screen.getByTestId("autosave-status").textContent?.trim() ?? "").toMatch(
+      /^Salvo às \d{2}:\d{2}$/,
+    );
+
+    // 3. O histórico abre com a revisão anterior.
+    await fireEvent.click(screen.getByTestId("open-revision-history"));
+    expect(screen.getByTestId("revision-item")).toHaveTextContent("ana");
+    expect(screen.getByTestId("revision-field")).toHaveTextContent("Letra");
+
+    // 4. "Marcar revisado e avançar" navega pro próximo pendente.
+    await fireEvent.click(screen.getByRole("button", { name: /Marcar revisado e avançar/ }));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(goto).toHaveBeenCalledWith("/editor/hinos/h-2/revisar");
+  });
+});
