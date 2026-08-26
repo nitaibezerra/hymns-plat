@@ -58,8 +58,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ffmpeg vem do apt do runner, nao de uma action que baixa release de
+      # terceiro: o setup-ffmpeg@v3 falhou com "TypeError: fetch failed" em 6
+      # dos ultimos 40 runs, derrubando o job antes de o pytest rodar.
       - name: Install ffmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
