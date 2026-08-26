@@ -297,6 +297,36 @@ export const UPDATE_HYMNBOOK_MUTATION = `
   }
 `;
 
+export interface DeleteRef {
+  __typename: string;
+  ok: boolean;
+  deletedId: string | null;
+}
+
+export const DELETE_HYMNBOOK_MUTATION = `
+  mutation DeleteHymnBook($slug: String!) {
+    deleteHymnBook(slug: $slug) {
+      __typename
+      ... on DeleteResult { ok deletedId }
+      ... on PermissionDeniedError { message }
+      ... on NotFoundError { message }
+    }
+  }
+`;
+
+export function deleteHymnBook(
+  fetchFn: typeof globalThis.fetch,
+  slug: string,
+): Promise<MutationOutcome<DeleteRef>> {
+  return runMutation<DeleteRef>(
+    fetchFn,
+    DELETE_HYMNBOOK_MUTATION,
+    { slug },
+    "deleteHymnBook",
+    ["DeleteResult"],
+  );
+}
+
 export function updateHymnBook(
   fetchFn: typeof globalThis.fetch,
   slug: string,
