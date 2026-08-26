@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { goto } from "$app/navigation";
 import Page from "./+page.svelte";
 import type { ReviseHymnData } from "./+page";
+import type { EditorLayoutData } from "../../../+layout";
 
 vi.mock("$app/navigation", () => ({
   goto: vi.fn(),
@@ -55,8 +56,16 @@ function bodyOf(fn: FetchMock, callIndex = 0) {
   return JSON.parse(graphqlCalls(fn)[callIndex][1].body as string);
 }
 
-export const sampleData: ReviseHymnData & { currentUser: null } = {
+/*
+ * O `PageData` desta rota é a fusão do que a `+page.ts` devolve com o que o
+ * `+layout.ts` de `/editor/` devolve — o SvelteKit funde os dois. Por isso a
+ * fixture carrega `editor`, mesmo que esta tela nunca leia o campo (quem usa
+ * é o guard, no layout). Todas as fixtures dos casos fazem `...sampleData`,
+ * então um campo novo no contrato do layout se resolve aqui, num lugar só.
+ */
+export const sampleData: ReviseHymnData & EditorLayoutData & { currentUser: null } = {
   currentUser: null,
+  editor: null,
   error: null,
   hymn: {
     id: "h-1",
