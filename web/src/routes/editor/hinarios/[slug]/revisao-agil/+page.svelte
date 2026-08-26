@@ -44,6 +44,24 @@
   const done = $derived(finished || data.allComplete);
 
   /**
+   * 5E.5 — anterior/próximo são vizinhos na LISTA, e viram `<a href>` de
+   * verdade: navegação por URL, não por JS. Assim o editor pode abrir em nova
+   * aba, voltar pelo histórico e o SSR renderiza o hino certo direto.
+   *
+   * Sem wrap-around, igual ao Django: nas pontas o botão fica presente mas
+   * inerte (sem `href`), pra grade não pular de lugar.
+   */
+  const index = $derived(data.current ? data.hymns.indexOf(data.current) : -1);
+  const prevHymn = $derived(index > 0 ? data.hymns[index - 1] : null);
+  const nextHymn = $derived(
+    index >= 0 && index + 1 < data.hymns.length ? data.hymns[index + 1] : null,
+  );
+
+  /** "02 DE 40" — dois dígitos como o `stringformat:"02d"` do template. */
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const progressPct = $derived(data.total > 0 ? (data.position / data.total) * 100 : 0);
+
+  /**
    * Grava os dois campos e pula pro próximo incompleto.
    *
    * `quickReviewHymn` só escreve `style` e `repetitions` — não mexe em
@@ -93,13 +111,25 @@
    * duas vezes.
    */
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key !== "Enter") return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     const target = event.target;
     if (target instanceof HTMLElement) {
       if (target.isContentEditable) return;
       if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName)) return;
     }
+
+    // ←/→ vão pros MESMOS destinos dos links anterior/próximo — o atalho é
+    // enfeite por cima de `<a href>` reais, não a única forma de navegar.
+    // Sem wrap-around: nas pontas o atalho é mudo, como o link inerte.
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      const destination = event.key === "ArrowLeft" ? prevHymn : nextHymn;
+      if (!destination) return;
+      event.preventDefault();
+      void goto(`${quickHref}?h=${destination.number}`, { invalidateAll: true });
+      return;
+    }
+
+    if (event.key !== "Enter") return;
     event.preventDefault();
     void submit();
   }
@@ -117,8 +147,32 @@
     <a class="back" href={detailHref}>← {data.hymnbook.name}</a>
     <div class="headline">
       <p class="screen-name">Revisão ágil · Estilo &amp; Repetições</p>
+      {#if data.total > 0}
+        <p class="position" data-testid="quick-review-position">
+          {pad(data.position)} DE {pad(data.total)}
+        </p>
+      {/if}
     </div>
+    {#if data.current}
+      <a class="back full-review" href={`/editor/hinos/${data.current.id}/revisar/`} data-testid="quick-review-full">
+        Ir para revisão completa →
+      </a>
+    {/if}
   </header>
+
+  {#if data.total > 0}
+    <div
+      class="progress"
+      role="progressbar"
+      aria-label="Progresso da revisão ágil"
+      aria-valuenow={data.position}
+      aria-valuemin="0"
+      aria-valuemax={data.total}
+      data-testid="quick-review-progress"
+    >
+      <div class="progress-fill" style={`width: ${progressPct}%`}></div>
+    </div>
+  {/if}
 
   {#if data.hymns.length === 0}
     <div class="panel" data-testid="quick-review-empty">
@@ -170,6 +224,25 @@
         {#if error}
           <p class="form-error" role="alert" data-testid="quick-review-error">{error}</p>
         {/if}
+
+        <nav class="steps" aria-label="Navegar entre hinos">
+          <a
+            class="step"
+            href={prevHymn ? `${quickHref}?h=${prevHymn.number}` : undefined}
+            aria-disabled={prevHymn ? undefined : "true"}
+            data-testid="quick-review-prev"
+          >
+            <kbd>←</kbd> Anterior
+          </a>
+          <a
+            class="step"
+            href={nextHymn ? `${quickHref}?h=${nextHymn.number}` : undefined}
+            aria-disabled={nextHymn ? undefined : "true"}
+            data-testid="quick-review-next"
+          >
+            Próximo <kbd>→</kbd>
+          </a>
+        </nav>
 
         <button class="submit" type="submit" disabled={saving} data-testid="quick-review-submit">
           {saving ? "Salvando…" : "Salvar e ir para o próximo"}
@@ -319,5 +392,51 @@
     font-size: 0.875rem;
     padding: 0.625rem 1.25rem;
     text-decoration: none;
+  }
+  .position {
+    color: var(--color-text-soft);
+    font-family: var(--font-mono, monospace);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    margin: 0.125rem 0 0;
+  }
+  .full-review {
+    margin-left: auto;
+  }
+  .progress {
+    background: var(--color-border-soft);
+    border-radius: 9999px;
+    height: 0.25rem;
+    overflow: hidden;
+  }
+  .progress-fill {
+    background: var(--color-accent);
+    height: 100%;
+    max-width: 100%;
+  }
+  .steps {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .step {
+    align-items: center;
+    border: 1px solid var(--color-border-soft);
+    border-radius: var(--radius-pill, 9999px);
+    color: var(--color-text-soft);
+    display: flex;
+    font-size: 0.8125rem;
+    gap: 0.375rem;
+    justify-content: center;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+  }
+  .step[href]:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+  .step[aria-disabled="true"] {
+    opacity: 0.4;
+    pointer-events: none;
   }
 </style>

@@ -375,3 +375,100 @@ describe("/editor/hinarios/[slug]/revisao-agil — conclusão (5E.4)", () => {
     expect(goto).not.toHaveBeenCalled();
   });
 });
+
+describe("/editor/hinarios/[slug]/revisao-agil — posição e navegação (5E.5)", () => {
+  it("a load informa posição e total do hino corrente", async () => {
+    const result = await _loadQuickReview(event("?h=3"));
+    expect(result.position).toBe(3);
+    expect(result.total).toBe(3);
+  });
+
+  it("posição acompanha o hino escolhido pelo default", async () => {
+    const result = await _loadQuickReview(event());
+    expect(result.position).toBe(2);
+  });
+
+  it("hinário vazio tem posição 0", async () => {
+    const ev = { ...event(), fetch: fakeFetch(payload({ ...HYMNBOOK, hymns: [] })) };
+    const result = await _loadQuickReview(ev);
+    expect(result.position).toBe(0);
+    expect(result.total).toBe(0);
+  });
+
+  it("mostra o indicador N DE TOTAL com dois dígitos, como no Django", () => {
+    render(Page, { props: { data: pageData({ position: 2, total: 3 }) } });
+    expect(screen.getByTestId("quick-review-position")).toHaveTextContent("02 DE 03");
+  });
+
+  it("expõe o progresso como barra acessível", () => {
+    render(Page, { props: { data: pageData({ position: 2, total: 3 }) } });
+    const bar = screen.getByTestId("quick-review-progress");
+    expect(bar).toHaveAttribute("role", "progressbar");
+    expect(bar).toHaveAttribute("aria-valuenow", "2");
+    expect(bar).toHaveAttribute("aria-valuemax", "3");
+  });
+
+  it("anterior e próximo são <a href> com ?h=, não botões de JS", () => {
+    render(Page, { props: { data: pageData({ position: 2, total: 3 }) } });
+    const prev = screen.getByTestId("quick-review-prev");
+    const next = screen.getByTestId("quick-review-next");
+    expect(prev.tagName).toBe("A");
+    expect(next.tagName).toBe("A");
+    expect(prev).toHaveAttribute("href", "/editor/hinarios/cruzeiro/revisao-agil/?h=1");
+    expect(next).toHaveAttribute("href", "/editor/hinarios/cruzeiro/revisao-agil/?h=3");
+  });
+
+  it("no primeiro hino, o anterior não é link navegável", () => {
+    render(Page, {
+      props: { data: pageData({ current: HYMNBOOK.hymns[0], position: 1, total: 3 }) },
+    });
+    expect(screen.getByTestId("quick-review-prev")).not.toHaveAttribute("href");
+  });
+
+  it("no último hino, o próximo não é link navegável", () => {
+    render(Page, {
+      props: { data: pageData({ current: HYMNBOOK.hymns[2], position: 3, total: 3 }) },
+    });
+    expect(screen.getByTestId("quick-review-next")).not.toHaveAttribute("href");
+  });
+
+  it("leva pra revisão completa do hino corrente", () => {
+    render(Page, { props: { data: pageData() } });
+    expect(screen.getByTestId("quick-review-full")).toHaveAttribute(
+      "href",
+      "/editor/hinos/h2/revisar/",
+    );
+  });
+
+  it("← navega pro anterior, o mesmo destino do link", async () => {
+    render(Page, { props: { data: pageData({ position: 2, total: 3 }) } });
+    await fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(goto).toHaveBeenCalledWith("/editor/hinarios/cruzeiro/revisao-agil/?h=1", {
+      invalidateAll: true,
+    });
+  });
+
+  it("→ navega pro próximo", async () => {
+    render(Page, { props: { data: pageData({ position: 2, total: 3 }) } });
+    await fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(goto).toHaveBeenCalledWith("/editor/hinarios/cruzeiro/revisao-agil/?h=3", {
+      invalidateAll: true,
+    });
+  });
+
+  it("← nas pontas não navega (sem wrap-around, igual ao Django)", async () => {
+    render(Page, {
+      props: { data: pageData({ current: HYMNBOOK.hymns[0], position: 1, total: 3 }) },
+    });
+    await fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(goto).not.toHaveBeenCalled();
+  });
+
+  it("setas não navegam com o foco num campo de texto (o cursor é do editor)", async () => {
+    render(Page, { props: { data: pageData({ position: 2, total: 3 }) } });
+    const input = screen.getByTestId("quick-style-input");
+    input.focus();
+    await fireEvent.keyDown(input, { key: "ArrowLeft", bubbles: true });
+    expect(goto).not.toHaveBeenCalled();
+  });
+});

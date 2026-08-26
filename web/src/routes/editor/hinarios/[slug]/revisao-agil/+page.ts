@@ -50,6 +50,9 @@ export interface QuickReviewData {
    * também os separa).
    */
   allComplete: boolean;
+  /** Posição 1-based do hino corrente na lista; 0 quando não há hino. */
+  position: number;
+  total: number;
 }
 
 /**
@@ -111,11 +114,18 @@ export async function _loadQuickReview(event: {
   // links anterior/próximo (5E.5) — ordenar aqui torna a dependência local.
   const hymns = [...(rawHymns ?? [])].sort((a, b) => a.number - b.number);
 
+  const current = _pickCurrent(hymns, event.url.searchParams.get("h"));
+
   return {
     hymnbook,
     hymns,
-    current: _pickCurrent(hymns, event.url.searchParams.get("h")),
+    current,
     allComplete: hymns.length > 0 && !hymns.some(_isIncomplete),
+    // Posição na LISTA, não o número do hino: o Django mostra "02 DE 40"
+    // contando a ordem de leitura, e hinários com numeração furada
+    // (1, 2, 5…) fariam os dois divergirem.
+    position: current ? hymns.indexOf(current) + 1 : 0,
+    total: hymns.length,
   };
 }
 
