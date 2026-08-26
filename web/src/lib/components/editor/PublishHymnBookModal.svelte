@@ -12,7 +12,11 @@
    * No modo "despublicar" não existe checklist — o `hymnbook_unpublish_view`
    * do Django também não checa nada além de permissão.
    */
-  import { fetchPublishReadiness } from "$lib/graphql/operations/crud";
+  import {
+    fetchPublishReadiness,
+    publishHymnBook,
+    unpublishHymnBook,
+  } from "$lib/graphql/operations/crud";
   import type { PublishReadiness } from "$lib/graphql/operations/crud";
 
   export interface PublishableHymnBook {
@@ -57,9 +61,31 @@
     readinessError = result.error;
   }
 
+  let submitting = $state(false);
+  let submitError = $state<string | null>(null);
+
   const canSubmit = $derived(
-    isUnpublishing ? true : !loading && readiness !== null && readiness.canPublish,
+    submitting
+      ? false
+      : isUnpublishing
+        ? true
+        : !loading && readiness !== null && readiness.canPublish,
   );
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    submitting = true;
+    submitError = null;
+    const result = isUnpublishing
+      ? await unpublishHymnBook(fetch, hymnbook.slug)
+      : await publishHymnBook(fetch, hymnbook.slug);
+    submitting = false;
+    if (result.ok) {
+      onchanged?.();
+      return;
+    }
+    submitError = result.message;
+  }
 </script>
 
 {#if open}
@@ -105,9 +131,22 @@
       {/if}
     {/if}
 
+    {#if submitError}
+      <p class="modal-error" role="alert" data-testid="publish-error">{submitError}</p>
+    {/if}
+
     <div class="actions">
-      <button type="button" disabled={!canSubmit} data-testid="confirm-publish">
-        {isUnpublishing ? "Despublicar" : "Publicar"}
+      <button
+        type="button"
+        disabled={!canSubmit}
+        onclick={handleSubmit}
+        data-testid="confirm-publish"
+      >
+        {#if submitting}
+          {isUnpublishing ? "Despublicando…" : "Publicando…"}
+        {:else}
+          {isUnpublishing ? "Despublicar" : "Publicar"}
+        {/if}
       </button>
       <button type="button" onclick={() => onclose?.()} data-testid="cancel-publish">
         Cancelar

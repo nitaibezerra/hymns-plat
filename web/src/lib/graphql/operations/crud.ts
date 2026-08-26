@@ -352,6 +352,77 @@ export async function fetchPublishReadiness(
   return { readiness, error: null };
 }
 
+export const PUBLISH_HYMNBOOK_MUTATION = `
+  mutation PublishHymnBook($slug: String!) {
+    publishHymnBook(slug: $slug) {
+      __typename
+      ... on PublishResult { ok failedChecks }
+      ... on PermissionDeniedError { message }
+      ... on NotFoundError { message }
+    }
+  }
+`;
+
+export const UNPUBLISH_HYMNBOOK_MUTATION = `
+  mutation UnpublishHymnBook($slug: String!) {
+    unpublishHymnBook(slug: $slug) {
+      __typename
+      ... on HymnBookType { id slug name isPublished }
+      ... on PermissionDeniedError { message }
+      ... on NotFoundError { message }
+    }
+  }
+`;
+
+export interface PublishRef {
+  __typename: string;
+  ok: boolean;
+  failedChecks: string[];
+}
+
+/**
+ * `PublishResult` pode voltar com `ok: false` + `failedChecks` mesmo sem
+ * erro de permissão: é o backend re-checando o `publish_readiness` no
+ * momento do commit (o checklist da tela pode ter envelhecido). Traduzimos
+ * isso numa mensagem legível em vez de deixar passar como sucesso.
+ */
+export async function publishHymnBook(
+  fetchFn: typeof globalThis.fetch,
+  slug: string,
+): Promise<MutationOutcome<PublishRef>> {
+  const outcome = await runMutation<PublishRef>(
+    fetchFn,
+    PUBLISH_HYMNBOOK_MUTATION,
+    { slug },
+    "publishHymnBook",
+    ["PublishResult"],
+  );
+  if (outcome.ok && outcome.data && !outcome.data.ok) {
+    const pending = outcome.data.failedChecks.join("; ");
+    return {
+      ok: false,
+      data: null,
+      message: pending
+        ? `Hinário não pode ser publicado. Pendências: ${pending}`
+        : "Hinário não pode ser publicado.",
+    };
+  }
+  return outcome;
+}
+
+export function unpublishHymnBook(
+  fetchFn: typeof globalThis.fetch,
+  slug: string,
+): Promise<MutationOutcome<HymnBookRef>> {
+  return runMutation<HymnBookRef>(
+    fetchFn,
+    UNPUBLISH_HYMNBOOK_MUTATION,
+    { slug },
+    "unpublishHymnBook",
+    ["HymnBookType"],
+  );
+}
+
 export interface DeleteRef {
   __typename: string;
   ok: boolean;
