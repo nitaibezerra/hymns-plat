@@ -1,9 +1,36 @@
 <script lang="ts">
+  /**
+   * Sub-marco 5.F — Ciclos 5F.5 a 5F.8.
+   *
+   * Tela 1 do wizard: porta de `templates/users/upload.html`. Coleta os
+   * dados no `ContribuirForm`, sobe o PDF no endpoint REST do Django e
+   * navega pro passo 2 com a `OCRTask` recém-criada na URL.
+   */
+  import { goto } from "$app/navigation";
+  import ContribuirForm from "$lib/components/contribuir/ContribuirForm.svelte";
   import UploadStepper from "$lib/components/contribuir/UploadStepper.svelte";
 
+  import { uploadPdfForOcr } from "./upload-pdf";
+
+  import type { UploadPayload } from "$lib/components/contribuir/ContribuirForm.svelte";
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
+
+  let submitting = $state(false);
+  let submitError = $state<string | null>(null);
+
+  async function handleUpload(payload: UploadPayload) {
+    submitting = true;
+    submitError = null;
+    const result = await uploadPdfForOcr(fetch, payload);
+    submitting = false;
+    if (result.ok) {
+      await goto(`/contribuir/processando/?task=${result.taskId}`);
+    } else {
+      submitError = result.message;
+    }
+  }
 </script>
 
 <section data-testid="contribuir-page">
@@ -20,6 +47,10 @@
       Não foi possível falar com o servidor: {data.error}
     </p>
   {/if}
+
+  <div class="form-wrap">
+    <ContribuirForm onsubmit={handleUpload} {submitting} {submitError} />
+  </div>
 
   {#if data.currentUser}
     <p class="hint" data-testid="contribuir-user">Enviando como {data.currentUser.username}.</p>
@@ -51,6 +82,9 @@
   .stepper {
     margin-top: 2rem;
   }
+  .form-wrap {
+    margin-top: 2.5rem;
+  }
   .error {
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-status-not);
@@ -62,5 +96,6 @@
   .hint {
     color: var(--color-text-muted);
     font-size: 0.875rem;
+    margin-top: 1rem;
   }
 </style>
