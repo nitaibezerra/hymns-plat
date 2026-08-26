@@ -13,9 +13,13 @@
  * - Por default os testes ficam em SKIP (`HINARIA_E2E_PLAYWRIGHT_READY=1`
  *   pra ativar) — mantém CI normal verde enquanto orquestração de Django
  *   dev server em GitHub Actions é follow-up.
- * - `maxDiffPixelRatio: 0.05` (5%) é o threshold padrão de paridade visual
- *   por rota. Diferenças cosméticas anti-alias/Tailwind CDN vs build são
- *   aceitáveis dentro desse limite.
+ * - O threshold de paridade (5%) NÃO mora aqui. `expect.toHaveScreenshot` só
+ *   valeria pra comparação contra baseline em disco, e a suíte de paridade
+ *   compara duas capturas ao vivo (Django e SvelteKit na mesma corrida) via
+ *   `tests/e2e/_helpers/parity-report.ts` — é lá que `DEFAULT_MAX_DIFF_RATIO`
+ *   vive, junto das tolerâncias de anti-alias e sub-pixel de fonte.
+ * - `outputDir` recebe as capturas e os PNGs de diff em
+ *   `test-results/visual-parity/`.
  * - `test-results/`, `playwright-report/` já no `.gitignore`.
  */
 
@@ -28,17 +32,12 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
+  outputDir: "test-results",
   use: {
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
-  },
-  expect: {
-    toHaveScreenshot: {
-      maxDiffPixelRatio: 0.05,
-      animations: "disabled",
-    },
   },
   projects: [
     {

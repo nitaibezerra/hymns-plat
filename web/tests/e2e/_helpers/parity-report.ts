@@ -32,6 +32,11 @@ export type ParityAssertion = {
   maxDiffPixelRatio?: number;
   /** Override do diretório de artefatos (usado nos testes do helper). */
   outputDir?: string;
+  /**
+   * Chamado com o resultado medido SEMPRE — passando ou reprovando. É o que
+   * garante que o percentual apareça no output mesmo quando o teste falha.
+   */
+  report?: (outcome: ParityOutcome) => void;
 };
 
 export type ParityOutcome = ImageDiffResult & {
@@ -68,6 +73,8 @@ export function assertVisualParity(assertion: ParityAssertion): ParityOutcome {
     withinThreshold: diff.ratio <= maxDiffPixelRatio,
     artifacts,
   };
+
+  assertion.report?.(outcome);
 
   if (!outcome.withinThreshold) {
     throw new Error(describeFailure(outcome));

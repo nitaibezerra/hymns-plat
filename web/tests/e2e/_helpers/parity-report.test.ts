@@ -14,7 +14,11 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { formatRatio } from "./image-diff";
-import { DEFAULT_MAX_DIFF_RATIO, assertVisualParity } from "./parity-report";
+import {
+  DEFAULT_MAX_DIFF_RATIO,
+  assertVisualParity,
+  formatParityLine,
+} from "./parity-report";
 import { BLACK, WHITE, solidPng, splitPng } from "./png-fixtures";
 
 function scratchDir(): string {
@@ -86,6 +90,25 @@ test.describe("assertiva de paridade (parity-report)", () => {
 
     expect(outcome.withinThreshold).toBe(true);
     expect(outcome.maxDiffPixelRatio).toBe(1);
+  });
+
+  test("reporta o medido também quando reprova — o número não pode se perder", () => {
+    const linhas: string[] = [];
+
+    expect(() =>
+      assertVisualParity({
+        id: "reportado",
+        djangoShot: solidPng(100, 100, WHITE),
+        svelteShot: solidPng(100, 100, BLACK),
+        outputDir: scratchDir(),
+        report: (outcome) => linhas.push(formatParityLine(outcome)),
+      }),
+    ).toThrow();
+
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0]).toContain("reportado");
+    expect(linhas[0]).toContain("100,00%");
+    expect(linhas[0]).toContain("ACIMA DO THRESHOLD");
   });
 
   test("grava as duas capturas e o diff pra inspeção", () => {
