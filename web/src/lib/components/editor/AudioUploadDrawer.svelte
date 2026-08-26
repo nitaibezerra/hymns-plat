@@ -32,7 +32,13 @@
   let title = $state("");
   let source = $state("");
   let credits = $state("");
-  let allowDownload = $state(false);
+  /**
+   * `HymnAudio.allow_download` tem `default=True` no modelo e o resolver
+   * `upload_audio` assume True quando o argumento não vem — o checkbox precisa
+   * nascer marcado, senão a UI inverte silenciosamente a política da
+   * plataforma a cada upload.
+   */
+  let allowDownload = $state(true);
   let uploading = $state(false);
   let error = $state<string | null>(null);
 

@@ -109,7 +109,6 @@ describe("AudioUploadDrawer — envio (5D.12)", () => {
     await fireEvent.input(screen.getByLabelText(/^título/i), { target: { value: "Ao vivo" } });
     await fireEvent.input(screen.getByLabelText(/fonte/i), { target: { value: "Arquivo pessoal" } });
     await fireEvent.input(screen.getByLabelText(/créditos/i), { target: { value: "Coral do centro" } });
-    await fireEvent.click(screen.getByLabelText(/permitir download/i));
     await fireEvent.submit(screen.getByTestId("audio-upload-form"));
 
     await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
@@ -126,6 +125,37 @@ describe("AudioUploadDrawer — envio (5D.12)", () => {
       allowDownload: true,
     });
     expect(JSON.parse(body.get("map") as string)).toEqual({ "0": ["variables.file"] });
+  });
+
+  it("preserva o default da plataforma: 'permitir download' já vem marcado (5D.17)", async () => {
+    // `HymnAudio.allow_download` tem `default=True` no modelo e o resolver
+    // `upload_audio` assume True quando o argumento não vem. Um checkbox
+    // desmarcado por padrão inverteria silenciosamente essa política.
+    const fetchFn = stubFetch(OK_PAYLOAD);
+    renderDrawer();
+    expect(screen.getByLabelText(/permitir download/i)).toBeChecked();
+    await selectFile(makeFile("gravacao.mp3", 1 * MB));
+    await fireEvent.submit(screen.getByTestId("audio-upload-form"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    const operations = JSON.parse(
+      (fetchFn.mock.calls[0][1].body as FormData).get("operations") as string,
+    );
+    expect(operations.variables.allowDownload).toBe(true);
+  });
+
+  it("desmarcar 'permitir download' manda false", async () => {
+    const fetchFn = stubFetch(OK_PAYLOAD);
+    renderDrawer();
+    await fireEvent.click(screen.getByLabelText(/permitir download/i));
+    await selectFile(makeFile("gravacao.mp3", 1 * MB));
+    await fireEvent.submit(screen.getByTestId("audio-upload-form"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    const operations = JSON.parse(
+      (fetchFn.mock.calls[0][1].body as FormData).get("operations") as string,
+    );
+    expect(operations.variables.allowDownload).toBe(false);
   });
 
   it("avisa onuploaded quando o upload dá certo", async () => {
