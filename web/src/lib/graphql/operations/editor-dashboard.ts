@@ -26,3 +26,59 @@ export const EDITOR_CURRENT_USER_QUERY = `
     }
   }
 `;
+
+/**
+ * Dashboard do editor num único round-trip: as stats agregadas + a fila de
+ * hinários. São duas queries no mesmo documento de propósito — a tela não
+ * renderiza metade útil, e um POST é mais barato que dois em SSR.
+ *
+ * `reviewProgress` traz os 4 percentuais já calculados pelo backend (5.A½);
+ * o cliente NÃO recalcula nada. `stats` complementa com os absolutos
+ * ("12 de 30 revisados") que a barra de revisão formal mostra ao lado do %.
+ *
+ * `sort` é `[SortInput!]` (`{column, direction}`) e `priority` é
+ * `String! = "all"` — com "all" o backend não filtra e promove a prioridade
+ * a ORDER BY primário (P1 no topo), deixando os sorts do usuário como
+ * secundários.
+ */
+export const EDITOR_DASHBOARD_QUERY = `
+  query EditorDashboard($sort: [SortInput!], $priority: String!) {
+    editorDashboardStats {
+      totalHinarios
+      pendingHymns
+      recentReviewed7d
+      p1Count
+      pendingAudiosCount
+      resumeHymn {
+        id
+        number
+        title
+        hymnBook {
+          name
+          slug
+        }
+      }
+    }
+    editorHymnbooks(sort: $sort, priority: $priority) {
+      id
+      name
+      slug
+      priority
+      isFeatured
+      isPublished
+      ownerName
+      createdAt
+      reviewProgress {
+        reviewPct
+        stylePct
+        repsPct
+        audioPct
+      }
+      stats {
+        hymnsTotal
+        hymnsReviewed
+        audiosApproved
+      }
+    }
+  }
+`;
