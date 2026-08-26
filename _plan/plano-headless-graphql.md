@@ -785,20 +785,41 @@ Análise de dependências:
 
 **Objetivo:** `hinaria.com.br` passa a apontar pro SvelteKit. Templates Django arquivados.
 
-**Passos:**
-1. Smoke-test final em `app.hinaria.com.br` (rodando há 2+ semanas pro Marco 6).
-2. Mudar Worker `hinaria-proxy` no Cloudflare:
-   - Rotas `hinaria.com.br/admin/*` e `/django-admin/*` e `/graphql/*` → Railway.
+**Passos (reescritos em 2026-08-26):**
+
+0. **Bloqueante — fechar o gap de paridade.** 22 páginas Django ainda não têm par na SPA. O Marco 5 (incluindo o novo 5.F) cobre a maior parte; o resto exige decisão explícita **portar ou descontinuar**, página por página, antes de qualquer troca de rota. Cutover com gap aberto = regressão de produto, não migração.
+1. **Definir os cookies cross-subdomain.** `SESSION_COOKIE_DOMAIN` e `CSRF_COOKIE_DOMAIN` **não existem em nenhum lugar do repo** — nem em `base.py`, nem em `production.py`. Sem `Domain=.hinaria.com.br` a sessão não atravessa `hinaria.com.br` ↔ `api.hinaria.com.br` e a SPA autenticada não funciona em produção. Este passo tem teste próprio (unit sobre settings + E2E de login cross-subdomain).
+2. **Configurar o deploy do frontend.** Hoje **não existe nada**: nenhum workflow do web em `.github/workflows/`, nenhum `wrangler.toml`/`wrangler.jsonc`, nenhum projeto Pages provisionado. Escopo real: adapter Cloudflare no `svelte.config.js`, projeto Pages/Workers, secrets no GitHub, workflow de deploy do `web/` e a correção do `ci-web.yml` (ver "Dívida de CI" na seção de processo).
+3. **Resolver os 3 endpoints REST sem equivalente GraphQL** (ver levantamento abaixo). Cada um recebe uma decisão registrada: manter como REST no domínio da API, ou portar.
+4. **Smoke-test final** em `app.hinaria.com.br` (rodando há 2+ semanas pro Marco 6).
+5. **Mudar o Worker `hinaria-proxy` no Cloudflare:**
+   - `hinaria.com.br/admin/*`, `/django-admin/*`, `/documents/*`, `/accounts/*` (allauth) e `/graphql/*` → Railway.
    - Restante → Cloudflare Pages (SvelteKit).
-3. **Manter Django capaz de servir templates** por 30 dias (rollback possível via Worker).
-4. Após 30 dias: deletar `templates/hymns/*`, `templates/users/*` (exceto allauth), `static/js/audio-player.js`, `static/js/hymn-carousel.js`, e os testes pinned a templates (`tests/unit/test_typography_setup.py`, `tests/e2e/test_carousel.py` etc.).
-5. Remover `apps.hymns.views` e `apps.hymns.editor_views` (mantendo só `api_views.py` legacy se ainda houver consumidores externos).
-6. Atualizar CLAUDE.md (raiz + sister project copa-dos-reis se aplicável).
+   - **Decisão pendente e obrigatória:** `config/urls.py` termina com o **catch-all do Wagtail** (`path("", include(wagtail_urls))`) e existe um `HomePage` real em `apps/cms/models.py`. Qualquer URL que hoje cai no Wagtail passa a cair na SPA quando o "restante" for redirecionado. Decidir explicitamente: (a) SPA assume e o catch-all Wagtail morre; (b) um prefixo reservado (ex: `/paginas/*`) continua indo pro Django; ou (c) a SPA faz fallback pro Django em 404. Sem essa decisão o cutover derruba páginas CMS silenciosamente.
+6. **Manter Django capaz de servir templates** por 30 dias (rollback possível via Worker, sem redeploy).
+7. **Após 30 dias:** deletar `templates/hymns/*`, `templates/users/*` (exceto allauth), `static/js/audio-player.js`, `static/js/hymn-carousel.js`, `static/js/player.js`, `static/js/hymn-read-sync.js`. **Isto não é uma deleção de arquivos, é um refactor de suíte:** ~35 dos ~70 arquivos de `tests/unit/` (nível raiz) e 13 dos 14 arquivos de `tests/e2e/` estão acoplados a template — assertam HTML renderado, `assertTemplateUsed`, classes Tailwind ou navegação server-rendered. Cada um precisa ser **reescrito contra o GraphQL/SPA ou aposentado com justificativa**, não simplesmente apagado; caso contrário o cutover derruba a cobertura junto com os templates. Orçar isso como trabalho de dias, não de minutos.
+8. **Remover `apps.hymns.views` e `apps.hymns.editor_views`** (mantendo só `api_views.py` legacy se ainda houver consumidores externos).
+9. **Atualizar CLAUDE.md** (raiz + sister project `copa-dos-reis` se aplicável) — as seções de Frontend, Typography, Reading modes e Carousel descrevem o mundo server-rendered e ficam falsas no cutover.
+
+**Levantamento de 2026-08-26 (o que a versão anterior deste marco não sabia):**
+
+| Achado | Estado real |
+|---|---|
+| Páginas Django sem par na SPA | **22.** A SPA tem 10 rotas (`/`, `/busca/`, `/hinarios/`, `/hinarios/[slug]/`, `/hinos/[pk]/`, `/login/`, `/notificacoes/`, `/perfil/[username]/` + seguidores/seguindo). Ficam de fora: os ~7 do workspace `/editor/` (Marco 5.B-5.E), os 5 de `/contribuir/` (Marco 5.F), o CRUD server-rendered de hinários/hinos (Marco 5.D), e **duas sem marco nenhum: `/hinarios/<slug>/ler/` (leitura sincronizada) e `/perfil/<username>/editar/`** — precisam de decisão portar-ou-descontinuar. |
+| Endpoints sem equivalente GraphQL | **3:** `editor/preview/render/` (decisão já fixada no Marco 5: fica REST), `api/editor/resume/` e `audios/<id>/download/` (download com `Content-Disposition` — não é expressável em GraphQL; fica REST no domínio da API, mas precisa entrar nas rotas do Worker). |
+| `SESSION_COOKIE_DOMAIN` / `CSRF_COOKIE_DOMAIN` | **Não existem em nenhum lugar do repo.** A única menção era este próprio plano (Marco 2, "deferred até Marco 7"). É trabalho a fazer, não configuração existente. |
+| Deploy do frontend | **Nada configurado.** Sem workflow, sem `wrangler.toml`, sem projeto Pages. |
+| Suíte acoplada a template | ~35 dos ~70 arquivos de `tests/unit/` (raiz) e 13 dos 14 de `tests/e2e/`. |
+| `tests/e2e/test_carousel.py` (citado no passo 4 da versão anterior) | **Não existe.** O E2E de carrossel nunca foi escrito; a lista de "testes a deletar" apontava para um arquivo imaginário. |
+| Catch-all Wagtail | `config/urls.py:37` = `path("", include(wagtail_urls))`, com `HomePage` real em `apps/cms/models.py`. Sem destino decidido na troca de rotas do Worker. |
 
 **Critério de aceitação:**
+- Gap de paridade fechado ou explicitamente descontinuado, página por página (passo 0).
 - `hinaria.com.br` serve SvelteKit.
-- `api.hinaria.com.br/graphql/` responde.
-- Wagtail admin acessível em `hinaria.com.br/admin/` ou `admin.hinaria.com.br/admin/`.
+- `api.hinaria.com.br/graphql/` responde, e os 3 endpoints REST remanescentes continuam alcançáveis pelas rotas do Worker.
+- Login autenticado funciona **cross-subdomain** (cookie com `Domain=.hinaria.com.br`), verificado em E2E.
+- Wagtail admin acessível em `hinaria.com.br/admin/` ou `admin.hinaria.com.br/admin/`, e o destino do catch-all Wagtail está decidido e implementado.
+- Suíte verde **depois** da deleção dos templates: todo teste acoplado a template foi reescrito ou aposentado com justificativa registrada.
 - Backup do branch `pre-headless` taggeado no Git pra rollback bruto se necessário.
 
 ### Marco 8 (opcional, fora do escopo MVP) — Cliente mobile
@@ -1014,7 +1035,7 @@ Tempo →    Semana 1         Semana 2              Semana 3
 | 4. Paridade read-only | 4-5 semanas |
 | 5. CRUD editorial | 3-4 semanas |
 | 6. Offline-first PWA | 2-3 semanas |
-| 7. Cutover | 1 semana |
+| 7. Cutover | **2-3 semanas** (revisado em 2026-08-26: a estimativa de 1 semana ignorava o deploy do frontend a configurar do zero, os cookies cross-subdomain inexistentes e o refactor da suíte acoplada a template) |
 | **Total** | **13-17 semanas (~3-4 meses)** |
 
 ## Não-objetivos (explícitos)
