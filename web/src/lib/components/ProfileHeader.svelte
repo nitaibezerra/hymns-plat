@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Marco 4.H — Ciclo 4H.2.
+   * Marco 4.H — Ciclo 4H.2 · Sub-marco 5.E — Ciclo 5E.7.
    *
    * Header do perfil: avatar (fallback iniciais), nome, contagens de
    * seguidores/seguindo, botão "Seguir" quando não é o próprio perfil e há
@@ -9,7 +9,14 @@
    * Sem avatar real ainda — backend GraphQL não expõe `avatar` na
    * `UserType` (a `UserType` do schema 4.A só carrega id/username/email).
    * Quando expusermos, basta acrescentar `avatarUrl` aqui.
+   *
+   * 5E.7 — o botão deixou de ser inerte: chama `followUser`/`unfollowUser`
+   * com UI otimista. O otimismo é estado local + rollback, e não o
+   * `optimisticResponse` do urql, porque as loads deste projeto usam um
+   * `gqlFetch` próprio e não passam pelo cache do urql — não há cache pra
+   * atualizar.
    */
+  import { setFollowing } from "$lib/graphql/operations/quick-review";
 
   export interface ProfileHeaderUser {
     id: string;
@@ -22,16 +29,65 @@
     followersCount,
     followingCount,
     currentUser = null,
+    isFollowedByCurrentUser = false,
   }: {
     user: ProfileHeaderUser;
     followersCount: number;
     followingCount: number;
     currentUser?: ProfileHeaderUser | null;
+    /** `UserProfileType.isFollowedByCurrentUser` — estado inicial do botão. */
+    isFollowedByCurrentUser?: boolean;
   } = $props();
 
   const initials = $derived(user.username.slice(0, 2).toUpperCase());
   const isSelf = $derived(currentUser !== null && currentUser.id === user.id);
   const canFollow = $derived(currentUser !== null && !isSelf);
+
+  /**
+   * Estado exibido. Nasce das props e passa a ser local a partir do primeiro
+   * clique — a partir daí quem manda é a mutation, não o `data` da load, que
+   * só volta a valer numa navegação nova.
+   */
+  let following = $state(isFollowedByCurrentUser);
+  let followers = $state(followersCount);
+  let pending = $state(false);
+  let followError = $state<string | null>(null);
+  let touched = $state(false);
+
+  $effect(() => {
+    if (touched) return;
+    following = isFollowedByCurrentUser;
+    followers = followersCount;
+  });
+
+  async function toggleFollow() {
+    if (pending) return;
+
+    // Otimismo: guarda o estado atual, aplica o desejado e só então pergunta.
+    const previous = { following, followers };
+    const desired = !following;
+    touched = true;
+    pending = true;
+    followError = null;
+    following = desired;
+    followers = Math.max(0, followers + (desired ? 1 : -1));
+
+    const result = await setFollowing(fetch, user.username, desired);
+    pending = false;
+
+    if (!result.ok) {
+      following = previous.following;
+      followers = previous.followers;
+      followError = result.message;
+      return;
+    }
+    // A contagem otimista era um palpite; a do servidor é a verdade (outra
+    // pessoa pode ter seguido no mesmo segundo).
+    if (result.data) {
+      following = result.data.isFollowedByCurrentUser;
+      followers = result.data.followersCount;
+    }
+  }
 </script>
 
 <header class="profile-header" data-testid="profile-header">
@@ -44,7 +100,7 @@
       <div>
         <dt>Seguidores</dt>
         <dd data-testid="profile-followers-count">
-          <a href={`/perfil/${user.username}/seguidores`}>{followersCount}</a>
+          <a href={`/perfil/${user.username}/seguidores`}>{followers}</a>
         </dd>
       </div>
       <div>
@@ -58,7 +114,20 @@
 
   {#if canFollow}
     <div class="actions">
-      <button type="button" class="follow-btn" data-testid="follow-btn">Seguir</button>
+      <button
+        type="button"
+        class="follow-btn"
+        data-testid="follow-btn"
+        data-following={following ? "true" : "false"}
+        aria-pressed={following}
+        disabled={pending}
+        onclick={toggleFollow}
+      >
+        {following ? "Seguindo" : "Seguir"}
+      </button>
+      {#if followError}
+        <p class="follow-error" role="alert" data-testid="follow-error">{followError}</p>
+      {/if}
     </div>
   {/if}
 </header>
@@ -120,14 +189,36 @@
   .counts dd a:hover {
     text-decoration: underline;
   }
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
   .follow-btn {
     background: var(--color-accent, #b58d3e);
-    border: 0;
+    border: 1px solid var(--color-accent, #b58d3e);
     border-radius: var(--radius-pill, 9999px);
     color: var(--color-bg, #fff);
     cursor: pointer;
     font-family: var(--font-sans, sans-serif);
     font-size: 0.875rem;
     padding: 0.5rem 1.25rem;
+  }
+  /* "Seguindo" é um estado, não uma chamada pra ação: perde o preenchimento
+     pra não competir com o resto da página. */
+  .follow-btn[data-following="true"] {
+    background: transparent;
+    border-color: var(--color-border-soft, #ccc);
+    color: var(--color-text-soft, #666);
+  }
+  .follow-btn[disabled] {
+    cursor: progress;
+    opacity: 0.6;
+  }
+  .follow-error {
+    color: var(--color-text-soft, #666);
+    font-size: 0.75rem;
+    margin: 0;
+    max-width: 14rem;
   }
 </style>
