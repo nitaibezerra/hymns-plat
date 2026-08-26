@@ -3,8 +3,8 @@
    * Marco 4.E — detalhe de hino individual.
    *
    * Cobre os ciclos 4E.1..4E.6:
-   *   - 4E.2: usa `HymnBody` pra renderizar a letra (body vem vazio enquanto
-   *           o schema não expõe `body` — 4.D vai casar isso).
+   *   - 4E.2: usa `HymnBody` pra renderizar a letra, vinda de
+   *           `HymnType.body` (pedido pela HYMN_DETAIL_QUERY).
    *   - 4E.3: links "anterior/próximo no hinário" como `<a href="/hinos/<id>">`,
    *           omitidos quando o respectivo campo é null.
    *   - 4E.4: `SiblingHymnsList` pra disambiguação "este número aparece em…".
@@ -60,7 +60,7 @@
       <h1 class="hymn-title" data-testid="hymn-title">
         {data.hymn.number} — {data.hymn.title}
       </h1>
-      <HymnBody body="" />
+      <HymnBody body={data.hymn.body} />
     </article>
 
     {#if data.hymn.siblingsWithSameNumber.length > 0}

@@ -178,6 +178,7 @@ export const HYMN_DETAIL_QUERY = `
       id
       number
       title
+      body
       reviewStatus
       previousInBook { id number title }
       nextInBook { id number title }

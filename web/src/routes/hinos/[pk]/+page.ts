@@ -31,6 +31,9 @@ export interface HymnDetail {
   id: string;
   number: number;
   title: string;
+  /** Letra do hino. `HymnType.body` é `String!` no schema, mas mantemos o
+   * `null` tolerado porque o `HymnBody` já lida com vazio. */
+  body: string | null;
   reviewStatus: "NOT_REVIEWED" | "IN_REVIEW" | "REVIEWED";
   previousInBook: HymnRef | null;
   nextInBook: HymnRef | null;

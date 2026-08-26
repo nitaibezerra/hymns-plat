@@ -10,11 +10,12 @@
  *     que existe e o componente SiblingHymnsList lida com a forma simplificada)
  *   - audios (id, url, waveformPeaks, durationSeconds, uploadedBy.username)
  *
- * Como o schema vigente (4.A) **não** expõe `body`/`text` em HymnType, a
- * letra ainda não vem do backend; o componente `HymnBody` recebe `body=""`
- * por enquanto. 4.D vai unificar isso quando ampliarmos o schema.
+ * O schema expõe `HymnType.body: String!` — a query pede o campo e a página
+ * repassa o valor pro `HymnBody`, que renderiza uma `<p data-testid=
+ * "hymn-line">` por linha. (Até o fechamento do Marco 4 a página passava
+ * `body=""` literal e a letra do hino simplesmente não aparecia.)
  *
- * 4E.2: a página renderiza `HymnBody` (data-testid="hymn-body").
+ * 4E.2: a página renderiza `HymnBody` (data-testid="hymn-body") com a letra.
  * 4E.3: links "anterior"/"próximo" aparecem só quando os respectivos campos
  * não são null; usam `<a href="/hinos/<pk>">` (navegação SPA preserva o
  * player global do shell — motivo de todo o headless existir).
@@ -41,6 +42,7 @@ const FULL_HYMN_PAYLOAD = {
       id: "h-1",
       number: 12,
       title: "Estrela do Norte",
+      body: "Eu vou subindo\nEu vou subindo",
       reviewStatus: "REVIEWED",
       previousInBook: { id: "h-prev", number: 11, title: "Lua Cheia" },
       nextInBook: { id: "h-next", number: 13, title: "Sol Nascente" },
@@ -77,9 +79,13 @@ describe("_loadHymn (load function do detalhe de hino)", () => {
     expect(body.query).toMatch(/nextInBook/);
     expect(body.query).toMatch(/siblingsWithSameNumber/);
     expect(body.query).toMatch(/audios/);
+    // A letra do hino: sem `body` na query o resolver nunca manda a letra e a
+    // página renderiza um HymnBody vazio.
+    expect(body.query).toMatch(/\bbody\b/);
 
     expect(result.hymn?.id).toBe("h-1");
     expect(result.hymn?.number).toBe(12);
+    expect(result.hymn?.body).toBe("Eu vou subindo\nEu vou subindo");
     expect(result.hymn?.previousInBook?.number).toBe(11);
     expect(result.hymn?.nextInBook?.number).toBe(13);
     expect(result.hymn?.siblingsWithSameNumber).toHaveLength(2);
@@ -114,6 +120,7 @@ const HYMN_OK: HymnDetailData = {
     id: "h-1",
     number: 12,
     title: "Estrela do Norte",
+    body: "Eu vou subindo\nCom a força do sol",
     reviewStatus: "REVIEWED",
     previousInBook: { id: "h-prev", number: 11, title: "Lua Cheia" },
     nextInBook: { id: "h-next", number: 13, title: "Sol Nascente" },
@@ -135,6 +142,14 @@ describe("+page.svelte (detalhe de hino)", () => {
   it("renderiza HymnBody pra exibir a letra (4E.2)", () => {
     render(Page, { props: pageProps(HYMN_OK) });
     expect(screen.getByTestId("hymn-body")).toBeInTheDocument();
+  });
+
+  it("exibe a letra do hino, uma linha por verso (4E.2)", () => {
+    render(Page, { props: pageProps(HYMN_OK) });
+    const lines = screen.getAllByTestId("hymn-line");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toHaveTextContent("Eu vou subindo");
+    expect(lines[1]).toHaveTextContent("Com a força do sol");
   });
 
   it("renderiza link 'anterior no hinário' apontando pra /hinos/<prev.id> (4E.3)", () => {
