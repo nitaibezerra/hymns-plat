@@ -335,6 +335,17 @@ class HymnType:
         return self.hymn_book
 
     @strawberry.field
+    def is_favorited(self, info: Info) -> bool:
+        """True se o usuário da sessão favoritou este hino.
+
+        Contraparte de leitura da mutation `toggleFavorite`. Anônimo recebe
+        `False` — coração apagado é resposta natural, não erro."""
+        user = _user_from_info(info)
+        if not getattr(user, "is_authenticated", False):
+            return False
+        return hymn_models.Favorite.objects.filter(user=user, hymn=self).exists()
+
+    @strawberry.field
     def inline_diff(self) -> InlineDiffType | None:
         """Diff visual OCR×revisão. Vazio quando não há `ocr_text`."""
         from apps.hymns.editor_views import _compute_inline_diff
