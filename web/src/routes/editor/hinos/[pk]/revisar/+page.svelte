@@ -23,6 +23,7 @@
   import InlineDiff from "$lib/components/editor/InlineDiff.svelte";
   import OcrConfidenceBar from "$lib/components/editor/OcrConfidenceBar.svelte";
   import RepetitionPills from "$lib/components/editor/RepetitionPills.svelte";
+  import RevisionHistoryDrawer from "$lib/components/editor/RevisionHistoryDrawer.svelte";
   import StylePills from "$lib/components/editor/StylePills.svelte";
   import { GRAPHQL_URL } from "$lib/config";
   import { getCsrfTokenFromCookie } from "$lib/graphql/client";
@@ -361,6 +362,10 @@
    * falta, o primeiro áudio; a query pede `approvedOnly: false` justamente
    * para poder aplicar a mesma regra aqui.
    */
+  /** 5C.16 — histórico de auditoria do hino, sob demanda. */
+  let historyDrawerOpen = $state(false);
+  let revisionCount = $derived(data.hymn?.revisions.length ?? 0);
+
   let audioDrawerOpen = $state(false);
   let audioOverrides = $state<Record<string, Partial<AudioReviewTarget>>>({});
 
@@ -562,6 +567,21 @@
               Sem gravação para este hino.
             </p>
           {/if}
+        </div>
+
+        <div class="side-block">
+          <button
+            class="btn-ghost"
+            type="button"
+            data-testid="open-revision-history"
+            onclick={() => (historyDrawerOpen = true)}
+          >
+            Histórico · {revisionCount} {revisionCount === 1 ? "revisão" : "revisões"}
+          </button>
+          <RevisionHistoryDrawer
+            revisions={data.hymn.revisions}
+            bind:open={historyDrawerOpen}
+          />
         </div>
       </section>
     </div>

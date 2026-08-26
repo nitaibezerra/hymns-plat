@@ -496,6 +496,47 @@ describe("5C.10 — Marcar revisado e avançar", () => {
   });
 });
 
+describe("5C.16 — drawer de histórico na tela", () => {
+  const withRevisions = {
+    ...sampleData,
+    hymn: {
+      ...sampleData.hymn!,
+      revisions: [
+        {
+          id: "r-1",
+          previousStatus: "not_reviewed",
+          newStatus: "in_review",
+          changeSummary: "Corrigi typos",
+          fieldDiff: { title: { old: "Antigo", new: "Novo" } },
+          revisedAt: "2026-08-01T09:30:00",
+          revisedBy: { id: "u-1", username: "ana" },
+        },
+      ],
+    },
+  };
+
+  it("botão de histórico mostra a contagem e abre o drawer", async () => {
+    render(Page, { props: { data: withRevisions } });
+    expect(screen.queryByTestId("revision-history-drawer")).toBeNull();
+
+    const trigger = screen.getByTestId("open-revision-history");
+    expect(trigger).toHaveTextContent("Histórico · 1 revisão");
+
+    await fireEvent.click(trigger);
+    expect(screen.getByTestId("revision-history-drawer")).toBeInTheDocument();
+    expect(screen.getByTestId("revision-item")).toHaveTextContent("ana");
+  });
+
+  it("sem revisões, o botão continua acessível e o drawer mostra vazio", async () => {
+    render(Page, { props: { data: sampleData } });
+    const trigger = screen.getByTestId("open-revision-history");
+    expect(trigger).toHaveTextContent("Histórico · 0 revisões");
+
+    await fireEvent.click(trigger);
+    expect(screen.getByTestId("revision-history-empty")).toBeInTheDocument();
+  });
+});
+
 describe("5C.15 — drawer de revisão de áudio na tela", () => {
   const withAudio = {
     ...sampleData,
