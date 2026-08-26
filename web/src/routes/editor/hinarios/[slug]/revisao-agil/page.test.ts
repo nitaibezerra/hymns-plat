@@ -472,3 +472,88 @@ describe("/editor/hinarios/[slug]/revisao-agil — posição e navegação (5E.5
     expect(goto).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Sub-marco 5.E — Ciclo 5E.9.
+ *
+ * A jornada do plano é um Playwright em `tests/e2e/quick-review.spec.ts`, mas
+ * `web/tests/` é de outra frente nesta rodada — o arquivo E2E fica PENDENTE.
+ * A jornada em si é coberta aqui, no nível de unidade: três hinos revisados
+ * SÓ pelo teclado, sem um clique.
+ *
+ * Cada passo re-renderiza com o `data` que a load devolveria no destino —
+ * é o que o `goto` produziria de verdade, e é onde o teste de unidade para e
+ * o E2E começaria.
+ */
+describe("/editor/hinarios/[slug]/revisao-agil — jornada de 3 hinos pelo teclado (5E.9)", () => {
+  const PENDING = [hymn(1, "", ""), hymn(2, "", ""), hymn(3, "", "")];
+
+  /** Um hino: escolhe estilo, escolhe repetição, salva — tudo por atalho. */
+  async function reviewByKeyboard(
+    current: (typeof PENDING)[number],
+    position: number,
+    styleKey: string,
+    repetitionKey: string,
+    nextHymn: { id: string; number: number; title: string } | null,
+  ) {
+    const fetchFn = stubSequence(
+      savedPayload(current.number),
+      nextIncompletePayload(nextHymn),
+    );
+    const view = render(Page, {
+      props: { data: pageData({ hymns: PENDING, current, position, total: 3 }) },
+    });
+
+    await fireEvent.keyDown(window, { key: styleKey });
+    await fireEvent.keyDown(window, { key: repetitionKey });
+    await fireEvent.keyDown(window, { key: "Enter" });
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(2));
+
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    view.unmount();
+    return body.variables as { pk: string; style: string; repetitions: string };
+  }
+
+  it("revisa 3 hinos seguidos só com M/V/Z + 1-4 + Enter", async () => {
+    // Hino 1 — Marcha, preset 1.
+    const first = await reviewByKeyboard(PENDING[0], 1, "m", "1", {
+      id: "h2",
+      number: 2,
+      title: "Hino 2",
+    });
+    expect(first).toEqual({ pk: "h1", style: "Marcha", repetitions: "1-2,3-4" });
+    expect(goto).toHaveBeenLastCalledWith("/editor/hinarios/cruzeiro/revisao-agil/?h=2", {
+      invalidateAll: true,
+    });
+
+    // Hino 2 — Valsa, preset 3.
+    const second = await reviewByKeyboard(PENDING[1], 2, "v", "3", {
+      id: "h3",
+      number: 3,
+      title: "Hino 3",
+    });
+    expect(second).toEqual({ pk: "h2", style: "Valsa", repetitions: "1-2,3-4,1-4" });
+    expect(goto).toHaveBeenLastCalledWith("/editor/hinarios/cruzeiro/revisao-agil/?h=3", {
+      invalidateAll: true,
+    });
+
+    // Hino 3 — Mazurca, preset 2. Não sobra incompleto: acaba na conclusão.
+    const third = await reviewByKeyboard(PENDING[2], 3, "z", "2", null);
+    expect(third).toEqual({ pk: "h3", style: "Mazurca", repetitions: "1-4" });
+    expect(goto).toHaveBeenCalledTimes(2);
+  });
+
+  it("o último passo mostra a conclusão em vez de navegar", async () => {
+    stubSequence(savedPayload(3), nextIncompletePayload(null));
+    render(Page, {
+      props: { data: pageData({ hymns: PENDING, current: PENDING[2], position: 3, total: 3 }) },
+    });
+    await fireEvent.keyDown(window, { key: "z" });
+    await fireEvent.keyDown(window, { key: "2" });
+    await fireEvent.keyDown(window, { key: "Enter" });
+    await waitFor(() => expect(screen.getByTestId("quick-review-done")).toBeInTheDocument());
+    expect(goto).not.toHaveBeenCalled();
+  });
+
+  it.todo("E2E Playwright tests/e2e/quick-review.spec.ts — web/tests/ é de outra frente");
+});
