@@ -4,15 +4,41 @@
    *
    * Tela 3a do wizard: porta de `templates/users/upload_disambiguate.html`.
    * Mostra o que está sendo enviado, o match exato (quando houver) e os
-   * hinários similares com os dois scores; a escolha do que fazer fica no
-   * `DisambiguationChoice` (5F.13).
+   * hinários similares com os dois scores, e roteia a escolha do usuário.
+   *
+   * As três saídas do `upload_disambiguate_view` viram navegação:
+   *   - `create_new` → conferência;
+   *   - `add_version` → confirmação, levando hinário e nome da versão **na
+   *     URL** (era `request.session["version_info"]`);
+   *   - `cancel` → volta pro início, sem carregar estado nenhum.
    */
+  import { goto } from "$app/navigation";
+  import DisambiguationChoice from "$lib/components/contribuir/DisambiguationChoice.svelte";
   import SimilarBookCard from "$lib/components/contribuir/SimilarBookCard.svelte";
   import UploadStepper from "$lib/components/contribuir/UploadStepper.svelte";
+  import { CHOICE_ADD_VERSION, CHOICE_CANCEL } from "$lib/components/contribuir/choice-validation";
 
+  import type { ChoiceValues } from "$lib/components/contribuir/choice-validation";
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
+
+  async function handleChoice(values: ChoiceValues) {
+    if (values.kind === CHOICE_CANCEL) {
+      await goto("/contribuir/");
+      return;
+    }
+    if (values.kind === CHOICE_ADD_VERSION) {
+      const params = new URLSearchParams({
+        task: data.taskId,
+        hinario: values.hymnbookSlug,
+        versao: values.versionName,
+      });
+      await goto(`/contribuir/confirmar/?${params.toString()}`);
+      return;
+    }
+    await goto(`/contribuir/conferir/?task=${data.taskId}`);
+  }
 </script>
 
 <section data-testid="desambiguar-page">
@@ -53,6 +79,8 @@
       {/each}
     </div>
   {/if}
+
+  <DisambiguationChoice similar={data.duplicates.similar} onchoose={handleChoice} />
 </section>
 
 <style>

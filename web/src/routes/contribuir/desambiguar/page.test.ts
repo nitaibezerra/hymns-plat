@@ -17,7 +17,7 @@
  * Contrato da tela: match exato em destaque, cada similar com os dois scores.
  */
 
-import { render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
 import Page from "./+page.svelte";
@@ -202,5 +202,43 @@ describe("desambiguar page (5F.12)", () => {
     expect(screen.getAllByTestId("similar-book-card")).toHaveLength(1);
     expect(screen.getByTestId("similar-name-score")).toHaveTextContent("83%");
     expect(screen.getByTestId("similar-content-score")).toHaveTextContent("90%");
+  });
+});
+
+describe("desambiguar escolhas (5F.13)", () => {
+  it("criar novo hinário navega pra conferência", async () => {
+    gotoMock.mockClear();
+    render(Page, { props: { data: pageData() } });
+    await fireEvent.submit(screen.getByTestId("disambiguation-choice"));
+    expect(gotoMock).toHaveBeenCalledWith(`/contribuir/conferir/?task=${TASK_ID}`);
+  });
+
+  it("adicionar como versão leva pra confirmação com hinário e nome na URL", async () => {
+    gotoMock.mockClear();
+    render(Page, { props: { data: pageData() } });
+
+    await fireEvent.click(screen.getByTestId("choice-add-version"));
+    await fireEvent.change(screen.getByTestId("choice-hymnbook"), {
+      target: { value: "o-cruzeiro" },
+    });
+    await fireEvent.input(screen.getByTestId("choice-version-name"), {
+      target: { value: "Edição 2020" },
+    });
+    await fireEvent.submit(screen.getByTestId("disambiguation-choice"));
+
+    const target = gotoMock.mock.calls[0][0] as string;
+    const url = new URL(target, "http://localhost");
+    expect(url.pathname).toBe("/contribuir/confirmar/");
+    expect(url.searchParams.get("task")).toBe(TASK_ID);
+    expect(url.searchParams.get("hinario")).toBe("o-cruzeiro");
+    expect(url.searchParams.get("versao")).toBe("Edição 2020");
+  });
+
+  it("cancelar volta pra /contribuir/ sem levar estado do wizard", async () => {
+    gotoMock.mockClear();
+    render(Page, { props: { data: pageData() } });
+    await fireEvent.click(screen.getByTestId("choice-cancel"));
+    await fireEvent.submit(screen.getByTestId("disambiguation-choice"));
+    expect(gotoMock).toHaveBeenCalledWith("/contribuir/");
   });
 });
