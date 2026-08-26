@@ -70,6 +70,8 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 
 ### Marco 1 — Spike de schema GraphQL (read-only, sem auth, sem mutation)
 
+> **Status (2026-08-26):** ✅ **mergeado.** 9/9 ciclos TDD entregues. Chegou em `development` via PR #51 (que absorveu por squash os PRs #52 e #53).
+
 **Objetivo:** validar Strawberry-Django no projeto, sem se comprometer com o resto.
 
 **Ciclos TDD (ordem de execução):**
@@ -109,6 +111,8 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 
 ### Marco 2 — Mutations + Auth bridge (login, CSRF, sessões)
 
+> **Status (2026-08-26):** ✅ **mergeado.** 7/7 ciclos TDD entregues. O PR #52 foi mergeado dentro da branch do Marco 1 e chegou em `development` pelo squash do PR #51 — não teve PR próprio.
+
 **Objetivo:** expor mutations protegidas com a mesma session do Django, sem ainda ter cliente JS oficial.
 
 **Ciclos TDD (ordem de execução):**
@@ -144,6 +148,10 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 - Smoke manual: `curl` com cookie de sessão consegue fazer mutation; sem cookie falha com erro de CSRF/auth.
 
 ### Marco 3 — SvelteKit skeleton + autenticação + listagem de hinários
+
+> **Status (2026-08-26):** ✅ **mergeado** (PR #53, rebaseado sobre o Marco 1 e absorvido pelo squash do PR #51).
+>
+> **Pendência herdada:** dois arquivos que este marco listava como *essenciais* nunca foram criados — `web/playwright.config.ts` e `web/tests/e2e/home.spec.ts`. Consequência: o frontend ficou sem runner de E2E desde o Marco 3, e todo critério de aceitação que dependia de "E2E Playwright passa" (Marcos 3, 4.C, 4.D, 4.F, 4.I) ficou por verificar. O `playwright.config.ts` está sendo trazido agora pela frente do 4.I.
 
 **Objetivo:** primeira tela funcional no novo frontend, com auth de verdade.
 
@@ -203,6 +211,18 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 - E2E Playwright passa.
 
 ### Marco 4 — Paridade read-only com a web atual
+
+> **Status (2026-08-26):** 🟡 **quase completo, com dívida aberta.**
+>
+> - **4.A-4.H:** mergeados em `development` (PR #55 — schema; PR #56 — SPA).
+> - **4.I:** escrito na branch `feat/headless-marco4i-visual-diff` e **não mergeado**; está sendo integrado agora.
+> - **Critério de aceite não verificado:** o alvo de **≥95% de paridade visual** nunca foi medido. Não existe execução do `visual-parity.spec.ts` com números, e a "tabela final de paridade por rota" prometida no critério geral do marco nunca foi produzida. Tratar o Marco 4 como *funcionalmente* entregue e *visualmente não auditado*.
+> - **Duas regressões introduzidas no merge da fase F3** (unificação das 6 branches de 4.C-4.H), que deixaram a SPA **sem compilar** em `development`:
+>   1. `CURRENT_USER_QUERY` duplicado em `web/src/lib/graphql/operations.ts` — duas branches declararam a mesma const.
+>   2. `HymnBody.svelte` — o *stub* criado pelo 4.E venceu a versão real do 4.D na resolução do merge.
+>
+>   Ambas estão sendo corrigidas agora, junto com a integração do 4.I.
+> - **Causa-raiz de as regressões terem passado:** o CI do frontend nunca rodou nos PRs de feature — ver "Workflow de desenvolvimento — duas etapas" → *Dívida de CI descoberta em 2026-08-26*. `pnpm test`/`pnpm build` só rodaram nas máquinas dos subagentes, nunca no PR.
 
 **Objetivo:** todas as rotas de leitura do monolito Django reescritas em SvelteKit com paridade visual ≥95%, consumindo só GraphQL.
 
@@ -443,6 +463,13 @@ Este é o motor da "feature destravada pelo SPA": o player não pode reiniciar a
 ---
 
 ### Marco 5 — CRUD editorial + permissões
+
+> **Status (2026-08-26):** 🟡 **em andamento — backend pronto, frontend não começado.**
+>
+> - **5.A:** ✅ mergeado (PR #60). 20/20 ciclos entregues, com os nomes de teste exatamente como tabelados abaixo.
+> - **5.A½** (fase inserida, não prevista no plano original): dívidas de schema descobertas ao preparar 5.B-5.E, que bloqueavam o frontend. Escopo: `UserType.isEditor`; guard `_has_editor_access` aplicado nos 3 resolvers editoriais; vocabulário de `sort` alinhado com o que a URL realmente usa; `HymnType.hymnBook`; campos faltantes de `HymnBookType`, `HymnAudioType` e `NotificationType`; `last_reviewed_at`; campos de curadoria (`is_featured`). Inclui também a **primeira cobertura de teste de `Query.ocrTask`**, que estava exposta no schema sem nenhum teste.
+> - **5.B, 5.C, 5.D, 5.E:** ⬜ não começados.
+> - **5.F** — fluxo `/contribuir/` (upload PDF + OCR): ⬜ não começado. Sub-marco **novo**, criado por decisão do usuário em 2026-08-26; antes disso essas 5 telas não apareciam em nenhum marco do plano.
 
 **Objetivo:** expor todas as mutations editoriais via GraphQL e reescrever o workspace `/editor/` em SvelteKit, com paridade funcional completa ao Django atual (`editor_views.py`, `views.py`, `views_social.py`). Inclui CRUD de hinários e hinos, fluxo de revisão com diff visual OCR↔texto, aprovação de áudios, follow/unfollow e marcação de notificações.
 
@@ -719,6 +746,12 @@ Análise de dependências:
 
 ### Marco 6 — Offline-first (a feature-âncora)
 
+> **Status (2026-08-26):** ⬜ **não começado.** Pré-requisitos levantados que o plano assumia existentes e **não existem**:
+>
+> - `web/static/` **não existe** — o `manifest.webmanifest` não tem onde morar; criar o diretório faz parte do marco.
+> - **Nenhuma dependência de PWA no lockfile** (`web/pnpm-lock.yaml`): sem Workbox, sem Dexie, sem `@vite-pwa/sveltekit`. Todo o stack offline é instalação nova.
+> - `HymnBook.sync_version` **não existe**. A última migration de `apps.hymns` é `0016_hymnbook_priority_featured`; a migration nova (campo + signal `post_save` incrementando) é trabalho deste marco, não algo pré-existente.
+
 **Objetivo:** PWA instalável com hinário + áudios disponíveis offline.
 
 **Arquivos a criar:**
@@ -748,6 +781,8 @@ Análise de dependências:
 
 ### Marco 7 — Cutover de produção
 
+> **Status (2026-08-26):** ⬜ **não começado — e a versão anterior deste marco estava subestimada.** Os passos abaixo foram reescritos com base no levantamento real; ver "Levantamento de 2026-08-26" no fim do marco.
+
 **Objetivo:** `hinaria.com.br` passa a apontar pro SvelteKit. Templates Django arquivados.
 
 **Passos:**
@@ -767,6 +802,8 @@ Análise de dependências:
 - Backup do branch `pre-headless` taggeado no Git pra rollback bruto se necessário.
 
 ### Marco 8 (opcional, fora do escopo MVP) — Cliente mobile
+
+> **Status (2026-08-26):** ⬜ **não começado**, por decisão — fora do escopo do MVP.
 
 **Objetivo:** Expo app reaproveitando o mesmo GraphQL.
 
@@ -842,6 +879,21 @@ feature/* ─PR─▶ development ─PR(release)─▶ main ─auto-deploy─▶
 - PRs #51, #55, #56 retargetados pra `development`.
 - Workflow `ci.yml` ajustado pra rodar em PRs contra `development`.
 - Workflow `deploy.yml` continua disparando apenas em `push: branches: [main]`.
+
+**Dívida de CI descoberta em 2026-08-26 (e a correção proposta):**
+
+O setup acima cobriu o `ci.yml` (Django) e esqueceu o `ci-web.yml` (SvelteKit). Consequência apurada:
+
+- `.github/workflows/ci-web.yml` tem `on: pull_request: branches: [main, develop]` — **`develop`, não `development`**. Como nenhuma branch chamada `develop` existe no repo, e todos os PRs de feature apontam pra `development`, **o CI do frontend nunca rodou em nenhum PR de feature** desta refatoração.
+- O check **"Web Test & Build" não é required** em nenhuma das duas branches protegidas. Mesmo que rodasse, um resultado vermelho não bloquearia o merge.
+
+Essa é a **causa-raiz** das duas regressões da fase F3 do Marco 4 (SPA sem compilar em `development`): elas não escaparam de um CI que falhou — escaparam de um CI que nunca foi executado.
+
+**Correção proposta (fazer antes de abrir os próximos PRs de frontend):**
+
+1. Trocar o filtro de branch em `ci-web.yml`: `[main, develop]` → `[main, development]`. Adicionar também o gatilho de `push` nas duas branches, pra que um merge direto em `development` (permitido: `enforce_admins: false`) também seja verificado.
+2. Promover **"Web Test & Build" a required status check** em `development` **e** em `main`, junto de `Lint & Format Check`, `Unit Tests` e `E2E Tests`, via `gh api -X PUT /repos/.../branches/<branch>/protection`.
+3. Só considerar um sub-marco de frontend "concluído" quando `pnpm test && pnpm check && pnpm build` tiver rodado **no PR**, não apenas na máquina do subagente.
 
 ---
 
