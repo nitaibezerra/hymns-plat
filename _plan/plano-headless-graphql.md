@@ -469,11 +469,11 @@ Este é o motor da "feature destravada pelo SPA": o player não pode reiniciar a
 > - **5.A:** ✅ mergeado (PR #60). 20/20 ciclos entregues, com os nomes de teste exatamente como tabelados abaixo.
 > - **5.A½** (fase inserida, não prevista no plano original): dívidas de schema descobertas ao preparar 5.B-5.E, que bloqueavam o frontend. Escopo: `UserType.isEditor`; guard `_has_editor_access` aplicado nos 3 resolvers editoriais; vocabulário de `sort` alinhado com o que a URL realmente usa; `HymnType.hymnBook`; campos faltantes de `HymnBookType`, `HymnAudioType` e `NotificationType`; `last_reviewed_at`; campos de curadoria (`is_featured`). Inclui também a **primeira cobertura de teste de `Query.ocrTask`**, que estava exposta no schema sem nenhum teste.
 > - **5.B, 5.C, 5.D, 5.E:** ⬜ não começados.
-> - **5.F** — fluxo `/contribuir/` (upload PDF + OCR): ⬜ não começado. Sub-marco **novo**, criado por decisão do usuário em 2026-08-26; antes disso essas 5 telas não apareciam em nenhum marco do plano.
+> - **5.F** — fluxo `/contribuir/` (upload PDF + OCR): ⛔ **FORA DE ESCOPO** por decisão de 2026-08-26 ("vamos deixar tudo relacionado ao OCR de fora"). Foi criado, implementado e mergeado mais cedo no mesmo dia (PR #75) e depois **revertido**. A especificação segue preservada na seção do sub-marco, com banner explicando.
 
 **Objetivo:** expor todas as mutations editoriais via GraphQL e reescrever o workspace `/editor/` em SvelteKit, com paridade funcional completa ao Django atual (`editor_views.py`, `views.py`, `views_social.py`). Inclui CRUD de hinários e hinos, fluxo de revisão com diff visual OCR↔texto, aprovação de áudios, follow/unfollow e marcação de notificações.
 
-**Escopo de 3-4 semanas com paralelização:** 1 semana backend (5.A + 5.A½) + 2-3 semanas frontend (5.B-5.E em paralelo, e 5.F em paralelo com elas).
+**Escopo de 3-4 semanas com paralelização:** 1 semana backend (5.A + 5.A½) + 2-3 semanas frontend (5.B-5.E em paralelo). O 5.F saiu de escopo em 2026-08-26 (OCR fora).
 
 **Branch-mãe:** `feat/headless-marco5` (base: `feat/headless-marco4-spa`). **1 PR único** contra `development`.
 
@@ -501,12 +501,12 @@ Este é o motor da "feature destravada pelo SPA": o player não pode reiniciar a
 | `/hinos/<pk>/historico/` | `views.py:hymn_history_view` | drawer lateral via `HymnType.revisions` |
 | `/perfil/<username>/seguir/` (POST) | `users/views_social.py:toggle_follow` | mutations `followUser`/`unfollowUser` |
 | `/notificacoes/<id>/lida/` (POST) | `users/views_social.py:mark_notification_read` | mutations `markNotificationRead`/`markAllNotificationsRead` |
-| `/contribuir/` | `users/views.py:upload_view` (:109) | `/contribuir/` (5.F) |
-| `/contribuir/processando/` | `users/views.py:upload_processing_view` (:402) | `/contribuir/processando/` (5.F) |
-| `/contribuir/ocr-status/<task_id>/` | `users/views.py:upload_ocr_status_view` (:452) | substituído por polling de `Query.ocrTask(id)` (5.F) |
-| `/contribuir/desambiguar/` | `users/views.py:upload_disambiguate_view` (:132) | `/contribuir/desambiguar/` (5.F) |
-| `/contribuir/preview/` | `users/views.py:upload_preview_view` (:205) | `/contribuir/conferir/` (5.F) |
-| `/contribuir/confirmar/` | `users/views.py:upload_confirm_view` (:286) | `/contribuir/confirmar/` (5.F) |
+| `/contribuir/` | `users/views.py:upload_view` (:109) | ⛔ não portado — OCR fora de escopo (2026-08-26); segue no Django |
+| `/contribuir/processando/` | `users/views.py:upload_processing_view` (:402) | ⛔ não portado — OCR fora de escopo |
+| `/contribuir/ocr-status/<task_id>/` | `users/views.py:upload_ocr_status_view` (:452) | ⛔ não portado — OCR fora de escopo |
+| `/contribuir/desambiguar/` | `users/views.py:upload_disambiguate_view` (:132) | ⛔ não portado — OCR fora de escopo |
+| `/contribuir/preview/` | `users/views.py:upload_preview_view` (:205) | ⛔ não portado — OCR fora de escopo |
+| `/contribuir/confirmar/` | `users/views.py:upload_confirm_view` (:286) | ⛔ não portado — OCR fora de escopo |
 | `/perfil/<username>/editar/` | `users/views.py:profile_edit_view` | **sem destino decidido** — ver Marco 7, passo 0 |
 | `/hinarios/<slug>/ler/` | `views.py:HymnBookReadView` | **sem destino decidido** — ver Marco 7, passo 0 |
 
@@ -724,6 +724,20 @@ Depende de 5.A e 5.B. **Paralelo com 5.C e 5.D** após 5.B mergeado. Edita pági
 
 #### Sub-marco 5.F — Fluxo `/contribuir/` (upload PDF + OCR) — ~1 semana, branch `feat/headless-marco5f-contribuir`
 
+> ## ⛔ FORA DE ESCOPO — decisão de 2026-08-26 (posterior à criação deste sub-marco)
+>
+> **Todo o escopo de OCR fica de fora da refatoração headless.** Isto inclui este sub-marco inteiro: o wizard `/contribuir/` não é portado pra SvelteKit.
+>
+> Histórico honesto: o 5.F foi criado mais cedo no mesmo dia, por decisão de incluir `/contribuir/` na paridade, e chegou a ser **implementado e mergeado** (PR #75). Foi **revertido** quando a decisão mudou. A especificação abaixo fica preservada — não apagada — porque descreve 18 ciclos de trabalho já pensados, caso o OCR volte ao escopo algum dia.
+>
+> **Consequências práticas, todas registradas no Marco 7:**
+> - As 5 telas de `/contribuir/` **continuam servidas pelo Django** depois do cutover, ou são descontinuadas. É decisão aberta.
+> - O link "Contribuir" **permanece escondido** do menu (como está desde o PR #61).
+> - Os 3 resolvers que o frontend do 5.F esperava (`Query.ocrDuplicates`, `Mutation.createHymnBookFromOcr`, `Mutation.createHymnBookVersionFromOcr`) **não serão implementados**.
+>
+> **O que NÃO sai de escopo** (é revisão editorial, não pipeline de OCR): `HymnType.inlineDiff`, `HymnType.ocrLineConfidences` e `Query.ocrTask`. Os dois primeiros alimentam a tela de revisão do 5.C (diff do texto do hino contra o que veio do OCR *no passado*) e seguem valendo; o terceiro já estava exposto no schema antes desta decisão e ganhou cobertura de teste no 5.A½.
+
+
 > **Sub-marco novo, criado em 2026-08-26 por decisão do usuário.** Até então o plano não mencionava essas telas em nenhum marco, e o link do menu foi escondido no PR #61 justamente porque a SPA não tem a tela. **O escopo `/contribuir/` entra na paridade.**
 
 **Objetivo:** portar pra SvelteKit o wizard de contribuição de hinário via PDF+OCR — 5 páginas server-rendered em `apps/users/urls.py`: `contribuir/` (:15), `contribuir/processando/` (:16), `contribuir/desambiguar/` (:22), `contribuir/preview/` (:23), `contribuir/confirmar/` (:24).
@@ -878,7 +892,8 @@ Análise de dependências:
 
 **Passos (reescritos em 2026-08-26):**
 
-0. **Bloqueante — fechar o gap de paridade.** 22 páginas Django ainda não têm par na SPA. O Marco 5 (incluindo o novo 5.F) cobre a maior parte; o resto exige decisão explícita **portar ou descontinuar**, página por página, antes de qualquer troca de rota. Cutover com gap aberto = regressão de produto, não migração.
+0. **Bloqueante — fechar o gap de paridade.** 22 páginas Django ainda não têm par na SPA. O Marco 5 (5.B-5.E) cobre a maior parte; o resto exige decisão explícita **portar ou descontinuar**, página por página, antes de qualquer troca de rota. Cutover com gap aberto = regressão de produto, não migração.
+   - ⛔ **As 5 telas de `/contribuir/` NÃO serão portadas** (OCR fora de escopo, 2026-08-26). Logo, o cutover tem que escolher entre: (a) manter essas rotas servidas pelo Django depois da troca no Worker — o que significa que o Django **não** deixa de renderizar HTML no Marco 7, contrariando o passo 4 deste marco; ou (b) descontinuar o fluxo de contribuição via PDF. O link do menu já está escondido desde o PR #61, então (b) é hoje o estado de fato para quem navega. **Decisão pendente do usuário.**
 1. **Definir os cookies cross-subdomain.** `SESSION_COOKIE_DOMAIN` e `CSRF_COOKIE_DOMAIN` **não existem em nenhum lugar do repo** — nem em `base.py`, nem em `production.py`. Sem `Domain=.hinaria.com.br` a sessão não atravessa `hinaria.com.br` ↔ `api.hinaria.com.br` e a SPA autenticada não funciona em produção. Este passo tem teste próprio (unit sobre settings + E2E de login cross-subdomain).
 2. **Configurar o deploy do frontend.** Hoje **não existe nada**: nenhum workflow do web em `.github/workflows/`, nenhum `wrangler.toml`/`wrangler.jsonc`, nenhum projeto Pages provisionado. Escopo real: adapter Cloudflare no `svelte.config.js`, projeto Pages/Workers, secrets no GitHub, workflow de deploy do `web/` e a correção do `ci-web.yml` (ver "Dívida de CI" na seção de processo).
 3. **Resolver os 3 endpoints REST sem equivalente GraphQL** (ver levantamento abaixo). Cada um recebe uma decisão registrada: manter como REST no domínio da API, ou portar.
@@ -896,7 +911,7 @@ Análise de dependências:
 
 | Achado | Estado real |
 |---|---|
-| Páginas Django sem par na SPA | **22.** A SPA tem 10 rotas (`/`, `/busca/`, `/hinarios/`, `/hinarios/[slug]/`, `/hinos/[pk]/`, `/login/`, `/notificacoes/`, `/perfil/[username]/` + seguidores/seguindo). Ficam de fora: os ~7 do workspace `/editor/` (Marco 5.B-5.E), os 5 de `/contribuir/` (Marco 5.F), o CRUD server-rendered de hinários/hinos (Marco 5.D), e **duas sem marco nenhum: `/hinarios/<slug>/ler/` (leitura sincronizada) e `/perfil/<username>/editar/`** — precisam de decisão portar-ou-descontinuar. |
+| Páginas Django sem par na SPA | **22.** A SPA tem 10 rotas (`/`, `/busca/`, `/hinarios/`, `/hinarios/[slug]/`, `/hinos/[pk]/`, `/login/`, `/notificacoes/`, `/perfil/[username]/` + seguidores/seguindo). Ficam de fora: os ~7 do workspace `/editor/` (Marco 5.B-5.E), os 5 de `/contribuir/` (⛔ **sem marco** — OCR fora de escopo desde 2026-08-26), o CRUD server-rendered de hinários/hinos (Marco 5.D), e **duas sem marco nenhum: `/hinarios/<slug>/ler/` (leitura sincronizada) e `/perfil/<username>/editar/`** — precisam de decisão portar-ou-descontinuar. |
 | Endpoints sem equivalente GraphQL | **3:** `editor/preview/render/` (decisão já fixada no Marco 5: fica REST), `api/editor/resume/` e `audios/<id>/download/` (download com `Content-Disposition` — não é expressável em GraphQL; fica REST no domínio da API, mas precisa entrar nas rotas do Worker). |
 | `SESSION_COOKIE_DOMAIN` / `CSRF_COOKIE_DOMAIN` | **Não existem em nenhum lugar do repo.** A única menção era este próprio plano (Marco 2, "deferred até Marco 7"). É trabalho a fazer, não configuração existente. |
 | Deploy do frontend | **Nada configurado.** Sem workflow, sem `wrangler.toml`, sem projeto Pages. |
@@ -1124,7 +1139,7 @@ Tempo →    Semana 1         Semana 2              Semana 3
 | 2. Mutations + Auth | 1 semana |
 | 3. SvelteKit skeleton | 1 semana |
 | 4. Paridade read-only | 4-5 semanas |
-| 5. CRUD editorial (+ 5.A½ e 5.F `/contribuir/`) | **4-5 semanas** (revisado em 2026-08-26: +1 semana de 5.F, +2-3 dias de 5.A½) |
+| 5. CRUD editorial (+ 5.A½) | **3-4 semanas** (revisado em 2026-08-26: +2-3 dias de 5.A½; o 5.F saiu de escopo, −1 semana) |
 | 6. Offline-first PWA | 2-3 semanas |
 | 7. Cutover | **2-3 semanas** (revisado em 2026-08-26: a estimativa de 1 semana ignorava o deploy do frontend a configurar do zero, os cookies cross-subdomain inexistentes e o refactor da suíte acoplada a template) |
 | **Total** | **15-19 semanas (~4-5 meses)** — revisado em 2026-08-26 |
@@ -1148,7 +1163,7 @@ Tempo →    Semana 1         Semana 2              Semana 3
 2. **Fechar o Marco 4.** Integrar o 4.I (`feat/headless-marco4i-visual-diff`), que traz também o `web/playwright.config.ts` que faltava desde o Marco 3. Só então **medir** a paridade visual e produzir a tabela de % por rota — o critério de ≥95% ainda não foi verificado uma única vez.
 3. **Consertar o CI antes de abrir novos PRs de frontend.** Trocar `[main, develop]` → `[main, development]` no `.github/workflows/ci-web.yml` e promover **"Web Test & Build" a required check** em `development` e `main`. Esta é a causa-raiz de a regressão da F3 ter passado; deixar pra depois é convidar a próxima.
 4. **Fechar a 5.A½** (dívidas de schema que bloqueiam todo o frontend do Marco 5): `UserType.isEditor`, guard `_has_editor_access` nos 3 resolvers editoriais, vocabulário de `sort` alinhado com a URL, `HymnType.hymnBook`, campos faltantes de `HymnBookType`/`HymnAudioType`/`NotificationType`, `last_reviewed_at`, curadoria `is_featured`, e a primeira cobertura de `Query.ocrTask`. *(em andamento)*
-5. **Executar o Marco 5, fase F2:** 5.B + 5.C + 5.D + **5.F** em paralelo (4 subagentes, arquivos disjuntos), depois F3 (merge + 5.E) e F4 (PR contra `development`).
+5. **Executar o Marco 5, fase F2:** 5.B + 5.C + 5.D em paralelo (arquivos disjuntos), depois F3 (merge + 5.E) e F4 (PR contra `development`). O 5.F saiu de escopo (OCR fora, 2026-08-26).
 6. **Marco 6 (offline).** Começar pela lista de pré-requisitos ausentes do status do marco (criar `web/static/`, instalar o stack de PWA, migration de `HymnBook.sync_version`) — não assumir que existem.
 7. **Marco 7 (cutover).** Começar pelo **passo 0**: fechar ou descontinuar explicitamente as 22 páginas Django sem par na SPA. Só depois mexer no Worker.
 
