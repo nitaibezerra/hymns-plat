@@ -72,14 +72,29 @@ export async function preparePage(page: Page): Promise<void> {
   });
 }
 
-/** Navega, estabiliza e captura. Devolve o PNG. */
-export async function captureRoute(
+export type RouteCapture = {
+  /** PNG da captura. */
+  png: Buffer;
+  /** Status HTTP da navegação (0 quando o browser não reportou resposta). */
+  status: number;
+  /** HTML renderizado — insumo da guarda de estado de erro. */
+  html: string;
+};
+
+/**
+ * Navega, estabiliza e captura, devolvendo também status HTTP e HTML.
+ *
+ * O status e o HTML não são luxo: sem eles a suíte mediria pixels de uma
+ * página 404 ou do estado de erro do shell e reportaria o resultado como se
+ * fosse paridade de design.
+ */
+export async function captureRouteWithDiagnostics(
   page: Page,
   url: string,
   options: CaptureOptions = {},
-): Promise<Buffer> {
+): Promise<RouteCapture> {
   await preparePage(page);
-  await page.goto(url, { waitUntil: "networkidle" });
+  const response = await page.goto(url, { waitUntil: "networkidle" });
   await page.addStyleTag({ content: CSS_FREEZE });
   await page.evaluate(async () => {
     if ("fonts" in document) {
@@ -88,7 +103,7 @@ export async function captureRoute(
     window.scrollTo(0, 0);
   });
 
-  return page.screenshot({
+  const png = await page.screenshot({
     animations: "disabled",
     caret: "hide",
     fullPage: options.fullPage ?? false,
@@ -96,4 +111,15 @@ export async function captureRoute(
     maskColor: MASK_COLOR,
     scale: "css",
   });
+
+  return { png, status: response?.status() ?? 0, html: await page.content() };
+}
+
+/** Atalho pra quando só o PNG interessa. */
+export async function captureRoute(
+  page: Page,
+  url: string,
+  options: CaptureOptions = {},
+): Promise<Buffer> {
+  return (await captureRouteWithDiagnostics(page, url, options)).png;
 }

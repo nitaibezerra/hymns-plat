@@ -16,7 +16,12 @@
 import { expect, test } from "@playwright/test";
 
 import { diffPngBuffers } from "./image-diff";
-import { PARITY_VIEWPORT, captureRoute, preparePage } from "./capture";
+import {
+  PARITY_VIEWPORT,
+  captureRoute,
+  captureRouteWithDiagnostics,
+  preparePage,
+} from "./capture";
 
 const ORIGIN = "http://parity.test";
 
@@ -95,5 +100,22 @@ test.describe("captura estabilizada (capture)", () => {
     const url = await serve(page, "/sem-meta/", PAGE_WITH_TIMESTAMP("há 4 minutos"));
     const shot = await captureRoute(page, url, { mask: [".nao-existe", ".meta"] });
     expect(shot.byteLength).toBeGreaterThan(0);
+  });
+
+  test("diagnóstico devolve status HTTP e HTML junto com o PNG", async ({ page }) => {
+    const url = `${ORIGIN}/diagnostico/`;
+    await page.route(url, (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: "text/html; charset=utf-8",
+        body: `<html><body><p data-testid="error">Falha ao carregar hino: HTTP 404</p></body></html>`,
+      }),
+    );
+
+    const capture = await captureRouteWithDiagnostics(page, url);
+
+    expect(capture.status).toBe(404);
+    expect(capture.html).toContain("HTTP 404");
+    expect(capture.png.subarray(1, 4).toString("ascii")).toBe("PNG");
   });
 });
