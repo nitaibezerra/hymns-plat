@@ -7,7 +7,7 @@
  * Paridade de referência: `templates/hymns/editor/hymnbook_detail.html`.
  */
 
-import { render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen } from "@testing-library/svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import Page from "./+page.svelte";
@@ -163,5 +163,33 @@ describe("render do detalhe do hinário (5B.8)", () => {
       "href",
       "/editor/hinos/h1/revisar/",
     );
+  });
+});
+
+describe("botão 'Próximo pendente' (5B.9)", () => {
+  it("navega pra revisão do hino que o backend indicou", async () => {
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.click(screen.getByTestId("next-pending"));
+
+    expect(gotoMock).toHaveBeenCalledTimes(1);
+    expect(gotoMock.mock.calls[0][0]).toBe("/editor/hinos/h2/revisar/");
+  });
+
+  it("diz qual é o próximo — número e título, sem surpresa no clique", () => {
+    render(Page, { props: { data: buildData() } });
+    const button = screen.getByTestId("next-pending");
+    expect(button).toHaveTextContent(/próximo pendente/i);
+    expect(button).toHaveAttribute("title", expect.stringContaining("Estrela Brilhante"));
+  });
+
+  it("hinário 100% revisado não tem próximo pendente: botão dá lugar ao aviso", () => {
+    render(Page, { props: { data: buildData({ nextPendingHymn: null }) } });
+    expect(screen.queryByTestId("next-pending")).not.toBeInTheDocument();
+    expect(screen.getByTestId("all-reviewed")).toHaveTextContent(/tudo revisado/i);
+  });
+
+  it("é um <button> — a ação depende do dado do backend, não de uma URL adivinhada", () => {
+    render(Page, { props: { data: buildData() } });
+    expect(screen.getByTestId("next-pending").tagName).toBe("BUTTON");
   });
 });
