@@ -4,10 +4,11 @@
  * 5D.3 — `/editor/hinarios/[slug]/editar/` pré-popula o form com os dados do
  * hinário (campos que o 5.A½ expôs em `HymnBookType`: `description`,
  * `ownerName`, `introName`, `coverImage`).
+ * 5D.4 — submit chama `updateHymnBook` e redireciona pro detalhe editorial.
  */
 
-import { render, screen } from "@testing-library/svelte";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { _loadEditarHymnBook } from "./+page";
 import Page from "./+page.svelte";
@@ -128,5 +129,85 @@ describe("/editor/hinarios/[slug]/editar — form pré-populado (5D.3)", () => {
   it("mostra acesso negado quando forbidden", () => {
     render(Page, { props: { data: buildData({ forbidden: true, hymnbook: null }) } });
     expect(screen.getByTestId("editor-forbidden")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5D.4 — submit chama `updateHymnBook`
+// ---------------------------------------------------------------------------
+
+const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+function stubFetch(payload: unknown) {
+  const fn = vi.fn().mockResolvedValue(jsonResponse(payload));
+  globalThis.fetch = fn as unknown as typeof fetch;
+  return fn;
+}
+
+describe("/editor/hinarios/[slug]/editar — submit (5D.4)", () => {
+  it("chama updateHymnBook com slug + input editado", async () => {
+    const fetchFn = stubFetch({
+      data: { updateHymnBook: { __typename: "HymnBookType", id: "hb1", slug: "cruzeiro", name: "O Cruzeiro II" } },
+    });
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.input(screen.getByLabelText(/nome do hinário/i), {
+      target: { value: "O Cruzeiro II" },
+    });
+    await fireEvent.submit(screen.getByTestId("hymnbook-form"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.query).toContain("updateHymnBook");
+    expect(body.variables).toEqual({
+      slug: "cruzeiro",
+      input: {
+        name: "O Cruzeiro II",
+        introName: "Cruzeiro",
+        ownerName: "Mestre Irineu",
+        description: "Hinário do Mestre",
+      },
+    });
+  });
+
+  it("redireciona pro detalhe editorial usando o slug devolvido", async () => {
+    stubFetch({
+      data: { updateHymnBook: { __typename: "HymnBookType", id: "hb1", slug: "cruzeiro-ii", name: "O Cruzeiro II" } },
+    });
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.submit(screen.getByTestId("hymnbook-form"));
+
+    await waitFor(() => expect(goto).toHaveBeenCalledWith("/editor/hinarios/cruzeiro-ii/"));
+  });
+
+  it("mostra NotFoundError e não redireciona", async () => {
+    stubFetch({
+      data: { updateHymnBook: { __typename: "NotFoundError", message: "Hinário não encontrado" } },
+    });
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.submit(screen.getByTestId("hymnbook-form"));
+
+    await waitFor(() => expect(screen.getByTestId("form-error")).toHaveTextContent(/não encontrado/i));
+    expect(goto).not.toHaveBeenCalled();
+  });
+
+  it("com nova capa, sobe via multipart", async () => {
+    const fetchFn = stubFetch({
+      data: { updateHymnBook: { __typename: "HymnBookType", id: "hb1", slug: "cruzeiro", name: "O Cruzeiro" } },
+    });
+    render(Page, { props: { data: buildData() } });
+    const cover = screen.getByLabelText(/imagem de capa/i) as HTMLInputElement;
+    const file = new File(["bin"], "nova.png", { type: "image/png" });
+    Object.defineProperty(cover, "files", { value: [file], configurable: true });
+    await fireEvent.change(cover);
+    await fireEvent.submit(screen.getByTestId("hymnbook-form"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    const body = fetchFn.mock.calls[0][1].body as FormData;
+    expect(body).toBeInstanceOf(FormData);
+    expect(JSON.parse(body.get("map") as string)).toEqual({ "0": ["variables.input.coverImage"] });
   });
 });

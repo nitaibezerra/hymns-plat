@@ -284,3 +284,40 @@ export function createHymnBook(
     ["HymnBookType"],
   );
 }
+
+export const UPDATE_HYMNBOOK_MUTATION = `
+  mutation UpdateHymnBook($slug: String!, $input: HymnBookInput!) {
+    updateHymnBook(slug: $slug, input: $input) {
+      __typename
+      ... on HymnBookType { id slug name }
+      ... on ValidationError { message field }
+      ... on PermissionDeniedError { message }
+      ... on NotFoundError { message }
+    }
+  }
+`;
+
+export function updateHymnBook(
+  fetchFn: typeof globalThis.fetch,
+  slug: string,
+  values: HymnBookInputValues,
+  coverFile: File | null,
+): Promise<MutationOutcome<HymnBookRef>> {
+  if (!coverFile) {
+    return runMutation<HymnBookRef>(
+      fetchFn,
+      UPDATE_HYMNBOOK_MUTATION,
+      { slug, input: values },
+      "updateHymnBook",
+      ["HymnBookType"],
+    );
+  }
+  return runMultipartMutation<HymnBookRef>(
+    fetchFn,
+    UPDATE_HYMNBOOK_MUTATION,
+    { slug, input: { ...values, coverImage: null } },
+    { "variables.input.coverImage": coverFile },
+    "updateHymnBook",
+    ["HymnBookType"],
+  );
+}
