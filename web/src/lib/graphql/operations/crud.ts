@@ -431,6 +431,46 @@ export function updateHymn(
 // 5D.12 / 5D.13 — upload de áudio
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// 5D.14 a 5D.16 — fila de aprovação de áudios
+// ---------------------------------------------------------------------------
+
+/**
+ * `hymn`, `credits`, `format` e `fileSize` só existem em `HymnAudioType`
+ * desde o 5.A½. Sem eles a fila era inutilizável: não havia como dizer a que
+ * hino/hinário cada gravação pertencia.
+ */
+export const PENDING_AUDIOS_QUERY = `
+  query PendingAudios {
+    pendingAudios {
+      id
+      title
+      credits
+      source
+      format
+      fileSize
+      url
+      durationSeconds
+      createdAt
+      isApproved
+      uploadedBy {
+        id
+        username
+      }
+      hymn {
+        id
+        number
+        title
+        hymnBook {
+          id
+          name
+          slug
+        }
+      }
+    }
+  }
+`;
+
 export const AUDIO_ALLOWED_EXTENSIONS = ["mp3", "ogg", "flac"] as const;
 export const AUDIO_MAX_BYTES = 25 * 1024 * 1024;
 
