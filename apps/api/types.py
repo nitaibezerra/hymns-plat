@@ -165,7 +165,11 @@ class OCRTaskType:
     total_pages: int
     error_message: str
     pdf_filename: str
-    result_data: strawberry.scalars.JSON
+    # `OCRTask.result_data` é `null=True`: task pendente/processando ainda não
+    # tem resultado. Declarar como JSON! estourava
+    # "Cannot return null for non-nullable field" na primeira consulta a uma
+    # task que ainda não terminou.
+    result_data: strawberry.scalars.JSON | None
 
     @strawberry.field
     def progress_pct(self) -> int:
