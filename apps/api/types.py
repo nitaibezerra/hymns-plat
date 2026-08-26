@@ -487,11 +487,33 @@ class HymnAudioType:
     id: strawberry.auto
     waveform_peaks: list[int]
     title: strawberry.auto
+    source: strawberry.auto
+    credits: strawberry.auto
+    recorded_at: strawberry.auto
+    format: strawberry.auto
+    file_size: strawberry.auto
+    allow_download: strawberry.auto
     is_approved: strawberry.auto
     is_match: strawberry.auto
     quality_rating: strawberry.auto
     quality_observations: list[str]
     mismatch_reason: strawberry.auto
+    reviewed_at: strawberry.auto
+    created_at: strawberry.auto
+
+    @strawberry.field
+    def hymn(self) -> "HymnType":
+        """Hino a que este áudio pertence.
+
+        Não-nulável (FK obrigatória com CASCADE). Sem ele a tela de áudios
+        pendentes recebia uma lista sem forma de identificar cada gravação."""
+        return self.hymn
+
+    @strawberry.field
+    def reviewed_by(self) -> "UserType | None":
+        """Quem revisou o áudio (`None` se ainda não revisado, ou se o usuário
+        foi removido — a FK é SET_NULL)."""
+        return self.reviewed_by
 
     @strawberry.field
     def url(self) -> str:
