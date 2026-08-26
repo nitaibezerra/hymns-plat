@@ -388,3 +388,110 @@ describe("5C.9 — prévia renderizada pelo REST /editor/preview/render/", () =>
     );
   });
 });
+
+describe("5C.10 — Marcar revisado e avançar", () => {
+  const OK_PAYLOAD = {
+    data: {
+      updateHymn: { __typename: "HymnType", id: "h-1" },
+      setReviewStatus: { __typename: "HymnType", id: "h-1", reviewStatus: "REVIEWED" },
+    },
+  };
+
+  beforeEach(() => {
+    vi.mocked(goto).mockClear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("salva os campos, marca REVIEWED e navega pro próximo pendente", async () => {
+    const fetchFn = stubFetch(OK_PAYLOAD);
+    render(Page, { props: { data: sampleData } });
+
+    await fireEvent.click(screen.getByRole("button", { name: /Marcar revisado e avançar/ }));
+    await vi.advanceTimersByTimeAsync(50);
+
+    const calls = graphqlCalls(fetchFn);
+    expect(calls).toHaveLength(2);
+    expect(bodyOf(fetchFn, 0).query).toContain("updateHymn");
+    expect(bodyOf(fetchFn, 1).query).toContain("setReviewStatus");
+    expect(bodyOf(fetchFn, 1).variables).toEqual({ pk: "h-1", status: "REVIEWED" });
+    expect(goto).toHaveBeenCalledWith("/editor/hinos/h-2/revisar");
+  });
+
+  it("marca REVIEWED mesmo com o segmentado em outro estado", async () => {
+    const fetchFn = stubFetch(OK_PAYLOAD);
+    render(Page, { props: { data: sampleData } });
+
+    await fireEvent.click(screen.getByLabelText("Não revisado"));
+    await fireEvent.click(screen.getByRole("button", { name: /Marcar revisado e avançar/ }));
+    await vi.advanceTimersByTimeAsync(50);
+
+    const statusBodies = graphqlCalls(fetchFn)
+      .map((call) => JSON.parse(String((call[1] as RequestInit).body)))
+      .filter((body) => String(body.query).includes("setReviewStatus"));
+    expect(statusBodies).toHaveLength(1);
+    expect(statusBodies[0].variables.status).toBe("REVIEWED");
+    expect((screen.getByLabelText("Revisado") as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("segue o wrap-around que o backend já resolve em nextPendingHymn", async () => {
+    stubFetch(OK_PAYLOAD);
+    render(Page, {
+      props: {
+        data: {
+          ...sampleData,
+          hymn: {
+            ...sampleData.hymn!,
+            hymnBook: {
+              ...sampleData.hymn!.hymnBook,
+              // Último hino do hinário: o backend devolve o primeiro pendente.
+              nextPendingHymn: { id: "h-0", number: 6, title: "Lua Branca" },
+            },
+          },
+        },
+      },
+    });
+
+    await fireEvent.click(screen.getByRole("button", { name: /Marcar revisado e avançar/ }));
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(goto).toHaveBeenCalledWith("/editor/hinos/h-0/revisar");
+  });
+
+  it("sem pendentes, volta pro hinário", async () => {
+    stubFetch(OK_PAYLOAD);
+    render(Page, {
+      props: {
+        data: {
+          ...sampleData,
+          hymn: {
+            ...sampleData.hymn!,
+            hymnBook: { ...sampleData.hymn!.hymnBook, nextPendingHymn: null },
+          },
+        },
+      },
+    });
+
+    await fireEvent.click(screen.getByRole("button", { name: /Marcar revisado e avançar/ }));
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(goto).toHaveBeenCalledWith("/editor/hinarios/o-cruzeiro");
+  });
+
+  it("erro na mutation não navega e mostra a mensagem", async () => {
+    stubFetch({
+      data: { updateHymn: { __typename: "ValidationError", message: "Número já usado." } },
+    });
+    render(Page, { props: { data: sampleData } });
+
+    await fireEvent.click(screen.getByRole("button", { name: /Marcar revisado e avançar/ }));
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(goto).not.toHaveBeenCalled();
+    expect(screen.getByTestId("autosave-status")).toHaveTextContent("Número já usado.");
+  });
+});

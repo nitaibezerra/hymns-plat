@@ -15,6 +15,7 @@
    * está em `editable_fields`). Enquanto o schema não expuser, editar aqui
    * seria mentira de UI.
    */
+  import { goto } from "$app/navigation";
   import { AUTOSAVE_DELAY_MS, debounce, formatSavedAt } from "$lib/autosave";
   import InlineDiff from "$lib/components/editor/InlineDiff.svelte";
   import OcrConfidenceBar from "$lib/components/editor/OcrConfidenceBar.svelte";
@@ -145,13 +146,17 @@
     message?: string;
   }
 
-  /** Roda `updateHymn` (+ `setReviewStatus` se preciso). Devolve `ok`. */
-  async function persistForm(): Promise<boolean> {
+  /**
+   * Roda `updateHymn` e, quando o status mudou (ou quando o chamador força um,
+   * caso do "Marcar revisado e avançar"), `setReviewStatus`. Devolve `ok`.
+   */
+  async function persistForm(options: { statusOverride?: ReviewStatus } = {}): Promise<boolean> {
     const hymn = data.hymn;
     if (!hymn) return false;
 
     const snapshot = snapshotOf(form);
-    const status = form.reviewStatus;
+    const status = options.statusOverride ?? form.reviewStatus;
+    const forceStatus = options.statusOverride !== undefined;
     autosaveState = "saving";
     autosaveMessage = "";
 
@@ -171,7 +176,7 @@
         return false;
       }
 
-      if (status !== persistedStatus) {
+      if (forceStatus || status !== persistedStatus) {
         const statusResponse = await gqlFetch<{ setReviewStatus: MutationPayload }>(
           globalThis.fetch,
           GRAPHQL_URL,
@@ -279,6 +284,34 @@
   });
 
   $effect(() => () => schedulePreview.cancel());
+
+  /* ===== 5C.10 · Marcar revisado e avançar =================================
+   *
+   * Espelha `next_action=next` da view Django: salva os campos, força
+   * `REVIEWED` (mesmo que o segmentado esteja em outro estado) e navega para
+   * `nextPendingHymn`. O wrap-around já vem resolvido pelo resolver — ele
+   * exclui o hino atual e cai no primeiro pendente quando não há um com
+   * `number` maior. Sem pendentes, volta pro hinário, como o Django.
+   */
+  let isSubmitting = $state(false);
+
+  async function saveAndAdvance() {
+    const hymn = data.hymn;
+    if (!hymn || isSubmitting) return;
+
+    scheduleAutosave.cancel();
+    isSubmitting = true;
+    form.reviewStatus = "REVIEWED";
+    const ok = await persistForm({ statusOverride: "REVIEWED" });
+    isSubmitting = false;
+    scheduleAutosave.cancel();
+    if (!ok) return;
+
+    const next = hymn.hymnBook.nextPendingHymn;
+    await goto(
+      next ? `/editor/hinos/${next.id}/revisar` : `/editor/hinarios/${hymn.hymnBook.slug}`,
+    );
+  }
 </script>
 
 <section data-testid="revise-hymn">
@@ -420,6 +453,15 @@
       <span class="autosave-status" data-testid="autosave-status" data-state={autosaveState}>
         {autosaveLabel}
       </span>
+      <button
+        class="btn-primary"
+        type="button"
+        data-testid="save-and-advance"
+        disabled={isSubmitting}
+        onclick={saveAndAdvance}
+      >
+        Marcar revisado e avançar
+      </button>
     </footer>
   {/if}
 </section>
@@ -695,6 +737,23 @@
 
   .btn-ghost:hover {
     border-color: var(--color-gold);
+  }
+
+  .btn-primary {
+    background: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    color: var(--color-bg);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+  }
+
+  .btn-primary:disabled {
+    cursor: progress;
+    opacity: 0.6;
   }
 
   .autosave-status {
