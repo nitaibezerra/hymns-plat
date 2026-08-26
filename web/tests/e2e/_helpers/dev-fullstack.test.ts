@@ -67,3 +67,53 @@ test.describe("orquestração full-stack (dev-fullstack.sh)", () => {
     expect(config.VITE_GRAPHQL_URL).toBe("http://127.0.0.1:8123/graphql/");
   });
 });
+
+/**
+ * Frente C — Ciclo C5.
+ *
+ * "Subir o ambiente" e "ter dados previsíveis" viram um passo só. Sem isso,
+ * quem sobe o stack e roda a suíte mede o banco que estiver por perto — que é
+ * exatamente o motivo pelo qual duas tentativas de ligar Playwright no CI
+ * foram recusadas.
+ */
+test.describe("seed determinístico na subida (C5)", () => {
+  test("por default o script semeia antes de subir os servidores", () => {
+    const config = resolveEnv();
+    expect(config.SEED_E2E).toBe("1");
+  });
+
+  test("SEED_E2E=0 desliga o seed sem mexer no resto", () => {
+    const config = resolveEnv({ SEED_E2E: "0" });
+    expect(config.SEED_E2E).toBe("0");
+    expect(config.DJANGO_PORT).toBe("9000");
+  });
+
+  test("o seed roda no repo Django, com o settings do servidor que sobe", () => {
+    const config = resolveEnv({ DJANGO_REPO_ROOT: "/tmp/repo-fake" });
+    expect(config.SEED_COMMAND).toContain("seed_e2e");
+    expect(config.DJANGO_SETTINGS_MODULE).toBe("config.settings.local");
+    expect(config.DJANGO_REPO_ROOT).toBe("/tmp/repo-fake");
+  });
+
+  test("expõe os usuários da fixture, que é o contrato com as specs", () => {
+    const config = resolveEnv();
+    expect(config.HINARIA_E2E_EDITOR_USERNAME).toBe("e2e-editor");
+    expect(config.HINARIA_E2E_VIEWER_USERNAME).toBe("e2e-viewer");
+  });
+
+  test("usuários da fixture são sobrescrevíveis pelo ambiente", () => {
+    const config = resolveEnv({ HINARIA_E2E_EDITOR_USERNAME: "outro-editor" });
+    expect(config.HINARIA_E2E_EDITOR_USERNAME).toBe("outro-editor");
+  });
+
+  test("não imprime a senha da fixture — só de onde ela veio", () => {
+    const config = resolveEnv({ HINARIA_E2E_PASSWORD: "segredo-que-nao-pode-vazar" });
+    expect(Object.values(config)).not.toContain("segredo-que-nao-pode-vazar");
+    expect(config.HINARIA_E2E_PASSWORD_ORIGEM).toBe("ambiente");
+  });
+
+  test("sem senha no ambiente, avisa que está usando o default de dev", () => {
+    const config = resolveEnv({ HINARIA_E2E_PASSWORD: "" });
+    expect(config.HINARIA_E2E_PASSWORD_ORIGEM).toBe("default-de-dev");
+  });
+});
