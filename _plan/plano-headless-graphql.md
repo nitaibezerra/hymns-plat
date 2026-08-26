@@ -70,6 +70,8 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 
 ### Marco 1 — Spike de schema GraphQL (read-only, sem auth, sem mutation)
 
+> **Status (2026-08-26):** ✅ **mergeado.** 9/9 ciclos TDD entregues. Chegou em `development` via PR #51 (que absorveu por squash os PRs #52 e #53).
+
 **Objetivo:** validar Strawberry-Django no projeto, sem se comprometer com o resto.
 
 **Ciclos TDD (ordem de execução):**
@@ -109,6 +111,8 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 
 ### Marco 2 — Mutations + Auth bridge (login, CSRF, sessões)
 
+> **Status (2026-08-26):** ✅ **mergeado.** 7/7 ciclos TDD entregues. O PR #52 foi mergeado dentro da branch do Marco 1 e chegou em `development` pelo squash do PR #51 — não teve PR próprio.
+
 **Objetivo:** expor mutations protegidas com a mesma session do Django, sem ainda ter cliente JS oficial.
 
 **Ciclos TDD (ordem de execução):**
@@ -144,6 +148,10 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 - Smoke manual: `curl` com cookie de sessão consegue fazer mutation; sem cookie falha com erro de CSRF/auth.
 
 ### Marco 3 — SvelteKit skeleton + autenticação + listagem de hinários
+
+> **Status (2026-08-26):** ✅ **mergeado** (PR #53, rebaseado sobre o Marco 1 e absorvido pelo squash do PR #51).
+>
+> **Pendência herdada:** dois arquivos que este marco listava como *essenciais* nunca foram criados — `web/playwright.config.ts` e `web/tests/e2e/home.spec.ts`. Consequência: o frontend ficou sem runner de E2E desde o Marco 3, e todo critério de aceitação que dependia de "E2E Playwright passa" (Marcos 3, 4.C, 4.D, 4.F, 4.I) ficou por verificar. O `playwright.config.ts` está sendo trazido agora pela frente do 4.I.
 
 **Objetivo:** primeira tela funcional no novo frontend, com auth de verdade.
 
@@ -203,6 +211,18 @@ Sister project `gestao-feitio` já validou SvelteKit + PWA offline; reaproveitar
 - E2E Playwright passa.
 
 ### Marco 4 — Paridade read-only com a web atual
+
+> **Status (2026-08-26):** 🟡 **quase completo, com dívida aberta.**
+>
+> - **4.A-4.H:** mergeados em `development` (PR #55 — schema; PR #56 — SPA).
+> - **4.I:** escrito na branch `feat/headless-marco4i-visual-diff` e **não mergeado**; está sendo integrado agora.
+> - **Critério de aceite não verificado:** o alvo de **≥95% de paridade visual** nunca foi medido. Não existe execução do `visual-parity.spec.ts` com números, e a "tabela final de paridade por rota" prometida no critério geral do marco nunca foi produzida. Tratar o Marco 4 como *funcionalmente* entregue e *visualmente não auditado*.
+> - **Duas regressões introduzidas no merge da fase F3** (unificação das 6 branches de 4.C-4.H), que deixaram a SPA **sem compilar** em `development`:
+>   1. `CURRENT_USER_QUERY` duplicado em `web/src/lib/graphql/operations.ts` — duas branches declararam a mesma const.
+>   2. `HymnBody.svelte` — o *stub* criado pelo 4.E venceu a versão real do 4.D na resolução do merge.
+>
+>   Ambas estão sendo corrigidas agora, junto com a integração do 4.I.
+> - **Causa-raiz de as regressões terem passado:** o CI do frontend nunca rodou nos PRs de feature — ver "Workflow de desenvolvimento — duas etapas" → *Dívida de CI descoberta em 2026-08-26*. `pnpm test`/`pnpm build` só rodaram nas máquinas dos subagentes, nunca no PR.
 
 **Objetivo:** todas as rotas de leitura do monolito Django reescritas em SvelteKit com paridade visual ≥95%, consumindo só GraphQL.
 
@@ -442,137 +462,18 @@ Este é o motor da "feature destravada pelo SPA": o player não pode reiniciar a
 
 ---
 
-## Política de consolidação de PRs
-
-**Princípio:** sub-marcos existem pra **disciplina de TDD e planejamento**, não pra serem PRs separados. Cada sub-marco continua sendo uma sequência de commits (1 por ciclo TDD) num branch local; o que vai pra `main` é um PR por Marco semântico.
-
-**Histórico (Marcos 1-3) — o que fazer com o que já está aberto:**
-- PR #51 (Marco 1) tem auto-merge → aguardar fechar; `main` ganha 1 commit squash com Marco 1.
-- PR #52 (Marco 2) já foi mergeado no branch do Marco 1 — não vai virar PR separado contra `main`.
-- PR #53 (Marco 3) foi rebaseado sobre Marco 1, então contém Marco 2 + Marco 3. Renomear título do PR pra refletir ("Marcos 2 + 3: mutations + auth + SvelteKit skeleton"). Auto-merge fecha → `main` ganha 1 commit squash com Marcos 2+3.
-- **Resultado retroativo:** 2 commits em `main` (Marco 1; Marcos 2+3), não 3 PRs.
-
-**Daqui pra frente — 1 PR por Marco como regra:**
-
-| Marco | PRs contra `main` | Justificativa |
-|---|---|---|
-| Marco 4 | **2 PRs** (4.A schema + 4.B-I SPA) | Schema é backend isolado, contrato discreto; SPA é monolítica |
-| Marco 5 | **1 PR** | CRUD editorial é coeso; backend e frontend andam juntos |
-| Marco 6 | **1 PR** | PWA offline é uma feature transversal — rollback unitário tem que ser possível |
-| Marco 7 | **1 PR** | Cutover é cirurgia única |
-
-**Total daqui em diante: 5 PRs** (Marco 4 split + Marcos 5, 6, 7 individuais), em vez dos ~30 do plano original (1 PR por sub-marco).
-
-**Mecânica de cada PR:**
-- Branch base: `main` (sem stacked PRs).
-- Branch-mãe do Marco: `feat/headless-marco<N>` (ou `marco4-schema` e `marco4-spa` no caso de Marco 4).
-- Cada sub-marco vira **uma seção do PR description** com sua tabela de ciclos TDD + lista dos commits que cobrem essa seção. Revisor (você) varre por sub-marco; merge é único squash.
-- Auto-merge ativado imediatamente após criar a PR (memória `feedback_auto_merge`).
-- CI roda contra a soma de tudo — sub-marco quebrado **dentro** da branch-mãe não passa: a disciplina é rodar `pnpm test && pnpm check && uv run pytest` localmente a cada ciclo.
-
-**Trade-offs aceitos:**
-- ✅ Menos overhead de revisão, menos CI runs caros, `main` com histórico semântico claro.
-- ❌ PRs maiores (Marco 4 SPA chega a ~3k LOC). Mitigação: revisão guiada pelas seções de sub-marco no PR description.
-- ❌ Rollback granular (sub-marco isolado) requer `git revert <commit-range>`, não `revert <PR>`. Aceito porque sub-marcos dentro de um Marco são interdependentes na prática.
-
----
-
-## Estratégia de execução com subagentes
-
-**Princípio:** cada sub-marco é uma **unidade autocontida e testável** — ideal pra delegação a um subagente. O subagente recebe um briefing fechado, opera em git worktree isolado, e só conclui quando todos os testes + lint estão verdes.
-
-**Tipo de subagente:** `general-purpose` (workhorse) com `isolation: "worktree"`. Cada subagente recebe uma cópia git isolada do repo — sem conflitos com trabalho paralelo.
-
-**Contrato de cada subagente (briefing fechado):**
-1. **Escopo:** identificador do sub-marco (ex: "4.D — Detalhe do hinário, 3 modos").
-2. **Branch:** nome do branch a criar a partir da base indicada.
-3. **Tabela de ciclos TDD:** copiada literalmente do plano. O subagente percorre na ordem: RED → GREEN → commit → próximo.
-4. **Arquivos a criar/editar:** lista explícita.
-5. **Critério de "concluído":**
-   - Todos os ciclos da tabela com commit.
-   - `pnpm test && pnpm check && pnpm build` no `web/` verdes (ou `uv run pytest tests/unit/api/ && uv run black --check . && uv run isort --check-only . && uv run ruff check .` em sub-marcos backend).
-   - Lint passa.
-   - Subagente **NÃO** abre PR; apenas garante a branch verde e reporta o SHA final. O coordenador (eu) faz o merge na branch-mãe.
-6. **Restrições fixas:**
-   - PT-BR em strings de usuário.
-   - Sem `--no-verify`.
-   - Sem `git push --force`.
-   - Reusar helpers existentes (`can_edit_hymnbook`, `_is_editor_or_admin`, `HymnForm`, etc.) em vez de reescrever.
-   - Se um teste falhar de forma irrecuperável (ex: precisa de decisão de design), pausar e reportar — não improvisar.
-
-**Plano de paralelização do Marco 4:**
-
-Análise de dependências:
-- **4.A** (schema GraphQL): backend puro. Sem dependências. Bloqueia 4.C-4.H (codegen do cliente lê SDL).
-- **4.B** (layout shell + tokens + tipografia): frontend puro. Sem dependências do schema novo (usa só queries do Marco 1-3). **Pode rodar paralelo com 4.A**.
-- **4.C, 4.D, 4.E, 4.G, 4.H** (rotas read-only): cada uma toca rotas/componentes disjuntos. Dependem de 4.A (SDL) e 4.B (shell). **Podem rodar todas em paralelo**.
-- **4.F** (player global persistente): modifica `+layout.svelte` (mesmo arquivo de 4.B). **Sequencial após 4.B**; **paralelo com 4.C-4.H** se 4.B já estiver mergeado.
-- **4.I** (visual diff E2E): precisa de tudo. **Sequencial no fim**.
-
-**Linha do tempo proposta:**
-
-```
-Tempo →    Semana 1         Semana 2              Semana 3
-          ┌─────────┐
-4.A ─────►│ schema  │
-          └─────────┘
-          ┌─────────┐
-4.B ─────►│ shell   │
-          └─────────┘
-                    ┌──────────────┐
-4.C ───────────────►│ home + lista │
-                    └──────────────┘
-                    ┌──────────────┐
-4.D ───────────────►│ hinário 3mod │
-                    └──────────────┘
-                    ┌──────────────┐
-4.E ───────────────►│ hino único   │
-                    └──────────────┘
-                    ┌──────────────┐
-4.F ───────────────►│ player       │
-                    └──────────────┘
-                    ┌──────────────┐
-4.G ───────────────►│ busca        │
-                    └──────────────┘
-                    ┌──────────────┐
-4.H ───────────────►│ perfis+notif │
-                    └──────────────┘
-                                   ┌──────────┐
-4.I ──────────────────────────────►│ diff E2E │
-                                   └──────────┘
-```
-
-**Fases de execução (sob coordenação do agente principal):**
-
-| Fase | Subagentes paralelos | Branches base | Critério pra avançar |
-|---|---|---|---|
-| **F1** (1 semana) | 4.A + 4.B | `main` | Ambos branches verdes e mergeados em `feat/headless-marco4-base` |
-| **F2** (~1 semana) | 4.C + 4.D + 4.E + 4.F + 4.G + 4.H | `feat/headless-marco4-base` | Todas as 6 branches verdes |
-| **F3** (~3 dias) | Merge das 6 branches em `feat/headless-marco4-spa`; resolver conflitos (esperados em `+layout.svelte` por 4.F) | — | Branch unificada verde |
-| **F4** (~2 dias) | 4.I (sequencial, sozinho) na branch unificada | `feat/headless-marco4-spa` | Visual diff ≥95% |
-| **F5** | Abrir 2 PRs contra `main`: schema e SPA | — | Auto-merge fecha ambos |
-
-**Ganho estimado:** F1+F2+F3+F4 ≈ 2,5-3 semanas vs. 4-5 semanas sequenciais.
-
-**Riscos da paralelização:**
-- **Conflitos de merge na F3.** Mitigação: 4.B (shell) cria slots/placeholders para player (4.F) e cards (4.C). Cada sub-marco frontend toca arquivos disjuntos por contrato (tabelas TDD já desenharam isso).
-- **Schema do 4.A muda durante 4.B**: 4.B não depende de schema novo, então não é afetado. 4.C-4.H pegam o SDL definitivo após 4.A mergeado.
-- **Subagente travado em decisão de design.** Mitigação: critério 6 do contrato (pausar e reportar). Coordenador resolve, atualiza briefing, re-spawna se necessário.
-- **Custo de tokens.** 6 subagentes simultâneos em F2 ≈ 6× contexto. Aceitável pela aceleração.
-
-**Coordenação prática (agente principal, isto é, eu):**
-- F1: 2 chamadas `Agent` em paralelo num único turno (4.A + 4.B).
-- F2: 6 chamadas `Agent` em paralelo num único turno.
-- Entre fases: verificar branches (`git log`, `pnpm test`, `pytest`), resolver conflitos manualmente, abrir PRs.
-- **NÃO** delegar a abertura de PRs aos subagentes — fica no agente principal pra controle e aplicação do auto-merge.
-
-**Marcos 5+ usam o mesmo padrão**, ajustado pela coesão do marco. Marco 5 (CRUD editorial) tem menos paralelização possível porque mutations compartilham mais código; provável split: 2 subagentes (backend mutations + frontend editor UI). Marco 6 (offline PWA) é predominantemente sequencial (service worker + Dexie + Workbox são uma stack acoplada).
-
 ### Marco 5 — CRUD editorial + permissões
+
+> **Status (2026-08-26):** 🟡 **em andamento — backend pronto, frontend não começado.**
+>
+> - **5.A:** ✅ mergeado (PR #60). 20/20 ciclos entregues, com os nomes de teste exatamente como tabelados abaixo.
+> - **5.A½** (fase inserida, não prevista no plano original): dívidas de schema descobertas ao preparar 5.B-5.E, que bloqueavam o frontend. Escopo: `UserType.isEditor`; guard `_has_editor_access` aplicado nos 3 resolvers editoriais; vocabulário de `sort` alinhado com o que a URL realmente usa; `HymnType.hymnBook`; campos faltantes de `HymnBookType`, `HymnAudioType` e `NotificationType`; `last_reviewed_at`; campos de curadoria (`is_featured`). Inclui também a **primeira cobertura de teste de `Query.ocrTask`**, que estava exposta no schema sem nenhum teste.
+> - **5.B, 5.C, 5.D, 5.E:** ⬜ não começados.
+> - **5.F** — fluxo `/contribuir/` (upload PDF + OCR): ⬜ não começado. Sub-marco **novo**, criado por decisão do usuário em 2026-08-26; antes disso essas 5 telas não apareciam em nenhum marco do plano.
 
 **Objetivo:** expor todas as mutations editoriais via GraphQL e reescrever o workspace `/editor/` em SvelteKit, com paridade funcional completa ao Django atual (`editor_views.py`, `views.py`, `views_social.py`). Inclui CRUD de hinários e hinos, fluxo de revisão com diff visual OCR↔texto, aprovação de áudios, follow/unfollow e marcação de notificações.
 
-**Escopo de 3 semanas com paralelização:** 1 semana backend (5.A) + 2 semanas frontend (5.B-5.E em paralelo).
+**Escopo de 3-4 semanas com paralelização:** 1 semana backend (5.A + 5.A½) + 2-3 semanas frontend (5.B-5.E em paralelo, e 5.F em paralelo com elas).
 
 **Branch-mãe:** `feat/headless-marco5` (base: `feat/headless-marco4-spa`). **1 PR único** contra `development`.
 
@@ -600,10 +501,21 @@ Tempo →    Semana 1         Semana 2              Semana 3
 | `/hinos/<pk>/historico/` | `views.py:hymn_history_view` | drawer lateral via `HymnType.revisions` |
 | `/perfil/<username>/seguir/` (POST) | `users/views_social.py:toggle_follow` | mutations `followUser`/`unfollowUser` |
 | `/notificacoes/<id>/lida/` (POST) | `users/views_social.py:mark_notification_read` | mutations `markNotificationRead`/`markAllNotificationsRead` |
+| `/contribuir/` | `users/views.py:upload_view` (:109) | `/contribuir/` (5.F) |
+| `/contribuir/processando/` | `users/views.py:upload_processing_view` (:402) | `/contribuir/processando/` (5.F) |
+| `/contribuir/ocr-status/<task_id>/` | `users/views.py:upload_ocr_status_view` (:452) | substituído por polling de `Query.ocrTask(id)` (5.F) |
+| `/contribuir/desambiguar/` | `users/views.py:upload_disambiguate_view` (:132) | `/contribuir/desambiguar/` (5.F) |
+| `/contribuir/preview/` | `users/views.py:upload_preview_view` (:205) | `/contribuir/conferir/` (5.F) |
+| `/contribuir/confirmar/` | `users/views.py:upload_confirm_view` (:286) | `/contribuir/confirmar/` (5.F) |
+| `/perfil/<username>/editar/` | `users/views.py:profile_edit_view` | **sem destino decidido** — ver Marco 7, passo 0 |
+| `/hinarios/<slug>/ler/` | `views.py:HymnBookReadView` | **sem destino decidido** — ver Marco 7, passo 0 |
 
 **Endpoints REST mantidos (não migrar para GraphQL):**
-- `upload_pdf_ocr` — streaming multipart OCR; frontend faz polling de `Query.ocrTask(id)`.
-- `editor_preview_render` (POST `/editor/preview/`) — renderiza `render_hymn_body_for_text` sem DB; REST puro, sem overhead de migração para GraphQL.
+- **Upload de PDF pra OCR** — multipart pesado; o frontend faz `fetch` e depois faz polling de `Query.ocrTask(id)`.
+  - ⚠️ **Correção de 2026-08-26:** o plano chamava esse endpoint de `upload_pdf_ocr` e o localizava em `apps/hymns/views.py`. **Esse nome não existe no repo.** O ponto de entrada real é o `POST` de `apps/users/views.py::upload_view` (`/contribuir/`), que valida via `HymnBookPdfUploadForm`, grava o PDF num tempfile e chama `_start_pdf_ocr` → `launch_ocr_task`. Ver 5.F.
+- `editor_preview_render` (POST `/editor/preview/render/`) — renderiza `render_hymn_body_for_text` sem DB; REST puro, sem overhead de migração para GraphQL.
+
+> **Nota de fidelidade do mapa (2026-08-26):** alguns caminhos Django tabelados acima não batem com `apps/hymns/urls.py`. Os reais são `/editor/hinarios/` (não existe `/editor/` raiz), `/editor/hinarios/<slug>/agil/` (não `revisao-agil/`), `/editor/audios/` (não `audios/pendentes/`), `/hinos/<pk>/upload-audio/` (não `/hinos/<pk>/audios/upload/`) e `/editor/preview/render/`. As rotas SvelteKit da coluna da direita continuam valendo como alvo; o que muda é a origem a consultar ao portar.
 
 ---
 
@@ -810,40 +722,126 @@ Depende de 5.A e 5.B. **Paralelo com 5.C e 5.D** após 5.B mergeado. Edita pági
 
 ---
 
+#### Sub-marco 5.F — Fluxo `/contribuir/` (upload PDF + OCR) — ~1 semana, branch `feat/headless-marco5f-contribuir`
+
+> **Sub-marco novo, criado em 2026-08-26 por decisão do usuário.** Até então o plano não mencionava essas telas em nenhum marco, e o link do menu foi escondido no PR #61 justamente porque a SPA não tem a tela. **O escopo `/contribuir/` entra na paridade.**
+
+**Objetivo:** portar pra SvelteKit o wizard de contribuição de hinário via PDF+OCR — 5 páginas server-rendered em `apps/users/urls.py`: `contribuir/` (:15), `contribuir/processando/` (:16), `contribuir/desambiguar/` (:22), `contribuir/preview/` (:23), `contribuir/confirmar/` (:24).
+
+**Dependências:** 5.A (mutations) + 5.A½ (`Query.ocrTask` coberta por teste). **Paralelo com 5.B, 5.C, 5.D e 5.E** — toca arquivos disjuntos (`web/src/routes/contribuir/**` e `web/src/lib/components/contribuir/**`), com a única exceção do link no `Header.svelte` (ciclo 5F.17).
+
+**O fluxo real, lido do código (não inventar):**
+
+1. **`/contribuir/`** — `upload_view`, `@login_required`. Formulário multipart `HymnBookPdfUploadForm`: `name` e `owner_name` obrigatórios (o OCR não consegue inferir), `pdf_file` obrigatório (só `.pdf`, ≤ 50 MB — validado em `clean_pdf_file`), `cover_image` opcional. No POST, `_start_pdf_ocr` grava o PDF num tempfile, cria uma `OCRTask` do usuário e chama `launch_ocr_task` (thread daemon), redirecionando pra `processando/?task=<uuid>`.
+2. **`/contribuir/processando/?task=<uuid>`** — `upload_processing_view`. Hoje a página faz polling do JSON `contribuir/ocr-status/<task_id>/` a cada 1,8 s e desenha barra de progresso + "Página N de M". Quando a task fica `completed`, a view roda `find_duplicates_with_content(name, hymns, name_threshold=0.7, content_threshold=0.8)`, guarda `upload_data` (e `duplicates`, se houver) na **sessão** e redireciona pra `desambiguar/` (se achou duplicata) ou direto pra `preview/`. Se `failed`, renderiza o erro com botão "Tentar novamente".
+3. **`/contribuir/desambiguar/`** — `upload_disambiguate_view`. Mostra o match exato (se houver) e a lista de similares com dois scores por hinário (`name_score`, `content_score`, em %). Formulário `DisambiguationChoiceForm` com 3 escolhas: `create_new` → vai pra `preview/`; `add_version` → exige `selected_hymnbook` **e** `version_name`, grava `version_info` na sessão e vai pra `confirmar/`; `cancel` → limpa a sessão e volta pra `/contribuir/`.
+4. **`/contribuir/preview/`** — `upload_preview_view`. Mostra os **5 primeiros** hinos extraídos + tabela Nº/Título/confiança OCR e o aviso "será criado como rascunho". No POST, cria `HymnBook` + `Hymn`s numa `transaction.atomic()`, com `source=OCR`, `ocr_text` = texto cru e `ocr_avg_confidence` preservados pro diff visual do 5.C; limpa a sessão e redireciona pro detalhe do hinário criado.
+5. **`/contribuir/confirmar/`** — `upload_confirm_view`. Ramo "adicionar como versão": serializa o `result_data` em YAML e cria uma `HymnBookVersion` com `is_primary=False`, `uploaded_by=request.user`; redireciona pro detalhe do hinário.
+
+Além das 5 páginas, existe o **stepper** de 4 passos (`templates/_partials/_upload_stepper.html`, rótulos `UPLOAD · PROCESSANDO · CONFERIR · CONFIRMAR`), compartilhado pelas telas.
+
+**Decisões fixadas (não reavaliar):**
+
+- **O upload NÃO migra pra GraphQL.** A SPA faz `fetch` multipart contra o endpoint REST existente (o `POST` de `/contribuir/`, ponto de entrada real de `_start_pdf_ocr`) e recebe de volta o `id` da `OCRTask`. Isso já é decisão fixa do Marco 5 ("Endpoints REST mantidos") — o 5.F só a executa.
+- **O progresso vem de `Query.ocrTask(id)`**, não do JSON `contribuir/ocr-status/`. `OCRTaskType` **já existe** no schema com `status`, `progressPct`, `resultData`, `currentPage`, `totalPages`, `errorMessage`, `pdfFilename`, e o resolver `Query.ocrTask` já gateia por uploader-ou-editor. **Nada de backend novo é necessário pro polling** — registrar isto explicitamente pra ninguém reimplementar. A rota Django `contribuir/ocr-status/<task_id>/` fica órfã e entra na lista de deleção do Marco 7.
+- **`Query.ocrTask` estava sem nenhum teste** quando foi exposta (5.A). A cobertura está sendo escrita agora na 5.A½; o 5.F **depende** dela e não deve começar antes.
+- **O estado do wizard sai da sessão Django e vira estado de cliente.** Hoje `upload_data`, `duplicates` e `version_info` moram em `request.session`; na SPA o wizard é um store (`contribuirWizard`) alimentado por `ocrTask.resultData`, com a `task` id na URL (`?task=<uuid>`) pra sobreviver a reload. Consequência: as duas mutations de fechamento precisam receber tudo por argumento — nada de estado implícito de servidor.
+- **Duas mutations novas** (o fluxo é escrita, e escrita passa por GraphQL): `createHymnBookFromOcr(taskId: UUID!)` — porta a transação de `upload_preview_view`, incluindo `source=OCR`, `ocr_text` e `ocr_avg_confidence`; e `createHymnBookVersionFromOcr(taskId: UUID!, hymnbookSlug: String!, versionName: String!)` — porta `upload_confirm_view`. Ambas idempotentes por `taskId` (uma task já consumida não cria segundo hinário).
+- **Uma query nova pra desambiguação:** `Query.ocrDuplicates(taskId: UUID!): OcrDuplicatesType`, que **chama** `find_duplicates_with_content` com os mesmos thresholds (0.7 / 0.8) — zero reimplementação da regra de similaridade em TypeScript.
+- **O link do menu volta quando a tela existir.** Foi escondido no PR #61; reexibi-lo é o último ciclo do sub-marco, não um follow-up solto.
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 5F.1 | `test_ocr_duplicates_query_returns_exact_match_and_similars`, `test_ocr_duplicates_other_user_blocked` | `Query.ocrDuplicates(taskId)` chamando `find_duplicates_with_content(name, hymns, 0.7, 0.8)`; `OcrDuplicatesType` + `OcrSimilarBookType` (`hymnbook`, `nameScore`, `contentScore`) |
+| 5F.2 | `test_create_hymnbook_from_ocr_creates_book_and_hymns`, `test_create_hymnbook_from_ocr_marks_source_ocr_and_keeps_ocr_text`, `test_create_hymnbook_from_ocr_leaves_book_unpublished`, `test_create_hymnbook_from_ocr_other_user_blocked`, `test_create_hymnbook_from_ocr_is_idempotent_per_task` | Mutation `createHymnBookFromOcr(taskId)` — porta a `transaction.atomic()` de `upload_preview_view` |
+| 5F.3 | `test_create_version_from_ocr_creates_version_not_primary`, `test_create_version_from_ocr_requires_version_name`, `test_create_version_from_ocr_other_user_blocked` | Mutation `createHymnBookVersionFromOcr(taskId, hymnbookSlug, versionName)` — porta `upload_confirm_view` |
+| 5F.4 | `test_schema_graphql_snapshot_is_up_to_date` | Atualiza `schema.graphql` committado |
+| 5F.5 | `routes/contribuir/+page.test.ts` — anônimo é redirecionado pra `/login?next=/contribuir/` | Guard no `+page.ts` (mesmo padrão do 4.H.9) |
+| 5F.6 | `UploadStepper.test.ts` — 4 passos, o atual destacado, os anteriores com ✓ | `UploadStepper.svelte` (porta `_upload_stepper.html`) |
+| 5F.7 | `routes/contribuir/+page.test.ts` — formulário exige nome, dono e PDF; rejeita não-`.pdf` e > 50 MB **antes** do upload | `ContribuirForm.svelte` com validação client-side espelhando `clean_pdf_file` |
+| 5F.8 | submit faz `fetch` multipart e navega pra `/contribuir/processando/?task=<id>` | Handler de submit + `goto` |
+| 5F.9 | `routes/contribuir/processando/+page.test.ts` — faz polling de `Query.ocrTask(id)` e renderiza "Página N de M" + barra de `progressPct` | `+page.{ts,svelte}` + `OcrProgress.svelte`; polling com intervalo de 1,8 s e **stop no unmount** |
+| 5F.10 | `status=failed` renderiza `errorMessage` + ação "Tentar novamente"; polling para | UI condicional |
+| 5F.11 | `status=completed` **com** duplicatas → `goto('/contribuir/desambiguar/?task=…')`; **sem** duplicatas → `goto('/contribuir/conferir/?task=…')` | Ramificação consumindo `ocrDuplicates` |
+| 5F.12 | `routes/contribuir/desambiguar/+page.test.ts` — match exato em destaque; cada similar mostra `nameScore`/`contentScore` em % | `+page.{ts,svelte}` + `SimilarBookCard.svelte` |
+| 5F.13 | escolha `create_new` navega pra conferir; `add_version` exige hinário **e** nome da versão antes de habilitar o submit; `cancel` limpa o store e volta pra `/contribuir/` | `DisambiguationChoice.svelte` (porta `DisambiguationChoiceForm.clean`) |
+| 5F.14 | `routes/contribuir/conferir/+page.test.ts` — mostra os 5 primeiros hinos, a tabela Nº/Título/confiança OCR e o aviso "será criado como rascunho" | `+page.{ts,svelte}` + `OcrPreviewTable.svelte` |
+| 5F.15 | submit chama `createHymnBookFromOcr` e redireciona pra `/hinarios/[slug]/`; erro da mutation renderiza mensagem em PT-BR sem perder o wizard | Mutation + `goto` + tratamento de erro |
+| 5F.16 | `routes/contribuir/confirmar/+page.test.ts` — resumo hinário-alvo + nome da versão; submit chama `createHymnBookVersionFromOcr` e redireciona | `+page.{ts,svelte}` |
+| 5F.17 | `Header.test.ts` — usuário autenticado vê o link "Contribuir" apontando pra `/contribuir/` | Reexibe no `Header.svelte` o link escondido no PR #61 |
+| 5F.18 | Playwright `tests/e2e/contribuir.spec.ts` — login → upload de PDF de fixture → progresso → conferir → hinário criado como rascunho | E2E |
+
+**Arquivos a criar:**
+- Backend: `tests/unit/api/test_query_ocr_duplicates.py` (5F.1), `tests/unit/api/test_mutation_ocr_import.py` (5F.2-5F.3).
+- Rotas: `web/src/routes/contribuir/+page.{ts,svelte}`, `.../processando/+page.{ts,svelte}`, `.../desambiguar/+page.{ts,svelte}`, `.../conferir/+page.{ts,svelte}`, `.../confirmar/+page.{ts,svelte}`.
+- Componentes em `web/src/lib/components/contribuir/`: `UploadStepper.svelte`, `ContribuirForm.svelte`, `OcrProgress.svelte`, `SimilarBookCard.svelte`, `DisambiguationChoice.svelte`, `OcrPreviewTable.svelte`.
+- Store: `web/src/lib/stores/contribuirWizard.ts`.
+- E2E: `web/tests/e2e/contribuir.spec.ts` + fixture de PDF pequeno.
+
+**Arquivos a editar:** `apps/api/mutations.py`, `apps/api/schema.py`, `apps/api/types.py`, `schema.graphql`, `web/src/lib/graphql/operations.ts`, `web/src/lib/components/Header.svelte` (só o link).
+
+**Critério de aceitação 5.F:**
+- 18 ciclos verdes; `pnpm test && pnpm check && pnpm build` e `pytest tests/unit/api/` verdes.
+- Fluxo completo pela SPA: upload de PDF → progresso → (desambiguação, quando houver) → conferência → hinário criado **como rascunho**, com `source=OCR` e `ocr_text` preservado.
+- Nenhum estado do wizard depende de `request.session`.
+- `find_duplicates_with_content` **chamado**, não reimplementado.
+- Link "Contribuir" de volta no menu.
+- Regra de permissão preservada: só o dono da `OCRTask` (ou editor/admin) enxerga a task e consegue importá-la.
+
+**Estimativa 5.F:** ~1 semana (2 dias backend + 3-4 dias frontend).
+
+---
+
 **Plano de paralelização do Marco 5:**
 
 Análise de dependências:
-- **5.A** (mutations backend): sem dependência. Bloqueia 5.B-5.E. Executa primeiro, sozinho.
-- **5.B, 5.C, 5.D**: dependem de 5.A. **Paralelos entre si** (arquivos disjuntos).
+- **5.A** (mutations backend): sem dependência. Bloqueia 5.B-5.F. Executa primeiro, sozinho.
+- **5.A½** (dívidas de schema): depende de 5.A. Bloqueia todo o frontend — inclusive o 5.F, que precisa do teste de `Query.ocrTask`.
+- **5.B, 5.C, 5.D**: dependem de 5.A + 5.A½. **Paralelos entre si** (arquivos disjuntos).
 - **5.E**: depende de 5.A e 5.B. Sequencial após 5.B; paralelo com 5.C/5.D se 5.B mergeado.
+- **5.F**: depende de 5.A + 5.A½. **Paralelo com 5.B-5.E** — só toca `routes/contribuir/**` e `lib/components/contribuir/**`. Único ponto de contato: o link no `Header.svelte` (ciclo 5F.17), que colide com 4.B/5.B se editado no mesmo bloco.
 
 **Fases de execução:**
 
 | Fase | Subagentes | Branch base | Critério pra avançar |
 |---|---|---|---|
-| **F1** (~1 semana) | 5.A único | `feat/headless-marco4-spa` | SDL atualizado committado |
-| **F2** (~1 semana) | 5.B + 5.C + 5.D em paralelo | `feat/headless-marco5-base` | Todas 3 branches verdes |
-| **F3** (~3 dias) | Merge 5.B+5.C+5.D + spawn 5.E | `feat/headless-marco5-base` | Branch unificada + 5.E verdes |
+| **F1** (~1 semana) | 5.A único | `development` | SDL atualizado committado (✅ feito — PR #60) |
+| **F1½** (~2-3 dias) | 5.A½ único (dívidas de schema) | `development` | SDL sem divergência; `Query.ocrTask` com teste |
+| **F2** (~1-1,5 semana) | 5.B + 5.C + 5.D + **5.F** em paralelo | `feat/headless-marco5-base` | Todas 4 branches verdes |
+| **F3** (~3 dias) | Merge 5.B+5.C+5.D+5.F + spawn 5.E | `feat/headless-marco5-base` | Branch unificada + 5.E verdes |
 | **F4** (~1 dia) | Abrir PR contra `development` | `feat/headless-marco5` | Auto-merge fecha |
 
-**Ganho estimado:** F1+F2+F3 ≈ 2,5 semanas vs. 3-4 semanas sequenciais.
+**Ganho estimado:** F1+F1½+F2+F3 ≈ 3 semanas vs. 4-5 semanas sequenciais.
+
+> **Lição da F3 do Marco 4 (aplicar aqui):** antes de declarar a branch unificada verde, rodar `pnpm test && pnpm check && pnpm build` **na branch já mergeada**, e não confiar nos verdes individuais dos subagentes. As duas regressões do Marco 4 (`CURRENT_USER_QUERY` duplicado, `HymnBody.svelte` stub vencendo) nasceram exatamente aqui. Corrigir o `ci-web.yml` e promover "Web Test & Build" a required **antes** da F2 fecha esse buraco de vez.
 
 **Riscos da paralelização:**
 - **Conflito `DeleteHymnBookModal`:** 5.B cria `<!-- TODO: DeleteHymnBookModal slot -->`. Merge resolve substituindo placeholder pelo componente de 5.D.
 - **Conflito `routes/hinos/[pk]/+page.svelte`:** 5.E edita arquivo do Marco 4. Toca apenas bloco de botões condicionais — conflito limitado.
 - **Upload multipart `strawberry.file_uploads.Upload`:** validar end-to-end em 5A.10 antes do frontend em 5.D. Se incompatibilidade, pausar e reportar.
+- **Conflito no `Header.svelte`:** o ciclo 5F.17 reexibe o link "Contribuir". Toca só o bloco de nav links — conflito limitado, mas resolver a favor da versão que mantém **todos** os links (o erro simétrico ao do `HymnBody.svelte` na F3 do Marco 4).
+- **Duas mutations de import OCR e o CRUD do 5.D tocam `apps/api/mutations.py`:** 5.F entra depois do 5.A no mesmo arquivo. Manter as mutations de OCR num bloco próprio no fim do arquivo pra que o merge seja append, não intercalado.
 
 ---
 
 **Critério de aceitação geral do Marco 5:**
-- Sub-marcos 5.A-5.E com CI verde na branch-mãe `feat/headless-marco5`.
+- Sub-marcos 5.A, 5.A½ e 5.B-5.F com CI verde na branch-mãe `feat/headless-marco5` — incluindo o check "Web Test & Build", que precisa estar rodando no PR (ver "Dívida de CI" na seção de processo).
 - Fluxo editorial completo em E2E: login editor → cria hinário → adiciona 3 hinos → upload áudio → aprovação → revisão (formulário + ágil) → publica.
+- Fluxo de contribuição completo em E2E (5.F): login → upload de PDF → OCR → conferência → hinário criado como rascunho. Link "Contribuir" visível no menu.
 - Signal `HymnRevision` cria trilha de auditoria (verificado em 5A.9; implícito em 5C.8/5C.10).
 - Permissões cobertas: editor consegue tudo; usuário comum recebe erro; anônimo recebe 401.
 - SDL `schema.graphql` atualizado e committado.
 - Templates Django intocados (serão deletados no Marco 7).
 
 ### Marco 6 — Offline-first (a feature-âncora)
+
+> **Status (2026-08-26):** ⬜ **não começado.** Pré-requisitos levantados que o plano assumia existentes e **não existem**:
+>
+> - `web/static/` **não existe** — o `manifest.webmanifest` não tem onde morar; criar o diretório faz parte do marco.
+> - **Nenhuma dependência de PWA no lockfile** (`web/pnpm-lock.yaml`): sem Workbox, sem Dexie, sem `@vite-pwa/sveltekit`. Todo o stack offline é instalação nova.
+> - `HymnBook.sync_version` **não existe**. A última migration de `apps.hymns` é `0016_hymnbook_priority_featured`; a migration nova (campo + signal `post_save` incrementando) é trabalho deste marco, não algo pré-existente.
 
 **Objetivo:** PWA instalável com hinário + áudios disponíveis offline.
 
@@ -874,25 +872,50 @@ Análise de dependências:
 
 ### Marco 7 — Cutover de produção
 
+> **Status (2026-08-26):** ⬜ **não começado — e a versão anterior deste marco estava subestimada.** Os passos abaixo foram reescritos com base no levantamento real; ver "Levantamento de 2026-08-26" no fim do marco.
+
 **Objetivo:** `hinaria.com.br` passa a apontar pro SvelteKit. Templates Django arquivados.
 
-**Passos:**
-1. Smoke-test final em `app.hinaria.com.br` (rodando há 2+ semanas pro Marco 6).
-2. Mudar Worker `hinaria-proxy` no Cloudflare:
-   - Rotas `hinaria.com.br/admin/*` e `/django-admin/*` e `/graphql/*` → Railway.
+**Passos (reescritos em 2026-08-26):**
+
+0. **Bloqueante — fechar o gap de paridade.** 22 páginas Django ainda não têm par na SPA. O Marco 5 (incluindo o novo 5.F) cobre a maior parte; o resto exige decisão explícita **portar ou descontinuar**, página por página, antes de qualquer troca de rota. Cutover com gap aberto = regressão de produto, não migração.
+1. **Definir os cookies cross-subdomain.** `SESSION_COOKIE_DOMAIN` e `CSRF_COOKIE_DOMAIN` **não existem em nenhum lugar do repo** — nem em `base.py`, nem em `production.py`. Sem `Domain=.hinaria.com.br` a sessão não atravessa `hinaria.com.br` ↔ `api.hinaria.com.br` e a SPA autenticada não funciona em produção. Este passo tem teste próprio (unit sobre settings + E2E de login cross-subdomain).
+2. **Configurar o deploy do frontend.** Hoje **não existe nada**: nenhum workflow do web em `.github/workflows/`, nenhum `wrangler.toml`/`wrangler.jsonc`, nenhum projeto Pages provisionado. Escopo real: adapter Cloudflare no `svelte.config.js`, projeto Pages/Workers, secrets no GitHub, workflow de deploy do `web/` e a correção do `ci-web.yml` (ver "Dívida de CI" na seção de processo).
+3. **Resolver os 3 endpoints REST sem equivalente GraphQL** (ver levantamento abaixo). Cada um recebe uma decisão registrada: manter como REST no domínio da API, ou portar.
+4. **Smoke-test final** em `app.hinaria.com.br` (rodando há 2+ semanas pro Marco 6).
+5. **Mudar o Worker `hinaria-proxy` no Cloudflare:**
+   - `hinaria.com.br/admin/*`, `/django-admin/*`, `/documents/*`, `/accounts/*` (allauth) e `/graphql/*` → Railway.
    - Restante → Cloudflare Pages (SvelteKit).
-3. **Manter Django capaz de servir templates** por 30 dias (rollback possível via Worker).
-4. Após 30 dias: deletar `templates/hymns/*`, `templates/users/*` (exceto allauth), `static/js/audio-player.js`, `static/js/hymn-carousel.js`, e os testes pinned a templates (`tests/unit/test_typography_setup.py`, `tests/e2e/test_carousel.py` etc.).
-5. Remover `apps.hymns.views` e `apps.hymns.editor_views` (mantendo só `api_views.py` legacy se ainda houver consumidores externos).
-6. Atualizar CLAUDE.md (raiz + sister project copa-dos-reis se aplicável).
+   - **Decisão pendente e obrigatória:** `config/urls.py` termina com o **catch-all do Wagtail** (`path("", include(wagtail_urls))`) e existe um `HomePage` real em `apps/cms/models.py`. Qualquer URL que hoje cai no Wagtail passa a cair na SPA quando o "restante" for redirecionado. Decidir explicitamente: (a) SPA assume e o catch-all Wagtail morre; (b) um prefixo reservado (ex: `/paginas/*`) continua indo pro Django; ou (c) a SPA faz fallback pro Django em 404. Sem essa decisão o cutover derruba páginas CMS silenciosamente.
+6. **Manter Django capaz de servir templates** por 30 dias (rollback possível via Worker, sem redeploy).
+7. **Após 30 dias:** deletar `templates/hymns/*`, `templates/users/*` (exceto allauth), `static/js/audio-player.js`, `static/js/hymn-carousel.js`, `static/js/player.js`, `static/js/hymn-read-sync.js`. **Isto não é uma deleção de arquivos, é um refactor de suíte:** ~35 dos ~70 arquivos de `tests/unit/` (nível raiz) e 13 dos 14 arquivos de `tests/e2e/` estão acoplados a template — assertam HTML renderado, `assertTemplateUsed`, classes Tailwind ou navegação server-rendered. Cada um precisa ser **reescrito contra o GraphQL/SPA ou aposentado com justificativa**, não simplesmente apagado; caso contrário o cutover derruba a cobertura junto com os templates. Orçar isso como trabalho de dias, não de minutos.
+8. **Remover `apps.hymns.views` e `apps.hymns.editor_views`** (mantendo só `api_views.py` legacy se ainda houver consumidores externos).
+9. **Atualizar CLAUDE.md** (raiz + sister project `copa-dos-reis` se aplicável) — as seções de Frontend, Typography, Reading modes e Carousel descrevem o mundo server-rendered e ficam falsas no cutover.
+
+**Levantamento de 2026-08-26 (o que a versão anterior deste marco não sabia):**
+
+| Achado | Estado real |
+|---|---|
+| Páginas Django sem par na SPA | **22.** A SPA tem 10 rotas (`/`, `/busca/`, `/hinarios/`, `/hinarios/[slug]/`, `/hinos/[pk]/`, `/login/`, `/notificacoes/`, `/perfil/[username]/` + seguidores/seguindo). Ficam de fora: os ~7 do workspace `/editor/` (Marco 5.B-5.E), os 5 de `/contribuir/` (Marco 5.F), o CRUD server-rendered de hinários/hinos (Marco 5.D), e **duas sem marco nenhum: `/hinarios/<slug>/ler/` (leitura sincronizada) e `/perfil/<username>/editar/`** — precisam de decisão portar-ou-descontinuar. |
+| Endpoints sem equivalente GraphQL | **3:** `editor/preview/render/` (decisão já fixada no Marco 5: fica REST), `api/editor/resume/` e `audios/<id>/download/` (download com `Content-Disposition` — não é expressável em GraphQL; fica REST no domínio da API, mas precisa entrar nas rotas do Worker). |
+| `SESSION_COOKIE_DOMAIN` / `CSRF_COOKIE_DOMAIN` | **Não existem em nenhum lugar do repo.** A única menção era este próprio plano (Marco 2, "deferred até Marco 7"). É trabalho a fazer, não configuração existente. |
+| Deploy do frontend | **Nada configurado.** Sem workflow, sem `wrangler.toml`, sem projeto Pages. |
+| Suíte acoplada a template | ~35 dos ~70 arquivos de `tests/unit/` (raiz) e 13 dos 14 de `tests/e2e/`. |
+| `tests/e2e/test_carousel.py` (citado no passo 4 da versão anterior) | **Não existe.** O E2E de carrossel nunca foi escrito; a lista de "testes a deletar" apontava para um arquivo imaginário. |
+| Catch-all Wagtail | `config/urls.py:37` = `path("", include(wagtail_urls))`, com `HomePage` real em `apps/cms/models.py`. Sem destino decidido na troca de rotas do Worker. |
 
 **Critério de aceitação:**
+- Gap de paridade fechado ou explicitamente descontinuado, página por página (passo 0).
 - `hinaria.com.br` serve SvelteKit.
-- `api.hinaria.com.br/graphql/` responde.
-- Wagtail admin acessível em `hinaria.com.br/admin/` ou `admin.hinaria.com.br/admin/`.
+- `api.hinaria.com.br/graphql/` responde, e os 3 endpoints REST remanescentes continuam alcançáveis pelas rotas do Worker.
+- Login autenticado funciona **cross-subdomain** (cookie com `Domain=.hinaria.com.br`), verificado em E2E.
+- Wagtail admin acessível em `hinaria.com.br/admin/` ou `admin.hinaria.com.br/admin/`, e o destino do catch-all Wagtail está decidido e implementado.
+- Suíte verde **depois** da deleção dos templates: todo teste acoplado a template foi reescrito ou aposentado com justificativa registrada.
 - Backup do branch `pre-headless` taggeado no Git pra rollback bruto se necessário.
 
 ### Marco 8 (opcional, fora do escopo MVP) — Cliente mobile
+
+> **Status (2026-08-26):** ⬜ **não começado**, por decisão — fora do escopo do MVP.
 
 **Objetivo:** Expo app reaproveitando o mesmo GraphQL.
 
@@ -901,6 +924,183 @@ Não detalhado neste plano. Cobrirá:
 - Mutation `loginWithPassword` retorna `accessToken + refreshToken`.
 - Push notifications via Expo Push + signals Django.
 - Code-share via monorepo (`/packages/graphql-types` com tipos gerados consumidos por `web/` e `mobile/`).
+
+---
+
+## Política de consolidação de PRs
+
+**Princípio:** sub-marcos existem pra **disciplina de TDD e planejamento**, não pra serem PRs separados. Cada sub-marco continua sendo uma sequência de commits (1 por ciclo TDD) num branch local; o que vai pra `main` é um PR por Marco semântico.
+
+**Histórico (Marcos 1-3) — o que fazer com o que já está aberto:**
+- PR #51 (Marco 1) tem auto-merge → aguardar fechar; `main` ganha 1 commit squash com Marco 1.
+- PR #52 (Marco 2) já foi mergeado no branch do Marco 1 — não vai virar PR separado contra `main`.
+- PR #53 (Marco 3) foi rebaseado sobre Marco 1, então contém Marco 2 + Marco 3. Renomear título do PR pra refletir ("Marcos 2 + 3: mutations + auth + SvelteKit skeleton"). Auto-merge fecha → `main` ganha 1 commit squash com Marcos 2+3.
+- **Resultado retroativo:** 2 commits em `main` (Marco 1; Marcos 2+3), não 3 PRs.
+
+**Daqui pra frente — 1 PR por Marco como regra:**
+
+| Marco | PRs contra `main` | Justificativa |
+|---|---|---|
+| Marco 4 | **2 PRs** (4.A schema + 4.B-I SPA) | Schema é backend isolado, contrato discreto; SPA é monolítica |
+| Marco 5 | **1 PR** | CRUD editorial é coeso; backend e frontend andam juntos |
+| Marco 6 | **1 PR** | PWA offline é uma feature transversal — rollback unitário tem que ser possível |
+| Marco 7 | **1 PR** | Cutover é cirurgia única |
+
+**Total daqui em diante: 5 PRs** (Marco 4 split + Marcos 5, 6, 7 individuais), em vez dos ~30 do plano original (1 PR por sub-marco).
+
+**Mecânica de cada PR:**
+- Branch base: **`development`** (não `main` — staging buffer pré-deploy; ver "Workflow de desenvolvimento — duas etapas" abaixo).
+- Branch-mãe do Marco: `feat/headless-marco<N>` (ou `marco4-schema` e `marco4-spa` no caso de Marco 4).
+- Cada sub-marco vira **uma seção do PR description** com sua tabela de ciclos TDD + lista dos commits que cobrem essa seção. Revisor (você) varre por sub-marco; merge é único squash.
+- Auto-merge ativado imediatamente após criar a PR (memória `feedback_auto_merge`).
+- CI roda contra a soma de tudo — sub-marco quebrado **dentro** da branch-mãe não passa: a disciplina é rodar `pnpm test && pnpm check && uv run pytest` localmente a cada ciclo.
+
+**Trade-offs aceitos:**
+- ✅ Menos overhead de revisão, menos CI runs caros, `main` com histórico semântico claro.
+- ❌ PRs maiores (Marco 4 SPA chega a ~3k LOC). Mitigação: revisão guiada pelas seções de sub-marco no PR description.
+- ❌ Rollback granular (sub-marco isolado) requer `git revert <commit-range>`, não `revert <PR>`. Aceito porque sub-marcos dentro de um Marco são interdependentes na prática.
+
+---
+
+## Workflow de desenvolvimento — duas etapas (`development` → `main`)
+
+**Problema:** `main` tem auto-deploy pra Railway via `.github/workflows/deploy.yml`. Cada PR mergeado em `main` virava deploy imediato — sem buffer pra integrar mudanças vindas em paralelo (Marco 4 SPA + outras PRs UX) antes que produção sentisse o impacto.
+
+**Solução:** introduzir `development` como branch de staging entre features e produção:
+
+```
+feature/* ─PR─▶ development ─PR(release)─▶ main ─auto-deploy─▶ Railway
+```
+
+**Regras:**
+- **Todo PR de feature aponta pra `development`** (não pra `main`). CI roda normal.
+- **Push em `development` NÃO dispara deploy** — só rodam CI checks.
+- **`main` só recebe PR vindo de `development`** ("release PRs"). São abertos manualmente quando estiver hora de promover (`gh pr create --base main --head development --title "release: <data ou resumo>"`).
+- Branch protection:
+  - `main`: required checks (Lint/Unit/E2E), `strict: true`, `enforce_admins: true`.
+  - `development`: required checks idênticos, `strict: true`, `enforce_admins: false` (admin pode pushar direto em emergências).
+
+**Implicação prática pros marcos restantes deste plano:**
+- Sub-marco 4.I, Marco 5, Marco 6, Marco 7 — todos os PRs apontam pra `development`.
+- Quando um conjunto de marcos estiver estável em `development`, abre-se um release PR `development → main` pra promover.
+- Marco 7 (cutover) é a primeira release PR que efetivamente troca a UI servida — o último de muitas mergeagens em development.
+
+**Setup operacional** (já feito):
+- Branch `development` criada apontando pro HEAD de `main` em 2026-06-16.
+- Protections aplicadas via `gh api -X PUT /repos/.../branches/<branch>/protection`.
+- PRs #51, #55, #56 retargetados pra `development`.
+- Workflow `ci.yml` ajustado pra rodar em PRs contra `development`.
+- Workflow `deploy.yml` continua disparando apenas em `push: branches: [main]`.
+
+**Dívida de CI descoberta em 2026-08-26 (e a correção proposta):**
+
+O setup acima cobriu o `ci.yml` (Django) e esqueceu o `ci-web.yml` (SvelteKit). Consequência apurada:
+
+- `.github/workflows/ci-web.yml` tem `on: pull_request: branches: [main, develop]` — **`develop`, não `development`**. Como nenhuma branch chamada `develop` existe no repo, e todos os PRs de feature apontam pra `development`, **o CI do frontend nunca rodou em nenhum PR de feature** desta refatoração.
+- O check **"Web Test & Build" não é required** em nenhuma das duas branches protegidas. Mesmo que rodasse, um resultado vermelho não bloquearia o merge.
+
+Essa é a **causa-raiz** das duas regressões da fase F3 do Marco 4 (SPA sem compilar em `development`): elas não escaparam de um CI que falhou — escaparam de um CI que nunca foi executado.
+
+**Correção proposta (fazer antes de abrir os próximos PRs de frontend):**
+
+1. Trocar o filtro de branch em `ci-web.yml`: `[main, develop]` → `[main, development]`. Adicionar também o gatilho de `push` nas duas branches, pra que um merge direto em `development` (permitido: `enforce_admins: false`) também seja verificado.
+2. Promover **"Web Test & Build" a required status check** em `development` **e** em `main`, junto de `Lint & Format Check`, `Unit Tests` e `E2E Tests`, via `gh api -X PUT /repos/.../branches/<branch>/protection`.
+3. Só considerar um sub-marco de frontend "concluído" quando `pnpm test && pnpm check && pnpm build` tiver rodado **no PR**, não apenas na máquina do subagente.
+
+---
+
+## Estratégia de execução com subagentes
+
+**Princípio:** cada sub-marco é uma **unidade autocontida e testável** — ideal pra delegação a um subagente. O subagente recebe um briefing fechado, opera em git worktree isolado, e só conclui quando todos os testes + lint estão verdes.
+
+**Tipo de subagente:** `general-purpose` (workhorse) com `isolation: "worktree"`. Cada subagente recebe uma cópia git isolada do repo — sem conflitos com trabalho paralelo.
+
+**Contrato de cada subagente (briefing fechado):**
+1. **Escopo:** identificador do sub-marco (ex: "4.D — Detalhe do hinário, 3 modos").
+2. **Branch:** nome do branch a criar a partir da base indicada.
+3. **Tabela de ciclos TDD:** copiada literalmente do plano. O subagente percorre na ordem: RED → GREEN → commit → próximo.
+4. **Arquivos a criar/editar:** lista explícita.
+5. **Critério de "concluído":**
+   - Todos os ciclos da tabela com commit.
+   - `pnpm test && pnpm check && pnpm build` no `web/` verdes (ou `uv run pytest tests/unit/api/ && uv run black --check . && uv run isort --check-only . && uv run ruff check .` em sub-marcos backend).
+   - Lint passa.
+   - Subagente **NÃO** abre PR; apenas garante a branch verde e reporta o SHA final. O coordenador (eu) faz o merge na branch-mãe.
+6. **Restrições fixas:**
+   - PT-BR em strings de usuário.
+   - Sem `--no-verify`.
+   - Sem `git push --force`.
+   - Reusar helpers existentes (`can_edit_hymnbook`, `_is_editor_or_admin`, `HymnForm`, etc.) em vez de reescrever.
+   - Se um teste falhar de forma irrecuperável (ex: precisa de decisão de design), pausar e reportar — não improvisar.
+
+**Plano de paralelização do Marco 4:**
+
+Análise de dependências:
+- **4.A** (schema GraphQL): backend puro. Sem dependências. Bloqueia 4.C-4.H (codegen do cliente lê SDL).
+- **4.B** (layout shell + tokens + tipografia): frontend puro. Sem dependências do schema novo (usa só queries do Marco 1-3). **Pode rodar paralelo com 4.A**.
+- **4.C, 4.D, 4.E, 4.G, 4.H** (rotas read-only): cada uma toca rotas/componentes disjuntos. Dependem de 4.A (SDL) e 4.B (shell). **Podem rodar todas em paralelo**.
+- **4.F** (player global persistente): modifica `+layout.svelte` (mesmo arquivo de 4.B). **Sequencial após 4.B**; **paralelo com 4.C-4.H** se 4.B já estiver mergeado.
+- **4.I** (visual diff E2E): precisa de tudo. **Sequencial no fim**.
+
+**Linha do tempo proposta:**
+
+```
+Tempo →    Semana 1         Semana 2              Semana 3
+          ┌─────────┐
+4.A ─────►│ schema  │
+          └─────────┘
+          ┌─────────┐
+4.B ─────►│ shell   │
+          └─────────┘
+                    ┌──────────────┐
+4.C ───────────────►│ home + lista │
+                    └──────────────┘
+                    ┌──────────────┐
+4.D ───────────────►│ hinário 3mod │
+                    └──────────────┘
+                    ┌──────────────┐
+4.E ───────────────►│ hino único   │
+                    └──────────────┘
+                    ┌──────────────┐
+4.F ───────────────►│ player       │
+                    └──────────────┘
+                    ┌──────────────┐
+4.G ───────────────►│ busca        │
+                    └──────────────┘
+                    ┌──────────────┐
+4.H ───────────────►│ perfis+notif │
+                    └──────────────┘
+                                   ┌──────────┐
+4.I ──────────────────────────────►│ diff E2E │
+                                   └──────────┘
+```
+
+**Fases de execução (sob coordenação do agente principal):**
+
+| Fase | Subagentes paralelos | Branches base | Critério pra avançar |
+|---|---|---|---|
+| **F1** (1 semana) | 4.A + 4.B | `main` | Ambos branches verdes e mergeados em `feat/headless-marco4-base` |
+| **F2** (~1 semana) | 4.C + 4.D + 4.E + 4.F + 4.G + 4.H | `feat/headless-marco4-base` | Todas as 6 branches verdes |
+| **F3** (~3 dias) | Merge das 6 branches em `feat/headless-marco4-spa`; resolver conflitos (esperados em `+layout.svelte` por 4.F) | — | Branch unificada verde |
+| **F4** (~2 dias) | 4.I (sequencial, sozinho) na branch unificada | `feat/headless-marco4-spa` | Visual diff ≥95% |
+| **F5** | Abrir 2 PRs contra `main`: schema e SPA | — | Auto-merge fecha ambos |
+
+**Ganho estimado:** F1+F2+F3+F4 ≈ 2,5-3 semanas vs. 4-5 semanas sequenciais.
+
+**Riscos da paralelização:**
+- **Conflitos de merge na F3.** Mitigação: 4.B (shell) cria slots/placeholders para player (4.F) e cards (4.C). Cada sub-marco frontend toca arquivos disjuntos por contrato (tabelas TDD já desenharam isso).
+- **Schema do 4.A muda durante 4.B**: 4.B não depende de schema novo, então não é afetado. 4.C-4.H pegam o SDL definitivo após 4.A mergeado.
+- **Subagente travado em decisão de design.** Mitigação: critério 6 do contrato (pausar e reportar). Coordenador resolve, atualiza briefing, re-spawna se necessário.
+- **Custo de tokens.** 6 subagentes simultâneos em F2 ≈ 6× contexto. Aceitável pela aceleração.
+
+**Coordenação prática (agente principal, isto é, eu):**
+- F1: 2 chamadas `Agent` em paralelo num único turno (4.A + 4.B).
+- F2: 6 chamadas `Agent` em paralelo num único turno.
+- Entre fases: verificar branches (`git log`, `pnpm test`, `pytest`), resolver conflitos manualmente, abrir PRs.
+- **NÃO** delegar a abertura de PRs aos subagentes — fica no agente principal pra controle e aplicação do auto-merge.
+
+**Marcos 5+ usam o mesmo padrão**, ajustado pela coesão do marco. Marco 5 (CRUD editorial) tem menos paralelização possível porque mutations compartilham mais código; provável split: 2 subagentes (backend mutations + frontend editor UI). Marco 6 (offline PWA) é predominantemente sequencial (service worker + Dexie + Workbox são uma stack acoplada).
+
+---
 
 ## Riscos & mitigações
 
@@ -924,10 +1124,10 @@ Não detalhado neste plano. Cobrirá:
 | 2. Mutations + Auth | 1 semana |
 | 3. SvelteKit skeleton | 1 semana |
 | 4. Paridade read-only | 4-5 semanas |
-| 5. CRUD editorial | 3-4 semanas |
+| 5. CRUD editorial (+ 5.A½ e 5.F `/contribuir/`) | **4-5 semanas** (revisado em 2026-08-26: +1 semana de 5.F, +2-3 dias de 5.A½) |
 | 6. Offline-first PWA | 2-3 semanas |
-| 7. Cutover | 1 semana |
-| **Total** | **13-17 semanas (~3-4 meses)** |
+| 7. Cutover | **2-3 semanas** (revisado em 2026-08-26: a estimativa de 1 semana ignorava o deploy do frontend a configurar do zero, os cookies cross-subdomain inexistentes e o refactor da suíte acoplada a template) |
+| **Total** | **15-19 semanas (~4-5 meses)** — revisado em 2026-08-26 |
 
 ## Não-objetivos (explícitos)
 
@@ -940,4 +1140,18 @@ Não detalhado neste plano. Cobrirá:
 
 ## Próximo passo
 
-Após go-ahead, executar **Marco 1** (spike GraphQL read-only) numa branch `feat/api-graphql-spike`. Tempo estimado: 1 semana. Se Strawberry-Django se mostrar incompatível com alguma peça do domínio (ex: Wagtail Page polymorphism), revisar plano antes de seguir pro Marco 2.
+**Onde estamos (2026-08-26).** Marcos 1, 2 e 3 mergeados. Marco 4 com 4.A-4.H mergeados e 4.I em integração. Marco 5 com 5.A mergeado. `development` está com a SPA **sem compilar** por duas regressões do merge da fase F3 do Marco 4.
+
+**Ordem de retomada — não pular etapa, cada uma desbloqueia a seguinte:**
+
+1. **Destravar `development`.** Corrigir as duas regressões da F3: `CURRENT_USER_QUERY` duplicado em `web/src/lib/graphql/operations.ts` e o `HymnBody.svelte` stub do 4.E que venceu a versão do 4.D. Sem isso nada de frontend avança. *(em andamento)*
+2. **Fechar o Marco 4.** Integrar o 4.I (`feat/headless-marco4i-visual-diff`), que traz também o `web/playwright.config.ts` que faltava desde o Marco 3. Só então **medir** a paridade visual e produzir a tabela de % por rota — o critério de ≥95% ainda não foi verificado uma única vez.
+3. **Consertar o CI antes de abrir novos PRs de frontend.** Trocar `[main, develop]` → `[main, development]` no `.github/workflows/ci-web.yml` e promover **"Web Test & Build" a required check** em `development` e `main`. Esta é a causa-raiz de a regressão da F3 ter passado; deixar pra depois é convidar a próxima.
+4. **Fechar a 5.A½** (dívidas de schema que bloqueiam todo o frontend do Marco 5): `UserType.isEditor`, guard `_has_editor_access` nos 3 resolvers editoriais, vocabulário de `sort` alinhado com a URL, `HymnType.hymnBook`, campos faltantes de `HymnBookType`/`HymnAudioType`/`NotificationType`, `last_reviewed_at`, curadoria `is_featured`, e a primeira cobertura de `Query.ocrTask`. *(em andamento)*
+5. **Executar o Marco 5, fase F2:** 5.B + 5.C + 5.D + **5.F** em paralelo (4 subagentes, arquivos disjuntos), depois F3 (merge + 5.E) e F4 (PR contra `development`).
+6. **Marco 6 (offline).** Começar pela lista de pré-requisitos ausentes do status do marco (criar `web/static/`, instalar o stack de PWA, migration de `HymnBook.sync_version`) — não assumir que existem.
+7. **Marco 7 (cutover).** Começar pelo **passo 0**: fechar ou descontinuar explicitamente as 22 páginas Django sem par na SPA. Só depois mexer no Worker.
+
+**Revisões deste plano que ficaram pendentes de decisão do usuário:**
+- `/hinarios/<slug>/ler/` (leitura sincronizada) e `/perfil/<username>/editar/` não estão em nenhum marco — portar ou descontinuar?
+- Destino do catch-all Wagtail (`config/urls.py`, com `HomePage` real em `apps/cms/models.py`) na troca de rotas do Worker.
