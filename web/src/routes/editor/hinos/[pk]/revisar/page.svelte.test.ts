@@ -121,3 +121,28 @@ describe("5C.5 — formulário edita todos os campos de HymnForm", () => {
     expect(screen.getAllByTestId("ocr-bar")).toHaveLength(2);
   });
 });
+
+describe("5C.6 — pílulas de estilo preenchem o campo", () => {
+  it("clicar em `Mazurca` escreve no input de Estilo", async () => {
+    render(Page, { props: { data: sampleData } });
+    const input = screen.getByLabelText("Estilo") as HTMLInputElement;
+    expect(input.value).toBe("Valsa");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Mazurca" }));
+    expect(input.value).toBe("Mazurca");
+  });
+
+  it("`commonStyles` do hinário entra como sugestão extra", () => {
+    render(Page, {
+      props: {
+        data: {
+          ...sampleData,
+          hymn: { ...sampleData.hymn!, commonStyles: ["Valsa", "Chorinho"] },
+        },
+      },
+    });
+    expect(screen.getAllByTestId("style-suggestion").map((el) => el.textContent?.trim())).toEqual([
+      "Chorinho",
+    ]);
+  });
+});

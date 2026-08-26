@@ -17,6 +17,7 @@
    */
   import InlineDiff from "$lib/components/editor/InlineDiff.svelte";
   import OcrConfidenceBar from "$lib/components/editor/OcrConfidenceBar.svelte";
+  import StylePills from "$lib/components/editor/StylePills.svelte";
 
   import type { PageData } from "./$types";
   import type { ReviewStatus } from "./+page";
@@ -119,10 +120,13 @@
             <span class="eyebrow">Repetições</span>
             <input class="input" type="text" bind:value={form.repetitions} />
           </label>
-          <label class="field">
-            <span class="eyebrow">Estilo</span>
-            <input class="input" type="text" bind:value={form.style} />
-          </label>
+          <div class="field">
+            <label class="field">
+              <span class="eyebrow">Estilo</span>
+              <input class="input" type="text" bind:value={form.style} />
+            </label>
+            <StylePills bind:value={form.style} suggestions={data.hymn.commonStyles} />
+          </div>
           <label class="field">
             <span class="eyebrow">Recebido em</span>
             <input
