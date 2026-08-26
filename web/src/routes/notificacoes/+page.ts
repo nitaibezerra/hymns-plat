@@ -1,8 +1,12 @@
 /**
- * Marco 4.H — Ciclos 4H.7 e 4H.9.
+ * Marco 4.H — Ciclos 4H.7 e 4H.9 · Sub-marco 5.E — Ciclo 5E.8.
  *
  * Load function da página de notificações. Lê `?unread=1` da URL e passa
  * `unreadOnly` pra query GraphQL `notifications`.
+ *
+ * A query mora em `operations/quick-review.ts` (arquivo desta frente) e não no
+ * barril `operations.ts`, que várias frentes editam em paralelo. É a mesma
+ * query de antes mais o `sender`.
  *
  * O resolver `Query.notifications` exige sessão autenticada (gateado em
  * 4.A); para usuários anônimos devolve um GraphQL error. Neste caso
@@ -12,10 +16,15 @@
 
 import { GRAPHQL_URL } from "$lib/config";
 import { gqlFetch } from "$lib/graphql/fetcher";
-import { NOTIFICATIONS_QUERY } from "$lib/graphql/operations";
+import { NOTIFICATIONS_WITH_SENDER_QUERY } from "$lib/graphql/operations/quick-review";
 import { redirect } from "@sveltejs/kit";
 
 import type { PageLoad } from "./$types";
+
+export interface NotificationSender {
+  id: string;
+  username: string;
+}
 
 export interface NotificationItem {
   id: string;
@@ -25,6 +34,12 @@ export interface NotificationItem {
   link: string;
   isRead: boolean;
   createdAt: string;
+  /**
+   * 5E.8 — quem gerou a notificação. Campo do 5.A½; o template Django já o
+   * mostrava ("De: <username>") e a SPA estava sem ele. `null` em
+   * notificações do sistema, que não têm remetente.
+   */
+  sender: NotificationSender | null;
 }
 
 export interface NotificationsData {
@@ -61,7 +76,7 @@ export async function _loadNotifications(event: {
   const response = await gqlFetch<{ notifications: NotificationItem[] | null }>(
     event.fetch,
     GRAPHQL_URL,
-    NOTIFICATIONS_QUERY,
+    NOTIFICATIONS_WITH_SENDER_QUERY,
     { unreadOnly },
   );
 
