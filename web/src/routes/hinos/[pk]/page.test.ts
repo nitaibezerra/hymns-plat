@@ -21,7 +21,7 @@
  * player global do shell — motivo de todo o headless existir).
  */
 
-import { render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
 import Page from "./+page.svelte";
@@ -268,5 +268,56 @@ describe("+page.svelte (detalhe de hino)", () => {
     };
     render(Page, { props: pageProps(data) });
     expect(screen.queryByTestId("badge-pending")).toBeNull();
+  });
+});
+
+/**
+ * Sub-marco 5.E — Ciclo 5E.6.
+ *
+ * Editor ganha o envio de gravação sem sair do detalhe do hino. O drawer é o
+ * `AudioUploadDrawer` do 5.D — mesmo componente do workspace, nada recriado.
+ */
+describe("+page.svelte — envio de gravação pelo editor (5E.6)", () => {
+  const EDITOR = { id: "u-9", username: "editora", email: "e@x.dev" };
+
+  function editorProps(overrides: Partial<HymnDetailData> = {}) {
+    return pageProps({ ...HYMN_OK, isEditor: true, ...overrides }, EDITOR);
+  }
+
+  it("mostra o botão de enviar gravação quando o usuário é editor", () => {
+    render(Page, { props: editorProps() });
+    expect(screen.getByTestId("upload-audio-btn")).toBeInTheDocument();
+  });
+
+  it("esconde o botão de quem não é editor", () => {
+    render(Page, { props: pageProps(HYMN_OK) });
+    expect(screen.queryByTestId("upload-audio-btn")).toBeNull();
+  });
+
+  it("esconde o botão quando o hino não carregou", () => {
+    render(Page, { props: pageProps({ hymn: null, error: null, isEditor: true }, EDITOR) });
+    expect(screen.queryByTestId("upload-audio-btn")).toBeNull();
+  });
+
+  it("o drawer só aparece depois do clique", async () => {
+    render(Page, { props: editorProps() });
+    expect(screen.queryByTestId("audio-upload-drawer")).toBeNull();
+    await fireEvent.click(screen.getByTestId("upload-audio-btn"));
+    expect(screen.getByTestId("audio-upload-drawer")).toBeInTheDocument();
+  });
+
+  it("o drawer recebe o hino da página como alvo do upload", async () => {
+    render(Page, { props: editorProps() });
+    await fireEvent.click(screen.getByTestId("upload-audio-btn"));
+    const drawer = screen.getByTestId("audio-upload-drawer");
+    expect(drawer).toHaveTextContent("Estrela do Norte");
+    expect(drawer).toHaveTextContent("12");
+  });
+
+  it("cancelar fecha o drawer", async () => {
+    render(Page, { props: editorProps() });
+    await fireEvent.click(screen.getByTestId("upload-audio-btn"));
+    await fireEvent.click(screen.getByTestId("cancel-upload"));
+    expect(screen.queryByTestId("audio-upload-drawer")).toBeNull();
   });
 });
