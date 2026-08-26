@@ -7,9 +7,49 @@
    *
    * O tipo do `data` é local porque `/editor/+layout.ts` é de outra frente.
    */
+  import { approveAudio } from "$lib/graphql/operations/crud";
+
   import type { PendingAudio, PendingAudiosData } from "./+page";
 
   let { data }: { data: PendingAudiosData } = $props();
+
+  /**
+   * UI otimista sem cache de GraphQL.
+   *
+   * O urql está praticamente morto no repo (as load functions usam o
+   * `gqlFetch` próprio), então não há `optimisticResponse` pra chamar: o
+   * otimismo é este conjunto de ids "já resolvidos" + rollback no erro.
+   * Guardamos ids em vez de copiar a lista pra que um `invalidateAll` futuro
+   * (que troca `data.audios`) não brigue com o estado local.
+   */
+  let resolvedIds = $state<string[]>([]);
+  let queueError = $state<string | null>(null);
+  /** Ids com mutation em vôo — evita duplo clique. */
+  let inFlightIds = $state<string[]>([]);
+
+  const visibleAudios = $derived(data.audios.filter((a) => !resolvedIds.includes(a.id)));
+
+  function markResolved(id: string) {
+    resolvedIds = [...resolvedIds, id];
+  }
+
+  function rollback(id: string, message: string | null) {
+    resolvedIds = resolvedIds.filter((x) => x !== id);
+    queueError = message;
+  }
+
+  async function handleApprove(audio: PendingAudio) {
+    if (inFlightIds.includes(audio.id)) return;
+    inFlightIds = [...inFlightIds, audio.id];
+    queueError = null;
+    markResolved(audio.id);
+
+    const result = await approveAudio(fetch, audio.id);
+    inFlightIds = inFlightIds.filter((x) => x !== audio.id);
+    if (!result.ok) {
+      rollback(audio.id, result.message);
+    }
+  }
 
   function formatSize(bytes: number | null): string {
     if (bytes == null) return "—";
@@ -47,7 +87,7 @@
         <p class="lede">Gravações enviadas aguardando aprovação. Ouça antes de aprovar.</p>
       </div>
       <p class="label-mono" data-testid="pending-count">
-        {data.audios.length} pendente{data.audios.length === 1 ? "" : "s"}
+        {visibleAudios.length} pendente{visibleAudios.length === 1 ? "" : "s"}
       </p>
     </header>
 
@@ -55,14 +95,18 @@
       <p class="page-error" role="alert" data-testid="pending-error">{data.error}</p>
     {/if}
 
-    {#if data.audios.length === 0}
+    {#if queueError}
+      <p class="page-error" role="alert" data-testid="queue-error">{queueError}</p>
+    {/if}
+
+    {#if visibleAudios.length === 0}
       <div class="empty" data-testid="pending-empty">
         <p class="empty-title">Nenhum áudio pendente.</p>
         <p>Quando alguém enviar uma gravação, ela aparece aqui para aprovação.</p>
       </div>
     {:else}
       <ul class="queue">
-        {#each data.audios as audio (audio.id)}
+        {#each visibleAudios as audio (audio.id)}
           <li class="queue-item" data-testid="pending-audio-item">
             <p class="label-mono">
               Hino {audio.hymn.number} · {audio.hymn.hymnBook.name}
@@ -91,6 +135,17 @@
               preload="none"
               data-testid="pending-audio-player"
             ></audio>
+
+            <div class="item-actions">
+              <button
+                type="button"
+                class="approve"
+                onclick={() => handleApprove(audio)}
+                data-testid="approve-{audio.id}"
+              >
+                ✓ Aprovar
+              </button>
+            </div>
           </li>
         {/each}
       </ul>
@@ -154,6 +209,14 @@
   .player {
     margin-top: 0.75rem;
     width: 100%;
+  }
+  .item-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  .approve {
+    font-weight: 600;
   }
   .empty {
     border: 1px solid var(--color-border-soft);

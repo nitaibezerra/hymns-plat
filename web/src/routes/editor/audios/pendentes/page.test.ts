@@ -8,8 +8,8 @@
  * dizer a que hino/hinário cada áudio pertencia.
  */
 
-import { render, screen } from "@testing-library/svelte";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { _loadPendingAudios } from "./+page";
 import Page from "./+page.svelte";
@@ -184,5 +184,99 @@ describe("/editor/audios/pendentes — lista (5D.14)", () => {
   it("mostra acesso negado quando forbidden", () => {
     render(Page, { props: { data: buildData({ audios: [], forbidden: true }) } });
     expect(screen.getByTestId("editor-forbidden")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5D.15 — "Aprovar" com UI otimista
+//
+// O projeto não usa o cache do urql (as load functions têm o `gqlFetch`
+// próprio), então não existe `optimisticResponse` pra chamar: o otimismo é
+// estado local do componente + rollback no erro.
+// ---------------------------------------------------------------------------
+
+const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+function stubFetch(payload: unknown) {
+  const fn = vi.fn().mockResolvedValue(jsonResponse(payload));
+  globalThis.fetch = fn as unknown as typeof fetch;
+  return fn;
+}
+
+/** fetch que só resolve quando o teste manda — pra observar o estado otimista. */
+function deferredFetch() {
+  let release!: (payload: unknown) => void;
+  const fn = vi.fn(
+    () =>
+      new Promise<Response>((resolve) => {
+        release = (payload: unknown) => resolve(jsonResponse(payload));
+      }),
+  );
+  globalThis.fetch = fn as unknown as typeof fetch;
+  return { fn, release: (payload: unknown) => release(payload) };
+}
+
+const APPROVED_PAYLOAD = {
+  data: { approveAudio: { __typename: "HymnAudioType", id: "a1", isApproved: true } },
+};
+
+describe("/editor/audios/pendentes — aprovar (5D.15)", () => {
+  it("chama approveAudio com o pk do áudio", async () => {
+    const fetchFn = stubFetch(APPROVED_PAYLOAD);
+    render(Page, { props: { data: buildData({ audios: [AUDIO] }) } });
+    await fireEvent.click(screen.getByTestId("approve-a1"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.query).toContain("approveAudio");
+    expect(body.variables).toEqual({ pk: "a1" });
+  });
+
+  it("remove o item da fila NA HORA, antes da resposta do servidor", async () => {
+    const { release } = deferredFetch();
+    render(Page, { props: { data: buildData() } });
+    expect(screen.getAllByTestId("pending-audio-item")).toHaveLength(2);
+
+    await fireEvent.click(screen.getByTestId("approve-a1"));
+    expect(screen.getAllByTestId("pending-audio-item")).toHaveLength(1);
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("1");
+
+    release(APPROVED_PAYLOAD);
+  });
+
+  it("mantém o item fora da fila quando o servidor confirma", async () => {
+    stubFetch(APPROVED_PAYLOAD);
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.click(screen.getByTestId("approve-a1"));
+
+    await waitFor(() => expect(screen.getAllByTestId("pending-audio-item")).toHaveLength(1));
+    expect(screen.queryByTestId("approve-a1")).not.toBeInTheDocument();
+  });
+
+  it("faz rollback (item volta) e mostra o erro quando o servidor nega", async () => {
+    stubFetch({
+      data: { approveAudio: { __typename: "PermissionDeniedError", message: "Sem permissão" } },
+    });
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.click(screen.getByTestId("approve-a1"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("queue-error")).toHaveTextContent(/sem permissão/i),
+    );
+    expect(screen.getAllByTestId("pending-audio-item")).toHaveLength(2);
+    expect(screen.getByTestId("approve-a1")).toBeInTheDocument();
+  });
+
+  it("aprovar um áudio não mexe nos outros itens da fila", async () => {
+    stubFetch(APPROVED_PAYLOAD);
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.click(screen.getByTestId("approve-a1"));
+
+    await waitFor(() => expect(screen.queryByTestId("approve-a1")).not.toBeInTheDocument());
+    expect(screen.getByTestId("approve-a2")).toBeInTheDocument();
   });
 });

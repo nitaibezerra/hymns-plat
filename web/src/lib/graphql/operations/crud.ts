@@ -471,6 +471,30 @@ export const PENDING_AUDIOS_QUERY = `
   }
 `;
 
+export const APPROVE_AUDIO_MUTATION = `
+  mutation ApproveAudio($pk: ID!) {
+    approveAudio(pk: $pk) {
+      __typename
+      ... on HymnAudioType { id isApproved }
+      ... on PermissionDeniedError { message }
+      ... on NotFoundError { message }
+    }
+  }
+`;
+
+export function approveAudio(
+  fetchFn: typeof globalThis.fetch,
+  pk: string,
+): Promise<MutationOutcome<AudioRef>> {
+  return runMutation<AudioRef>(
+    fetchFn,
+    APPROVE_AUDIO_MUTATION,
+    { pk },
+    "approveAudio",
+    ["HymnAudioType"],
+  );
+}
+
 export const AUDIO_ALLOWED_EXTENSIONS = ["mp3", "ogg", "flac"] as const;
 export const AUDIO_MAX_BYTES = 25 * 1024 * 1024;
 
