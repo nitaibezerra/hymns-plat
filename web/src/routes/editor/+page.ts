@@ -14,6 +14,7 @@
  */
 
 import { GRAPHQL_URL } from "$lib/config";
+import { parseSort, toSortInputs, type SortPair } from "$lib/editor-sort";
 import { gqlFetch } from "$lib/graphql/fetcher";
 import { EDITOR_DASHBOARD_QUERY } from "$lib/graphql/operations/editor-dashboard";
 import { redirect } from "@sveltejs/kit";
@@ -67,8 +68,8 @@ export interface EditorDashboardStats {
 export interface EditorDashboardData {
   stats: EditorDashboardStats;
   hymnbooks: EditorHymnbook[];
-  /** Pares `[métrica, direção]` já parseados da URL (ciclo 5B.5). */
-  sort: [string, string][];
+  /** Pares `[métrica, direção]` já parseados da URL — a ORDEM é a prioridade. */
+  sort: SortPair[];
   priority: string;
   error: string | null;
 }
@@ -88,11 +89,18 @@ export async function _loadEditorDashboard(event: {
   url: URL;
 }): Promise<EditorDashboardData> {
   const priority = "all";
+  // A URL é a fonte da verdade do sort: `parseSort` é defensiva e devolve
+  // [] pra querystring editada à mão, então a tela cai nos defaults em vez
+  // de estourar (mesmo contrato da view Django).
+  const sort = parseSort(event.url.searchParams.get("sort"));
 
   const response = await gqlFetch<{
     editorDashboardStats: EditorDashboardStats | null;
     editorHymnbooks: EditorHymnbook[] | null;
-  }>(event.fetch, GRAPHQL_URL, EDITOR_DASHBOARD_QUERY, { sort: null, priority });
+  }>(event.fetch, GRAPHQL_URL, EDITOR_DASHBOARD_QUERY, {
+    sort: toSortInputs(sort),
+    priority,
+  });
 
   const errorMessage = response.errors?.[0]?.message;
   if (errorMessage && !errorMessage.startsWith("HTTP ") && isEditorAccessError(errorMessage)) {
@@ -102,7 +110,7 @@ export async function _loadEditorDashboard(event: {
   return {
     stats: response.data?.editorDashboardStats ?? EMPTY_STATS,
     hymnbooks: response.data?.editorHymnbooks ?? [],
-    sort: [],
+    sort,
     priority,
     error: errorMessage ?? null,
   };

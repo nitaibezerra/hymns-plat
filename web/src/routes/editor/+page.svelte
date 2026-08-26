@@ -13,6 +13,7 @@
    */
   import EditorStatsBar from "$lib/components/editor/EditorStatsBar.svelte";
   import ResumeCard from "$lib/components/editor/ResumeCard.svelte";
+  import SortChips from "$lib/components/editor/SortChips.svelte";
 
   import { editorReviseHref } from "./+layout";
 
@@ -72,6 +73,10 @@
       Não foi possível carregar a fila agora. Tente recarregar em instantes.
     </p>
   {/if}
+
+  <div class="filters">
+    <SortChips pairs={data.sort} priority={data.priority} total={data.hymnbooks.length} />
+  </div>
 
   <div class="queue-grid">
     {#each data.hymnbooks as book, index (book.id)}
@@ -154,6 +159,11 @@
     color: var(--color-text);
     margin: 0;
     padding: 0.75rem 1rem;
+  }
+  .filters {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
   }
   .queue-grid {
     display: grid;

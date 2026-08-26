@@ -171,6 +171,56 @@ describe("render do dashboard editorial (5B.2)", () => {
   });
 });
 
+describe("sort multi-critério vindo da URL (5B.5)", () => {
+  it("traduz ?sort=review:asc,audio:desc em SortInput[] na ordem clicada", async () => {
+    const fetchFn = fakeFetch(dashboardPayload());
+    await _loadEditorDashboard({
+      fetch: fetchFn,
+      url: editorUrl("?sort=review:asc,audio:desc"),
+    });
+
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.variables.sort).toEqual([
+      { column: "review", direction: "asc" },
+      { column: "audio", direction: "desc" },
+    ]);
+  });
+
+  it("sem ?sort= manda null — o argumento é opcional no schema", async () => {
+    const fetchFn = fakeFetch(dashboardPayload());
+    await _loadEditorDashboard({ fetch: fetchFn, url: editorUrl() });
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.variables.sort).toBeNull();
+  });
+
+  it("?sort= malformado não derruba a página — cai no default", async () => {
+    const fetchFn = fakeFetch(dashboardPayload());
+    const result = await _loadEditorDashboard({
+      fetch: fetchFn,
+      url: editorUrl("?sort=review_pct:crescente"),
+    });
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.variables.sort).toBeNull();
+    expect(result.sort).toEqual([]);
+  });
+
+  it("devolve os pares parseados pra tela pintar o estado das chips", async () => {
+    const fetchFn = fakeFetch(dashboardPayload());
+    const result = await _loadEditorDashboard({
+      fetch: fetchFn,
+      url: editorUrl("?sort=audio:desc"),
+    });
+    expect(result.sort).toEqual([["audio", "desc"]]);
+  });
+
+  it("a tela mostra a fileira de chips com o estado atual e a contagem", () => {
+    render(Page, { props: { data: buildData({ sort: [["review", "asc"]] }) } });
+    expect(screen.getByTestId("sort-chips")).toBeInTheDocument();
+    expect(screen.getByTestId("sort-chip-review")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("sort-count")).toHaveTextContent("1 hinário");
+  });
+});
+
 describe("card de retomada no dashboard (5B.4)", () => {
   const resumeHymn = {
     id: "h9",
