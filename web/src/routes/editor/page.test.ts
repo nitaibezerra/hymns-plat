@@ -221,6 +221,54 @@ describe("sort multi-critério vindo da URL (5B.5)", () => {
   });
 });
 
+describe("barras de progresso no card (5B.7)", () => {
+  it("mostra as 4 barras: revisão formal + estilo/repetições/áudios", () => {
+    render(Page, { props: { data: buildData() } });
+    const card = screen.getByTestId("queue-card-o-cruzeiro");
+    expect(card.querySelectorAll("[data-testid='review-progress-bar']")).toHaveLength(4);
+    expect(card).toHaveTextContent(/revisados/i);
+    expect(card).toHaveTextContent(/estilo/i);
+    expect(card).toHaveTextContent(/repetições/i);
+    expect(card).toHaveTextContent(/áudios/i);
+  });
+
+  it("usa os percentuais de reviewProgress SEM recalcular a partir de stats", () => {
+    // stats diz 12/30 (=40%) mas o backend calculou 77% — a tela obedece o
+    // backend, que é a fonte única desses percentuais desde o 5.A½.
+    const book = bookPayload({
+      reviewProgress: { reviewPct: 77, stylePct: 60, repsPct: 20, audioPct: 10 },
+      stats: { hymnsTotal: 30, hymnsReviewed: 12, audiosApproved: 3 },
+    });
+    render(Page, { props: { data: buildData({ hymnbooks: [book] }) } });
+
+    const card = screen.getByTestId("queue-card-o-cruzeiro");
+    const bars = card.querySelectorAll("[data-testid='review-progress-bar']");
+    expect(bars[0].textContent).toContain("77%");
+    expect(bars[0].textContent).not.toContain("40%");
+  });
+
+  it("a barra de revisão traz a contagem absoluta ao lado do percentual", () => {
+    render(Page, { props: { data: buildData() } });
+    const card = screen.getByTestId("queue-card-o-cruzeiro");
+    expect(card.querySelector("[data-testid='progress-count']")).toHaveTextContent("12 de 30");
+  });
+
+  it("a barra de revisão é o tom primário; as de completude, o secundário", () => {
+    render(Page, { props: { data: buildData() } });
+    const card = screen.getByTestId("queue-card-o-cruzeiro");
+    const bars = Array.from(card.querySelectorAll("[data-testid='review-progress-bar']"));
+    expect(bars[0].className).toMatch(/is-review/);
+    expect(bars.slice(1).every((b) => b.className.includes("is-content"))).toBe(true);
+  });
+
+  it("as duas seções são rotuladas como no template Django", () => {
+    render(Page, { props: { data: buildData() } });
+    const card = screen.getByTestId("queue-card-o-cruzeiro");
+    expect(card).toHaveTextContent(/revisão formal/i);
+    expect(card).toHaveTextContent(/completude de conteúdo/i);
+  });
+});
+
 describe("filtro de prioridade vindo da URL (5B.6)", () => {
   it("?priority=P1 vai como argumento pra query", async () => {
     const fetchFn = fakeFetch(dashboardPayload());

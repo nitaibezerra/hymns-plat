@@ -14,6 +14,7 @@
   import EditorStatsBar from "$lib/components/editor/EditorStatsBar.svelte";
   import PriorityChips from "$lib/components/editor/PriorityChips.svelte";
   import ResumeCard from "$lib/components/editor/ResumeCard.svelte";
+  import ReviewProgressBar from "$lib/components/editor/ReviewProgressBar.svelte";
   import SortChips from "$lib/components/editor/SortChips.svelte";
 
   import { editorReviseHref } from "./+layout";
@@ -103,9 +104,30 @@
           </span>
         </header>
 
-        <p class="queue-card-count">
-          {book.stats.hymnsReviewed} de {book.stats.hymnsTotal} hinos revisados
-        </p>
+        <!--
+          Duas seções, como no template Django: a flag formal de revisão
+          (o que fecha o hinário) separada da completude de conteúdo (o que
+          falta preencher). Misturar as quatro numa lista só apagaria essa
+          diferença de peso.
+        -->
+        <div class="queue-card-metrics">
+          <section class="metric-section">
+            <h3 class="metric-eyebrow">Revisão formal</h3>
+            <ReviewProgressBar
+              label="Revisados"
+              tone="review"
+              pct={book.reviewProgress.reviewPct}
+              count={`${book.stats.hymnsReviewed} de ${book.stats.hymnsTotal}`}
+            />
+          </section>
+
+          <section class="metric-section">
+            <h3 class="metric-eyebrow">Completude de conteúdo</h3>
+            <ReviewProgressBar label="Estilo" pct={book.reviewProgress.stylePct} />
+            <ReviewProgressBar label="Repetições" pct={book.reviewProgress.repsPct} />
+            <ReviewProgressBar label="Áudios" pct={book.reviewProgress.audioPct} />
+          </section>
+        </div>
       </article>
     {:else}
       <div class="queue-empty font-serif" data-testid="queue-empty">
@@ -228,10 +250,24 @@
     font-style: italic;
     margin: 0.125rem 0 0;
   }
-  .queue-card-count {
-    color: var(--color-text-soft);
-    font-size: 0.875rem;
+  .queue-card-metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .metric-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+  .metric-eyebrow {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono, var(--font-sans));
+    font-size: 0.625rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
     margin: 0;
+    text-transform: uppercase;
   }
   .priority-pill {
     border: 1px solid var(--color-border);
