@@ -240,6 +240,10 @@ class HymnBookType:
     priority: strawberry.auto
     is_featured: strawberry.auto
     created_at: strawberry.auto
+    # Marco 6 — contador monotônico que os signals de `apps.hymns.signals`
+    # incrementam a cada mudança em hino/áudio. É o que o cliente offline
+    # compara com o valor em cache para decidir se precisa re-sincronizar.
+    sync_version: strawberry.auto
 
     @strawberry.field
     def cover_image(self) -> str | None:
