@@ -5,7 +5,8 @@
    * Página inicial headless. Estrutura espelha o `home.html` do monolito,
    * mas redesenhada com tokens neutros pro shell SvelteKit:
    *
-   *   - Hero (slogan + parágrafo + CTA "Explorar hinários" + 4 stats globais).
+   *   - Hero (slogan + parágrafo + CTAs "Explorar hinários" → `/hinarios` e
+   *     "Buscar hinos" → `/busca` + 4 stats globais).
    *   - Grid "Em destaque" com até 6 cards de hinários (hourlyFeatured).
    *
    * Cards são `HymnbookCard` (4C.2). A home não diferencia editor/anônimo —
@@ -32,7 +33,7 @@
 
     <div class="hero-cta">
       <a href="/hinarios" class="cta-primary">Explorar hinários</a>
-      <a href="/buscar" class="cta-secondary">Buscar hinos</a>
+      <a href="/busca" class="cta-secondary">Buscar hinos</a>
     </div>
 
     {#if data.stats}

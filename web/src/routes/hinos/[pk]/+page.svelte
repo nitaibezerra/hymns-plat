@@ -3,14 +3,16 @@
    * Marco 4.E — detalhe de hino individual.
    *
    * Cobre os ciclos 4E.1..4E.6:
-   *   - 4E.2: usa `HymnBody` pra renderizar a letra (body vem vazio enquanto
-   *           o schema não expõe `body` — 4.D vai casar isso).
+   *   - 4E.2: usa `HymnBody` pra renderizar a letra, vinda de
+   *           `HymnType.body` (pedido pela HYMN_DETAIL_QUERY).
    *   - 4E.3: links "anterior/próximo no hinário" como `<a href="/hinos/<id>">`,
    *           omitidos quando o respectivo campo é null.
    *   - 4E.4: `SiblingHymnsList` pra disambiguação "este número aparece em…".
    *   - 4E.5: `HymnAudioList` pros áudios aprovados.
    *   - 4E.6: o componente de áudios mostra pendentes pro uploader/editor
-   *           (gating recebido via prop `currentUser` do layout data).
+   *           (gating via props `currentUser` do layout data + `isEditor`
+   *           calculado na load function, que também é quem pede
+   *           `approvedOnly: false` ao backend).
    *
    * `currentUser` é repassado do `+layout.ts` via `$page.data` — buscamos
    * pelo `$app/state`/`page` store. Pra manter teste/componente simples e
@@ -60,7 +62,7 @@
       <h1 class="hymn-title" data-testid="hymn-title">
         {data.hymn.number} — {data.hymn.title}
       </h1>
-      <HymnBody body="" />
+      <HymnBody body={data.hymn.body} />
     </article>
 
     {#if data.hymn.siblingsWithSameNumber.length > 0}
@@ -73,6 +75,7 @@
         hymnTitle={data.hymn.title}
         hymnNumber={data.hymn.number}
         currentUser={(data.currentUser as LayoutUser | null) ?? null}
+        isEditor={data.isEditor}
       />
     {/if}
   {/if}

@@ -155,6 +155,13 @@ describe("+page.svelte (home)", () => {
     expect(cta.getAttribute("href")).toBe("/hinarios");
   });
 
+  it("aponta o CTA 'Buscar hinos' pra /busca, a rota que existe de fato", () => {
+    render(Page, { props: { data: baseData } });
+    const hero = screen.getByTestId("home-hero");
+    const cta = within(hero).getByRole("link", { name: /buscar hinos/i });
+    expect(cta.getAttribute("href")).toBe("/busca");
+  });
+
   it("aplica font-display no título do hero", () => {
     render(Page, { props: { data: baseData } });
     const heroTitle = screen.getByTestId("home-hero-title");
