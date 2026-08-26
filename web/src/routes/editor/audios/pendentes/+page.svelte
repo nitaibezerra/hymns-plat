@@ -7,7 +7,7 @@
    *
    * O tipo do `data` é local porque `/editor/+layout.ts` é de outra frente.
    */
-  import { approveAudio } from "$lib/graphql/operations/crud";
+  import { approveAudio, rejectAudio } from "$lib/graphql/operations/crud";
 
   import type { PendingAudio, PendingAudiosData } from "./+page";
 
@@ -45,6 +45,27 @@
     markResolved(audio.id);
 
     const result = await approveAudio(fetch, audio.id);
+    inFlightIds = inFlightIds.filter((x) => x !== audio.id);
+    if (!result.ok) {
+      rollback(audio.id, result.message);
+    }
+  }
+
+  /**
+   * 5D.16 — rejeitar DELETA a gravação, então tem confirmação em dois passos
+   * no próprio item. Não usamos `window.confirm` (como o template Django):
+   * ele bloqueia a thread e não existe no jsdom.
+   */
+  let confirmingRejectId = $state<string | null>(null);
+
+  async function handleRejectConfirmed(audio: PendingAudio) {
+    confirmingRejectId = null;
+    if (inFlightIds.includes(audio.id)) return;
+    inFlightIds = [...inFlightIds, audio.id];
+    queueError = null;
+    markResolved(audio.id);
+
+    const result = await rejectAudio(fetch, audio.id);
     inFlightIds = inFlightIds.filter((x) => x !== audio.id);
     if (!result.ok) {
       rollback(audio.id, result.message);
@@ -145,7 +166,38 @@
               >
                 ✓ Aprovar
               </button>
+              <button
+                type="button"
+                class="reject"
+                onclick={() => (confirmingRejectId = audio.id)}
+                data-testid="reject-{audio.id}"
+              >
+                Rejeitar
+              </button>
             </div>
+
+            {#if confirmingRejectId === audio.id}
+              <div class="reject-confirm" data-testid="reject-confirm-{audio.id}">
+                <p>Rejeitar e remover esta gravação? A ação é irreversível.</p>
+                <div class="item-actions">
+                  <button
+                    type="button"
+                    class="reject"
+                    onclick={() => handleRejectConfirmed(audio)}
+                    data-testid="reject-confirm-yes-{audio.id}"
+                  >
+                    Sim, rejeitar
+                  </button>
+                  <button
+                    type="button"
+                    onclick={() => (confirmingRejectId = null)}
+                    data-testid="reject-confirm-no-{audio.id}"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -217,6 +269,15 @@
   }
   .approve {
     font-weight: 600;
+  }
+  .reject-confirm {
+    border: 1px solid var(--color-border-soft);
+    border-radius: 0.5rem;
+    margin-top: 0.75rem;
+    padding: 0.75rem 0.875rem;
+  }
+  .reject-confirm p {
+    margin: 0;
   }
   .empty {
     border: 1px solid var(--color-border-soft);

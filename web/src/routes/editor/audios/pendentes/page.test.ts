@@ -280,3 +280,74 @@ describe("/editor/audios/pendentes — aprovar (5D.15)", () => {
     expect(screen.getByTestId("approve-a2")).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// 5D.16 — "Rejeitar" com confirmação
+//
+// A confirmação é inline (dois passos no próprio item) e não `window.confirm`
+// como no template Django: `confirm()` não existe no jsdom e bloqueia a thread
+// no browser.
+// ---------------------------------------------------------------------------
+
+const REJECTED_PAYLOAD = {
+  data: { rejectAudio: { __typename: "DeleteResult", ok: true, deletedId: "a1" } },
+};
+
+describe("/editor/audios/pendentes — rejeitar (5D.16)", () => {
+  it("o primeiro clique em Rejeitar NÃO chama a mutation, só pede confirmação", async () => {
+    const fetchFn = stubFetch(REJECTED_PAYLOAD);
+    render(Page, { props: { data: buildData({ audios: [AUDIO] }) } });
+    await fireEvent.click(screen.getByTestId("reject-a1"));
+
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(screen.getByTestId("reject-confirm-a1")).toHaveTextContent(/irreversível/i);
+    expect(screen.getAllByTestId("pending-audio-item")).toHaveLength(1);
+  });
+
+  it("confirmar chama rejectAudio com o pk e remove o item", async () => {
+    const fetchFn = stubFetch(REJECTED_PAYLOAD);
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.click(screen.getByTestId("reject-a1"));
+    await fireEvent.click(screen.getByTestId("reject-confirm-yes-a1"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.query).toContain("rejectAudio");
+    expect(body.variables).toEqual({ pk: "a1" });
+    await waitFor(() => expect(screen.getAllByTestId("pending-audio-item")).toHaveLength(1));
+  });
+
+  it("desistir da confirmação não chama nada e mantém o item", async () => {
+    const fetchFn = stubFetch(REJECTED_PAYLOAD);
+    render(Page, { props: { data: buildData({ audios: [AUDIO] }) } });
+    await fireEvent.click(screen.getByTestId("reject-a1"));
+    await fireEvent.click(screen.getByTestId("reject-confirm-no-a1"));
+
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("reject-confirm-a1")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("pending-audio-item")).toHaveLength(1);
+  });
+
+  it("a confirmação aparece só no item clicado", async () => {
+    stubFetch(REJECTED_PAYLOAD);
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.click(screen.getByTestId("reject-a1"));
+
+    expect(screen.getByTestId("reject-confirm-a1")).toBeInTheDocument();
+    expect(screen.queryByTestId("reject-confirm-a2")).not.toBeInTheDocument();
+  });
+
+  it("faz rollback e mostra o erro quando a rejeição é negada", async () => {
+    stubFetch({
+      data: { rejectAudio: { __typename: "PermissionDeniedError", message: "Sem permissão" } },
+    });
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.click(screen.getByTestId("reject-a1"));
+    await fireEvent.click(screen.getByTestId("reject-confirm-yes-a1"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("queue-error")).toHaveTextContent(/sem permissão/i),
+    );
+    expect(screen.getAllByTestId("pending-audio-item")).toHaveLength(2);
+  });
+});

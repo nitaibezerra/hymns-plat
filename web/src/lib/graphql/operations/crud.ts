@@ -495,6 +495,34 @@ export function approveAudio(
   );
 }
 
+/**
+ * Rejeitar DELETA a gravação (`editor_reject_audio` faz `audio.delete()`), por
+ * isso a union devolve `DeleteResult` e a UI pede confirmação.
+ */
+export const REJECT_AUDIO_MUTATION = `
+  mutation RejectAudio($pk: ID!) {
+    rejectAudio(pk: $pk) {
+      __typename
+      ... on DeleteResult { ok deletedId }
+      ... on PermissionDeniedError { message }
+      ... on NotFoundError { message }
+    }
+  }
+`;
+
+export function rejectAudio(
+  fetchFn: typeof globalThis.fetch,
+  pk: string,
+): Promise<MutationOutcome<DeleteRef>> {
+  return runMutation<DeleteRef>(
+    fetchFn,
+    REJECT_AUDIO_MUTATION,
+    { pk },
+    "rejectAudio",
+    ["DeleteResult"],
+  );
+}
+
 export const AUDIO_ALLOWED_EXTENSIONS = ["mp3", "ogg", "flac"] as const;
 export const AUDIO_MAX_BYTES = 25 * 1024 * 1024;
 
