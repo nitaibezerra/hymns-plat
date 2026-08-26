@@ -369,6 +369,65 @@ export function createHymn(
 }
 
 // ---------------------------------------------------------------------------
+// 5D.10 / 5D.11 — editar e deletar hino
+// ---------------------------------------------------------------------------
+
+/**
+ * `HymnType` não expõe um campo `text`: a letra sai por `body`, que no
+ * resolver é exatamente `hymn.text` (`apps/api/types.py`). Por isso o form de
+ * edição lê `body` e escreve `HymnUpdateInput.text`.
+ *
+ * `hymnBook` só existe em `HymnType` desde o 5.A½ — é o que permite montar o
+ * breadcrumb "voltar ao hinário" sem uma segunda query.
+ */
+export const HYMN_FORM_QUERY = `
+  query HymnForm($pk: ID!) {
+    hymn(pk: $pk) {
+      id
+      number
+      title
+      body
+      style
+      repetitions
+      extraInstructions
+      offeredTo
+      section
+      hymnBook {
+        id
+        name
+        slug
+      }
+    }
+  }
+`;
+
+export const UPDATE_HYMN_MUTATION = `
+  mutation UpdateHymn($pk: ID!, $input: HymnUpdateInput!) {
+    updateHymn(pk: $pk, input: $input) {
+      __typename
+      ... on HymnType { id number title }
+      ... on ValidationError { message field }
+      ... on PermissionDeniedError { message }
+      ... on NotFoundError { message }
+    }
+  }
+`;
+
+export function updateHymn(
+  fetchFn: typeof globalThis.fetch,
+  pk: string,
+  values: HymnInputValues,
+): Promise<MutationOutcome<HymnRef>> {
+  return runMutation<HymnRef>(
+    fetchFn,
+    UPDATE_HYMN_MUTATION,
+    { pk, input: values },
+    "updateHymn",
+    ["HymnType"],
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 5D.6 / 5D.7 — checklist e publicação
 // ---------------------------------------------------------------------------
 
