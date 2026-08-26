@@ -312,6 +312,24 @@
       next ? `/editor/hinos/${next.id}/revisar` : `/editor/hinarios/${hymn.hymnBook.slug}`,
     );
   }
+
+  /**
+   * 5C.11 — "Salvar rascunho" (`next_action=back` no Django): grava os campos
+   * e volta pro hinário sem tocar no `review_status`.
+   */
+  async function saveAndBack() {
+    const hymn = data.hymn;
+    if (!hymn || isSubmitting) return;
+
+    scheduleAutosave.cancel();
+    isSubmitting = true;
+    const ok = await persistForm();
+    isSubmitting = false;
+    scheduleAutosave.cancel();
+    if (!ok) return;
+
+    await goto(`/editor/hinarios/${hymn.hymnBook.slug}`);
+  }
 </script>
 
 <section data-testid="revise-hymn">
@@ -453,6 +471,15 @@
       <span class="autosave-status" data-testid="autosave-status" data-state={autosaveState}>
         {autosaveLabel}
       </span>
+      <button
+        class="btn-ghost"
+        type="button"
+        data-testid="save-and-back"
+        disabled={isSubmitting}
+        onclick={saveAndBack}
+      >
+        Salvar rascunho
+      </button>
       <button
         class="btn-primary"
         type="button"

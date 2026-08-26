@@ -495,3 +495,68 @@ describe("5C.10 — Marcar revisado e avançar", () => {
     expect(screen.getByTestId("autosave-status")).toHaveTextContent("Número já usado.");
   });
 });
+
+describe("5C.11 — Salvar rascunho e voltar", () => {
+  beforeEach(() => {
+    vi.mocked(goto).mockClear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("chama updateHymn e volta pro hinário", async () => {
+    const fetchFn = stubFetch({ data: { updateHymn: { __typename: "HymnType", id: "h-1" } } });
+    render(Page, { props: { data: sampleData } });
+
+    await fireEvent.input(screen.getByLabelText("Título"), { target: { value: "Rascunho" } });
+    await fireEvent.click(screen.getByRole("button", { name: /Salvar rascunho/ }));
+    await vi.advanceTimersByTimeAsync(50);
+
+    const calls = graphqlCalls(fetchFn);
+    expect(calls).toHaveLength(1);
+    expect(bodyOf(fetchFn).query).toContain("updateHymn");
+    expect(bodyOf(fetchFn).variables.input.title).toBe("Rascunho");
+    expect(goto).toHaveBeenCalledWith("/editor/hinarios/o-cruzeiro");
+  });
+
+  it("não marca REVIEWED (só o botão de avançar faz isso)", async () => {
+    const fetchFn = stubFetch({ data: { updateHymn: { __typename: "HymnType", id: "h-1" } } });
+    render(Page, { props: { data: sampleData } });
+
+    await fireEvent.click(screen.getByRole("button", { name: /Salvar rascunho/ }));
+    await vi.advanceTimersByTimeAsync(50);
+
+    const bodies = graphqlCalls(fetchFn).map((call) =>
+      JSON.parse(String((call[1] as RequestInit).body)),
+    );
+    expect(bodies.some((body) => String(body.query).includes("setReviewStatus"))).toBe(false);
+    expect((screen.getByLabelText("Em revisão") as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("cancela o autosave pendente ao salvar à mão (uma mutation só)", async () => {
+    const fetchFn = stubFetch({ data: { updateHymn: { __typename: "HymnType", id: "h-1" } } });
+    render(Page, { props: { data: sampleData } });
+
+    await fireEvent.input(screen.getByLabelText("Título"), { target: { value: "Uma vez" } });
+    await fireEvent.click(screen.getByRole("button", { name: /Salvar rascunho/ }));
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(graphqlCalls(fetchFn)).toHaveLength(1);
+  });
+
+  it("erro não navega", async () => {
+    stubFetch({
+      data: { updateHymn: { __typename: "PermissionDeniedError", message: "Sem permissão." } },
+    });
+    render(Page, { props: { data: sampleData } });
+
+    await fireEvent.click(screen.getByRole("button", { name: /Salvar rascunho/ }));
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(goto).not.toHaveBeenCalled();
+    expect(screen.getByTestId("autosave-status")).toHaveTextContent("Sem permissão.");
+  });
+});
