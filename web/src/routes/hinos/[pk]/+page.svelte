@@ -22,11 +22,24 @@
   import HymnBody from "$lib/components/HymnBody.svelte";
   import HymnAudioList from "$lib/components/HymnAudioList.svelte";
   import SiblingHymnsList from "$lib/components/SiblingHymnsList.svelte";
+  import AudioUploadDrawer from "$lib/components/editor/AudioUploadDrawer.svelte";
+  import { invalidateAll } from "$app/navigation";
 
   import type { PageData } from "./$types";
   import type { LayoutUser } from "../../+layout";
 
   let { data }: { data: PageData } = $props();
+
+  /**
+   * Sub-marco 5.E — Ciclo 5E.6.
+   *
+   * Envio de gravação sem sair do detalhe do hino. Reusa o
+   * `AudioUploadDrawer` do 5.D: ele não navega nem recarrega lista nenhuma —
+   * avisa `onuploaded` e quem embute decide. Aqui a decisão é fechar o drawer
+   * e invalidar a rota, pro áudio recém-enviado aparecer na lista (como
+   * pendente, até a aprovação).
+   */
+  let uploadOpen = $state(false);
 </script>
 
 <section class="hymn-detail" data-testid="hymn-detail">
@@ -78,6 +91,31 @@
         isEditor={data.isEditor}
       />
     {/if}
+
+    {#if data.isEditor}
+      <section class="editor-actions">
+        {#if uploadOpen}
+          <AudioUploadDrawer
+            open
+            hymn={{ id: data.hymn.id, number: data.hymn.number, title: data.hymn.title }}
+            onuploaded={() => {
+              uploadOpen = false;
+              void invalidateAll();
+            }}
+            onclose={() => (uploadOpen = false)}
+          />
+        {:else}
+          <button
+            type="button"
+            class="upload-btn"
+            data-testid="upload-audio-btn"
+            onclick={() => (uploadOpen = true)}
+          >
+            Enviar gravação
+          </button>
+        {/if}
+      </section>
+    {/if}
   {/if}
 </section>
 
@@ -117,5 +155,23 @@
     font-size: 1.875rem;
     text-align: center;
     margin: 0 0 1.5rem 0;
+  }
+  .editor-actions {
+    display: flex;
+    flex-direction: column;
+  }
+  .upload-btn {
+    align-self: flex-start;
+    background: transparent;
+    border: 1px solid var(--color-border-soft);
+    border-radius: 999px;
+    color: var(--color-accent);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+  }
+  .upload-btn:hover {
+    background: var(--color-surface-soft);
   }
 </style>
