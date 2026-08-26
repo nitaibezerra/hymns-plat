@@ -20,7 +20,10 @@ from __future__ import annotations
 import json
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
+
+from apps.hymns.models import HymnAudio
 
 GRAPHQL_URL = "/graphql/"
 QUERY = '{"query":"{ globalStats { hymnbooks } }"}'
@@ -125,6 +128,57 @@ def test_gate_is_fail_closed_when_operation_is_undeterminable():
     payload = json.dumps({"query": MIXED_DOC})
     response = _post(client, payload)
     assert response.status_code == 403, f"esperado 403, recebi {response.status_code}: {response.content[:200]!r}"
+
+
+# --- Multipart (`uploadAudio`): o gate lê o corpo sem consumir o arquivo ---
+
+UPLOAD_MUTATION = """
+mutation($hymnPk: ID!, $file: Upload!) {
+  uploadAudio(hymnPk: $hymnPk, file: $file) {
+    __typename
+    ... on HymnAudioType { id }
+  }
+}
+"""
+
+
+def _post_upload(client: Client, hymn_pk: str, **extra):
+    """POST multipart conforme `graphql-multipart-request-spec`."""
+    operations = json.dumps({"query": UPLOAD_MUTATION, "variables": {"hymnPk": hymn_pk, "file": None}})
+    return client.post(
+        GRAPHQL_URL,
+        data={
+            "operations": operations,
+            "map": json.dumps({"0": ["variables.file"]}),
+            "0": SimpleUploadedFile("audio.mp3", b"\x00" * 1024, content_type="audio/mpeg"),
+        },
+        **extra,
+    )
+
+
+def test_multipart_mutation_blocks_without_csrf_token(hymn):
+    """O gate enxerga a mutation dentro do campo `operations` do multipart."""
+    client = Client(enforce_csrf_checks=True)
+    response = _post_upload(client, str(hymn.pk))
+    assert response.status_code == 403, f"esperado 403, recebi {response.status_code}: {response.content[:200]!r}"
+    assert not HymnAudio.objects.exists()
+
+
+def test_multipart_mutation_succeeds_with_csrf_token(hymn, user_factory):
+    """Com token, o upload conclui — o corpo é parseado uma vez e o arquivo
+    chega inteiro ao resolver (o gate não pode consumir o stream)."""
+    client = Client(enforce_csrf_checks=True)
+    client.force_login(user_factory(email="quem.envia@example.com"))
+    csrftoken = _seed_csrftoken(client)
+
+    response = _post_upload(client, str(hymn.pk), HTTP_X_CSRFTOKEN=csrftoken)
+    assert response.status_code == 200, f"esperado 200, recebi {response.status_code}: {response.content[:200]!r}"
+    body = json.loads(response.content)
+    assert "errors" not in body, body
+    assert body["data"]["uploadAudio"]["__typename"] == "HymnAudioType"
+
+    audio = HymnAudio.objects.get()
+    assert audio.file_size == 1024, "o arquivo chegou truncado ao resolver"
 
 
 # --- GET continua semeando o cookie (GraphiQL / primeiro load) ---
