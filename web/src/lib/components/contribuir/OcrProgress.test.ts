@@ -63,3 +63,56 @@ describe("OcrProgress (5F.9)", () => {
     expect(screen.getByTestId("ocr-progress-text")).toHaveTextContent("Aguardando…");
   });
 });
+
+describe("OcrProgress falha (5F.10)", () => {
+  it("mostra a mensagem de erro da task e o botão Tentar novamente", () => {
+    render(OcrProgress, {
+      props: { task: task({ status: "failed", errorMessage: "Nenhum hino extraído do PDF." }) },
+    });
+    expect(screen.getByTestId("ocr-failed")).toHaveTextContent("Nenhum hino extraído do PDF.");
+    const retry = screen.getByRole("link", { name: /tentar novamente/i });
+    expect(retry).toHaveAttribute("href", "/contribuir/");
+  });
+
+  it("sem errorMessage cai num texto genérico em PT-BR", () => {
+    render(OcrProgress, { props: { task: task({ status: "failed", errorMessage: "" }) } });
+    expect(screen.getByTestId("ocr-failed")).toHaveTextContent(/erro desconhecido/i);
+  });
+
+  it("falha esconde a barra de progresso", () => {
+    render(OcrProgress, { props: { task: task({ status: "failed", errorMessage: "x" }) } });
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
+  it("erro de rede do polling aparece sem esconder o progresso", () => {
+    render(OcrProgress, { props: { task: task(), networkError: "HTTP 502" } });
+    expect(screen.getByTestId("ocr-network-error")).toHaveTextContent("HTTP 502");
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+  });
+
+  it("erro fatal (task inexistente) é definitivo: sem 'continuando a tentar', com Tentar novamente", () => {
+    render(OcrProgress, {
+      props: { task: task(), fatalError: "Tarefa de OCR não encontrada." },
+    });
+    expect(screen.getByTestId("ocr-fatal")).toHaveTextContent("Tarefa de OCR não encontrada.");
+    expect(screen.queryByTestId("ocr-network-error")).toBeNull();
+    expect(screen.queryByText(/continuando a tentar/i)).toBeNull();
+    expect(screen.getByRole("link", { name: /tentar novamente/i })).toHaveAttribute(
+      "href",
+      "/contribuir/",
+    );
+  });
+
+  it("erro fatal esconde a barra — o polling já parou", () => {
+    render(OcrProgress, { props: { task: task(), fatalError: "Tarefa de OCR não encontrada." } });
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
+  it("erro fatal tem precedência sobre erro de rede transitório", () => {
+    render(OcrProgress, {
+      props: { task: task(), networkError: "HTTP 502", fatalError: "Tarefa de OCR não encontrada." },
+    });
+    expect(screen.getByTestId("ocr-fatal")).toBeInTheDocument();
+    expect(screen.queryByTestId("ocr-network-error")).toBeNull();
+  });
+});

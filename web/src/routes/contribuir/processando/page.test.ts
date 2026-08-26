@@ -15,7 +15,9 @@
  */
 
 import { render, screen } from "@testing-library/svelte";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { OCR_POLL_INTERVAL_MS } from "$lib/ocr-polling";
 
 import Page from "./+page.svelte";
 import { _loadProcessando } from "./+page";
@@ -144,5 +146,78 @@ describe("processando page (5F.9)", () => {
   it("renderiza a barra de progresso com o progressPct", () => {
     render(Page, { props: { data: pageData() } });
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "25");
+  });
+});
+
+describe("processando estados terminais (5F.10)", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.useRealTimers();
+  });
+
+  function fetchReturning(payload: unknown) {
+    return vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  }
+
+  it("task failed mostra o erro e para de consultar o backend", async () => {
+    vi.useFakeTimers();
+    const fetchSpy = fetchReturning(
+      taskPayload({ status: "failed", errorMessage: "Nenhum hino extraído do PDF." }),
+    );
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+
+    render(Page, { props: { data: { currentUser: null, taskId: TASK_ID, task: null, error: null } } });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("ocr-failed")).toHaveTextContent("Nenhum hino extraído do PDF.");
+
+    await vi.advanceTimersByTimeAsync(OCR_POLL_INTERVAL_MS * 3);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("task inexistente mostra erro definitivo e para de consultar", async () => {
+    vi.useFakeTimers();
+    const fetchSpy = fetchReturning({ data: { ocrTask: null } });
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+
+    render(Page, { props: { data: { currentUser: null, taskId: TASK_ID, task: null, error: null } } });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(screen.getByTestId("ocr-fatal")).toHaveTextContent(/não encontrada/i);
+    expect(screen.queryByTestId("ocr-network-error")).toBeNull();
+
+    await vi.advanceTimersByTimeAsync(OCR_POLL_INTERVAL_MS * 3);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("erro de rede segue tentando e mantém a barra", async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("", { status: 502 }))
+      .mockResolvedValue(
+        new Response(JSON.stringify(taskPayload({ currentPage: 7, totalPages: 9 })), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+
+    render(Page, { props: { data: { currentUser: null, taskId: TASK_ID, task: null, error: null } } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(screen.getByTestId("ocr-network-error")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(OCR_POLL_INTERVAL_MS);
+    expect(screen.getByTestId("ocr-progress-text")).toHaveTextContent("Página 7 de 9");
+    expect(screen.queryByTestId("ocr-network-error")).toBeNull();
   });
 });

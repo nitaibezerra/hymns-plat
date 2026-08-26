@@ -5,18 +5,27 @@
    * Porta do bloco de progresso de `templates/users/upload_processing.html`.
    * Componente burro: só desenha o snapshot que o polling entrega.
    *
-   * `networkError` é falha transitória do polling (rede/HTTP). Ela aparece
-   * como aviso e **não** apaga a barra — o polling continua tentando, então
-   * sumir com o progresso a cada soluço de rede seria pior que mostrá-lo.
+   * Três estados de erro, deliberadamente distintos:
+   *
+   *   - `task.status === "failed"`: o OCR falhou. Mostra `errorMessage` e
+   *     "Tentar novamente" (porta do bloco `{% if task.status == "failed" %}`
+   *     de `upload_processing.html`).
+   *   - `fatalError`: o polling parou por outro motivo definitivo (task
+   *     inexistente ou sem permissão). Também é fim de linha — não pode
+   *     dizer "continuando a tentar", que seria mentira.
+   *   - `networkError`: soluço transitório. Aparece como aviso e **não** apaga
+   *     a barra, porque o polling continua tentando.
    */
   import type { OcrTaskSnapshot } from "$lib/ocr-polling";
 
   let {
     task,
     networkError = null,
+    fatalError = null,
   }: {
     task: OcrTaskSnapshot | null;
     networkError?: string | null;
+    fatalError?: string | null;
   } = $props();
 
   const failed = $derived(task?.status === "failed");
@@ -42,6 +51,12 @@
     <div class="failed" role="alert" data-testid="ocr-failed">
       <p class="failed-title">A extração falhou.</p>
       <p class="failed-message">{task?.errorMessage || "Erro desconhecido."}</p>
+      <a class="retry" href="/contribuir/">Tentar novamente</a>
+    </div>
+  {:else if fatalError}
+    <div class="failed" role="alert" data-testid="ocr-fatal">
+      <p class="failed-title">Não foi possível acompanhar a extração.</p>
+      <p class="failed-message">{fatalError}</p>
       <a class="retry" href="/contribuir/">Tentar novamente</a>
     </div>
   {:else}

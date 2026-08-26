@@ -22,6 +22,8 @@
   // a load function rodar de novo — e é o que o Svelte 5 pede.
   let polledTask = $state<OcrTaskSnapshot | null>(null);
   let polledError = $state<string | null>(null);
+  // Erro definitivo: o polling parou e não vai voltar sozinho (5F.10).
+  let fatalError = $state<string | null>(null);
 
   const task = $derived(polledTask ?? data.task);
   // Depois do primeiro snapshot do polling, um erro do SSR já é notícia velha.
@@ -41,7 +43,8 @@
         polledError = message;
       },
       onMissing: () => {
-        polledError = "Tarefa de OCR não encontrada.";
+        polledError = null;
+        fatalError = "Tarefa de OCR não encontrada.";
       },
     });
 
@@ -58,7 +61,7 @@
   </div>
 
   <div class="progress">
-    <OcrProgress {task} {networkError} />
+    <OcrProgress {task} {networkError} {fatalError} />
   </div>
 </section>
 
