@@ -442,132 +442,6 @@ Este é o motor da "feature destravada pelo SPA": o player não pode reiniciar a
 
 ---
 
-## Política de consolidação de PRs
-
-**Princípio:** sub-marcos existem pra **disciplina de TDD e planejamento**, não pra serem PRs separados. Cada sub-marco continua sendo uma sequência de commits (1 por ciclo TDD) num branch local; o que vai pra `main` é um PR por Marco semântico.
-
-**Histórico (Marcos 1-3) — o que fazer com o que já está aberto:**
-- PR #51 (Marco 1) tem auto-merge → aguardar fechar; `main` ganha 1 commit squash com Marco 1.
-- PR #52 (Marco 2) já foi mergeado no branch do Marco 1 — não vai virar PR separado contra `main`.
-- PR #53 (Marco 3) foi rebaseado sobre Marco 1, então contém Marco 2 + Marco 3. Renomear título do PR pra refletir ("Marcos 2 + 3: mutations + auth + SvelteKit skeleton"). Auto-merge fecha → `main` ganha 1 commit squash com Marcos 2+3.
-- **Resultado retroativo:** 2 commits em `main` (Marco 1; Marcos 2+3), não 3 PRs.
-
-**Daqui pra frente — 1 PR por Marco como regra:**
-
-| Marco | PRs contra `main` | Justificativa |
-|---|---|---|
-| Marco 4 | **2 PRs** (4.A schema + 4.B-I SPA) | Schema é backend isolado, contrato discreto; SPA é monolítica |
-| Marco 5 | **1 PR** | CRUD editorial é coeso; backend e frontend andam juntos |
-| Marco 6 | **1 PR** | PWA offline é uma feature transversal — rollback unitário tem que ser possível |
-| Marco 7 | **1 PR** | Cutover é cirurgia única |
-
-**Total daqui em diante: 5 PRs** (Marco 4 split + Marcos 5, 6, 7 individuais), em vez dos ~30 do plano original (1 PR por sub-marco).
-
-**Mecânica de cada PR:**
-- Branch base: `main` (sem stacked PRs).
-- Branch-mãe do Marco: `feat/headless-marco<N>` (ou `marco4-schema` e `marco4-spa` no caso de Marco 4).
-- Cada sub-marco vira **uma seção do PR description** com sua tabela de ciclos TDD + lista dos commits que cobrem essa seção. Revisor (você) varre por sub-marco; merge é único squash.
-- Auto-merge ativado imediatamente após criar a PR (memória `feedback_auto_merge`).
-- CI roda contra a soma de tudo — sub-marco quebrado **dentro** da branch-mãe não passa: a disciplina é rodar `pnpm test && pnpm check && uv run pytest` localmente a cada ciclo.
-
-**Trade-offs aceitos:**
-- ✅ Menos overhead de revisão, menos CI runs caros, `main` com histórico semântico claro.
-- ❌ PRs maiores (Marco 4 SPA chega a ~3k LOC). Mitigação: revisão guiada pelas seções de sub-marco no PR description.
-- ❌ Rollback granular (sub-marco isolado) requer `git revert <commit-range>`, não `revert <PR>`. Aceito porque sub-marcos dentro de um Marco são interdependentes na prática.
-
----
-
-## Estratégia de execução com subagentes
-
-**Princípio:** cada sub-marco é uma **unidade autocontida e testável** — ideal pra delegação a um subagente. O subagente recebe um briefing fechado, opera em git worktree isolado, e só conclui quando todos os testes + lint estão verdes.
-
-**Tipo de subagente:** `general-purpose` (workhorse) com `isolation: "worktree"`. Cada subagente recebe uma cópia git isolada do repo — sem conflitos com trabalho paralelo.
-
-**Contrato de cada subagente (briefing fechado):**
-1. **Escopo:** identificador do sub-marco (ex: "4.D — Detalhe do hinário, 3 modos").
-2. **Branch:** nome do branch a criar a partir da base indicada.
-3. **Tabela de ciclos TDD:** copiada literalmente do plano. O subagente percorre na ordem: RED → GREEN → commit → próximo.
-4. **Arquivos a criar/editar:** lista explícita.
-5. **Critério de "concluído":**
-   - Todos os ciclos da tabela com commit.
-   - `pnpm test && pnpm check && pnpm build` no `web/` verdes (ou `uv run pytest tests/unit/api/ && uv run black --check . && uv run isort --check-only . && uv run ruff check .` em sub-marcos backend).
-   - Lint passa.
-   - Subagente **NÃO** abre PR; apenas garante a branch verde e reporta o SHA final. O coordenador (eu) faz o merge na branch-mãe.
-6. **Restrições fixas:**
-   - PT-BR em strings de usuário.
-   - Sem `--no-verify`.
-   - Sem `git push --force`.
-   - Reusar helpers existentes (`can_edit_hymnbook`, `_is_editor_or_admin`, `HymnForm`, etc.) em vez de reescrever.
-   - Se um teste falhar de forma irrecuperável (ex: precisa de decisão de design), pausar e reportar — não improvisar.
-
-**Plano de paralelização do Marco 4:**
-
-Análise de dependências:
-- **4.A** (schema GraphQL): backend puro. Sem dependências. Bloqueia 4.C-4.H (codegen do cliente lê SDL).
-- **4.B** (layout shell + tokens + tipografia): frontend puro. Sem dependências do schema novo (usa só queries do Marco 1-3). **Pode rodar paralelo com 4.A**.
-- **4.C, 4.D, 4.E, 4.G, 4.H** (rotas read-only): cada uma toca rotas/componentes disjuntos. Dependem de 4.A (SDL) e 4.B (shell). **Podem rodar todas em paralelo**.
-- **4.F** (player global persistente): modifica `+layout.svelte` (mesmo arquivo de 4.B). **Sequencial após 4.B**; **paralelo com 4.C-4.H** se 4.B já estiver mergeado.
-- **4.I** (visual diff E2E): precisa de tudo. **Sequencial no fim**.
-
-**Linha do tempo proposta:**
-
-```
-Tempo →    Semana 1         Semana 2              Semana 3
-          ┌─────────┐
-4.A ─────►│ schema  │
-          └─────────┘
-          ┌─────────┐
-4.B ─────►│ shell   │
-          └─────────┘
-                    ┌──────────────┐
-4.C ───────────────►│ home + lista │
-                    └──────────────┘
-                    ┌──────────────┐
-4.D ───────────────►│ hinário 3mod │
-                    └──────────────┘
-                    ┌──────────────┐
-4.E ───────────────►│ hino único   │
-                    └──────────────┘
-                    ┌──────────────┐
-4.F ───────────────►│ player       │
-                    └──────────────┘
-                    ┌──────────────┐
-4.G ───────────────►│ busca        │
-                    └──────────────┘
-                    ┌──────────────┐
-4.H ───────────────►│ perfis+notif │
-                    └──────────────┘
-                                   ┌──────────┐
-4.I ──────────────────────────────►│ diff E2E │
-                                   └──────────┘
-```
-
-**Fases de execução (sob coordenação do agente principal):**
-
-| Fase | Subagentes paralelos | Branches base | Critério pra avançar |
-|---|---|---|---|
-| **F1** (1 semana) | 4.A + 4.B | `main` | Ambos branches verdes e mergeados em `feat/headless-marco4-base` |
-| **F2** (~1 semana) | 4.C + 4.D + 4.E + 4.F + 4.G + 4.H | `feat/headless-marco4-base` | Todas as 6 branches verdes |
-| **F3** (~3 dias) | Merge das 6 branches em `feat/headless-marco4-spa`; resolver conflitos (esperados em `+layout.svelte` por 4.F) | — | Branch unificada verde |
-| **F4** (~2 dias) | 4.I (sequencial, sozinho) na branch unificada | `feat/headless-marco4-spa` | Visual diff ≥95% |
-| **F5** | Abrir 2 PRs contra `main`: schema e SPA | — | Auto-merge fecha ambos |
-
-**Ganho estimado:** F1+F2+F3+F4 ≈ 2,5-3 semanas vs. 4-5 semanas sequenciais.
-
-**Riscos da paralelização:**
-- **Conflitos de merge na F3.** Mitigação: 4.B (shell) cria slots/placeholders para player (4.F) e cards (4.C). Cada sub-marco frontend toca arquivos disjuntos por contrato (tabelas TDD já desenharam isso).
-- **Schema do 4.A muda durante 4.B**: 4.B não depende de schema novo, então não é afetado. 4.C-4.H pegam o SDL definitivo após 4.A mergeado.
-- **Subagente travado em decisão de design.** Mitigação: critério 6 do contrato (pausar e reportar). Coordenador resolve, atualiza briefing, re-spawna se necessário.
-- **Custo de tokens.** 6 subagentes simultâneos em F2 ≈ 6× contexto. Aceitável pela aceleração.
-
-**Coordenação prática (agente principal, isto é, eu):**
-- F1: 2 chamadas `Agent` em paralelo num único turno (4.A + 4.B).
-- F2: 6 chamadas `Agent` em paralelo num único turno.
-- Entre fases: verificar branches (`git log`, `pnpm test`, `pytest`), resolver conflitos manualmente, abrir PRs.
-- **NÃO** delegar a abertura de PRs aos subagentes — fica no agente principal pra controle e aplicação do auto-merge.
-
-**Marcos 5+ usam o mesmo padrão**, ajustado pela coesão do marco. Marco 5 (CRUD editorial) tem menos paralelização possível porque mutations compartilham mais código; provável split: 2 subagentes (backend mutations + frontend editor UI). Marco 6 (offline PWA) é predominantemente sequencial (service worker + Dexie + Workbox são uma stack acoplada).
-
 ### Marco 5 — CRUD editorial + permissões
 
 **Objetivo:** expor todas as mutations editoriais via GraphQL e reescrever o workspace `/editor/` em SvelteKit, com paridade funcional completa ao Django atual (`editor_views.py`, `views.py`, `views_social.py`). Inclui CRUD de hinários e hinos, fluxo de revisão com diff visual OCR↔texto, aprovação de áudios, follow/unfollow e marcação de notificações.
@@ -901,6 +775,168 @@ Não detalhado neste plano. Cobrirá:
 - Mutation `loginWithPassword` retorna `accessToken + refreshToken`.
 - Push notifications via Expo Push + signals Django.
 - Code-share via monorepo (`/packages/graphql-types` com tipos gerados consumidos por `web/` e `mobile/`).
+
+---
+
+## Política de consolidação de PRs
+
+**Princípio:** sub-marcos existem pra **disciplina de TDD e planejamento**, não pra serem PRs separados. Cada sub-marco continua sendo uma sequência de commits (1 por ciclo TDD) num branch local; o que vai pra `main` é um PR por Marco semântico.
+
+**Histórico (Marcos 1-3) — o que fazer com o que já está aberto:**
+- PR #51 (Marco 1) tem auto-merge → aguardar fechar; `main` ganha 1 commit squash com Marco 1.
+- PR #52 (Marco 2) já foi mergeado no branch do Marco 1 — não vai virar PR separado contra `main`.
+- PR #53 (Marco 3) foi rebaseado sobre Marco 1, então contém Marco 2 + Marco 3. Renomear título do PR pra refletir ("Marcos 2 + 3: mutations + auth + SvelteKit skeleton"). Auto-merge fecha → `main` ganha 1 commit squash com Marcos 2+3.
+- **Resultado retroativo:** 2 commits em `main` (Marco 1; Marcos 2+3), não 3 PRs.
+
+**Daqui pra frente — 1 PR por Marco como regra:**
+
+| Marco | PRs contra `main` | Justificativa |
+|---|---|---|
+| Marco 4 | **2 PRs** (4.A schema + 4.B-I SPA) | Schema é backend isolado, contrato discreto; SPA é monolítica |
+| Marco 5 | **1 PR** | CRUD editorial é coeso; backend e frontend andam juntos |
+| Marco 6 | **1 PR** | PWA offline é uma feature transversal — rollback unitário tem que ser possível |
+| Marco 7 | **1 PR** | Cutover é cirurgia única |
+
+**Total daqui em diante: 5 PRs** (Marco 4 split + Marcos 5, 6, 7 individuais), em vez dos ~30 do plano original (1 PR por sub-marco).
+
+**Mecânica de cada PR:**
+- Branch base: **`development`** (não `main` — staging buffer pré-deploy; ver "Workflow de desenvolvimento — duas etapas" abaixo).
+- Branch-mãe do Marco: `feat/headless-marco<N>` (ou `marco4-schema` e `marco4-spa` no caso de Marco 4).
+- Cada sub-marco vira **uma seção do PR description** com sua tabela de ciclos TDD + lista dos commits que cobrem essa seção. Revisor (você) varre por sub-marco; merge é único squash.
+- Auto-merge ativado imediatamente após criar a PR (memória `feedback_auto_merge`).
+- CI roda contra a soma de tudo — sub-marco quebrado **dentro** da branch-mãe não passa: a disciplina é rodar `pnpm test && pnpm check && uv run pytest` localmente a cada ciclo.
+
+**Trade-offs aceitos:**
+- ✅ Menos overhead de revisão, menos CI runs caros, `main` com histórico semântico claro.
+- ❌ PRs maiores (Marco 4 SPA chega a ~3k LOC). Mitigação: revisão guiada pelas seções de sub-marco no PR description.
+- ❌ Rollback granular (sub-marco isolado) requer `git revert <commit-range>`, não `revert <PR>`. Aceito porque sub-marcos dentro de um Marco são interdependentes na prática.
+
+---
+
+## Workflow de desenvolvimento — duas etapas (`development` → `main`)
+
+**Problema:** `main` tem auto-deploy pra Railway via `.github/workflows/deploy.yml`. Cada PR mergeado em `main` virava deploy imediato — sem buffer pra integrar mudanças vindas em paralelo (Marco 4 SPA + outras PRs UX) antes que produção sentisse o impacto.
+
+**Solução:** introduzir `development` como branch de staging entre features e produção:
+
+```
+feature/* ─PR─▶ development ─PR(release)─▶ main ─auto-deploy─▶ Railway
+```
+
+**Regras:**
+- **Todo PR de feature aponta pra `development`** (não pra `main`). CI roda normal.
+- **Push em `development` NÃO dispara deploy** — só rodam CI checks.
+- **`main` só recebe PR vindo de `development`** ("release PRs"). São abertos manualmente quando estiver hora de promover (`gh pr create --base main --head development --title "release: <data ou resumo>"`).
+- Branch protection:
+  - `main`: required checks (Lint/Unit/E2E), `strict: true`, `enforce_admins: true`.
+  - `development`: required checks idênticos, `strict: true`, `enforce_admins: false` (admin pode pushar direto em emergências).
+
+**Implicação prática pros marcos restantes deste plano:**
+- Sub-marco 4.I, Marco 5, Marco 6, Marco 7 — todos os PRs apontam pra `development`.
+- Quando um conjunto de marcos estiver estável em `development`, abre-se um release PR `development → main` pra promover.
+- Marco 7 (cutover) é a primeira release PR que efetivamente troca a UI servida — o último de muitas mergeagens em development.
+
+**Setup operacional** (já feito):
+- Branch `development` criada apontando pro HEAD de `main` em 2026-06-16.
+- Protections aplicadas via `gh api -X PUT /repos/.../branches/<branch>/protection`.
+- PRs #51, #55, #56 retargetados pra `development`.
+- Workflow `ci.yml` ajustado pra rodar em PRs contra `development`.
+- Workflow `deploy.yml` continua disparando apenas em `push: branches: [main]`.
+
+---
+
+## Estratégia de execução com subagentes
+
+**Princípio:** cada sub-marco é uma **unidade autocontida e testável** — ideal pra delegação a um subagente. O subagente recebe um briefing fechado, opera em git worktree isolado, e só conclui quando todos os testes + lint estão verdes.
+
+**Tipo de subagente:** `general-purpose` (workhorse) com `isolation: "worktree"`. Cada subagente recebe uma cópia git isolada do repo — sem conflitos com trabalho paralelo.
+
+**Contrato de cada subagente (briefing fechado):**
+1. **Escopo:** identificador do sub-marco (ex: "4.D — Detalhe do hinário, 3 modos").
+2. **Branch:** nome do branch a criar a partir da base indicada.
+3. **Tabela de ciclos TDD:** copiada literalmente do plano. O subagente percorre na ordem: RED → GREEN → commit → próximo.
+4. **Arquivos a criar/editar:** lista explícita.
+5. **Critério de "concluído":**
+   - Todos os ciclos da tabela com commit.
+   - `pnpm test && pnpm check && pnpm build` no `web/` verdes (ou `uv run pytest tests/unit/api/ && uv run black --check . && uv run isort --check-only . && uv run ruff check .` em sub-marcos backend).
+   - Lint passa.
+   - Subagente **NÃO** abre PR; apenas garante a branch verde e reporta o SHA final. O coordenador (eu) faz o merge na branch-mãe.
+6. **Restrições fixas:**
+   - PT-BR em strings de usuário.
+   - Sem `--no-verify`.
+   - Sem `git push --force`.
+   - Reusar helpers existentes (`can_edit_hymnbook`, `_is_editor_or_admin`, `HymnForm`, etc.) em vez de reescrever.
+   - Se um teste falhar de forma irrecuperável (ex: precisa de decisão de design), pausar e reportar — não improvisar.
+
+**Plano de paralelização do Marco 4:**
+
+Análise de dependências:
+- **4.A** (schema GraphQL): backend puro. Sem dependências. Bloqueia 4.C-4.H (codegen do cliente lê SDL).
+- **4.B** (layout shell + tokens + tipografia): frontend puro. Sem dependências do schema novo (usa só queries do Marco 1-3). **Pode rodar paralelo com 4.A**.
+- **4.C, 4.D, 4.E, 4.G, 4.H** (rotas read-only): cada uma toca rotas/componentes disjuntos. Dependem de 4.A (SDL) e 4.B (shell). **Podem rodar todas em paralelo**.
+- **4.F** (player global persistente): modifica `+layout.svelte` (mesmo arquivo de 4.B). **Sequencial após 4.B**; **paralelo com 4.C-4.H** se 4.B já estiver mergeado.
+- **4.I** (visual diff E2E): precisa de tudo. **Sequencial no fim**.
+
+**Linha do tempo proposta:**
+
+```
+Tempo →    Semana 1         Semana 2              Semana 3
+          ┌─────────┐
+4.A ─────►│ schema  │
+          └─────────┘
+          ┌─────────┐
+4.B ─────►│ shell   │
+          └─────────┘
+                    ┌──────────────┐
+4.C ───────────────►│ home + lista │
+                    └──────────────┘
+                    ┌──────────────┐
+4.D ───────────────►│ hinário 3mod │
+                    └──────────────┘
+                    ┌──────────────┐
+4.E ───────────────►│ hino único   │
+                    └──────────────┘
+                    ┌──────────────┐
+4.F ───────────────►│ player       │
+                    └──────────────┘
+                    ┌──────────────┐
+4.G ───────────────►│ busca        │
+                    └──────────────┘
+                    ┌──────────────┐
+4.H ───────────────►│ perfis+notif │
+                    └──────────────┘
+                                   ┌──────────┐
+4.I ──────────────────────────────►│ diff E2E │
+                                   └──────────┘
+```
+
+**Fases de execução (sob coordenação do agente principal):**
+
+| Fase | Subagentes paralelos | Branches base | Critério pra avançar |
+|---|---|---|---|
+| **F1** (1 semana) | 4.A + 4.B | `main` | Ambos branches verdes e mergeados em `feat/headless-marco4-base` |
+| **F2** (~1 semana) | 4.C + 4.D + 4.E + 4.F + 4.G + 4.H | `feat/headless-marco4-base` | Todas as 6 branches verdes |
+| **F3** (~3 dias) | Merge das 6 branches em `feat/headless-marco4-spa`; resolver conflitos (esperados em `+layout.svelte` por 4.F) | — | Branch unificada verde |
+| **F4** (~2 dias) | 4.I (sequencial, sozinho) na branch unificada | `feat/headless-marco4-spa` | Visual diff ≥95% |
+| **F5** | Abrir 2 PRs contra `main`: schema e SPA | — | Auto-merge fecha ambos |
+
+**Ganho estimado:** F1+F2+F3+F4 ≈ 2,5-3 semanas vs. 4-5 semanas sequenciais.
+
+**Riscos da paralelização:**
+- **Conflitos de merge na F3.** Mitigação: 4.B (shell) cria slots/placeholders para player (4.F) e cards (4.C). Cada sub-marco frontend toca arquivos disjuntos por contrato (tabelas TDD já desenharam isso).
+- **Schema do 4.A muda durante 4.B**: 4.B não depende de schema novo, então não é afetado. 4.C-4.H pegam o SDL definitivo após 4.A mergeado.
+- **Subagente travado em decisão de design.** Mitigação: critério 6 do contrato (pausar e reportar). Coordenador resolve, atualiza briefing, re-spawna se necessário.
+- **Custo de tokens.** 6 subagentes simultâneos em F2 ≈ 6× contexto. Aceitável pela aceleração.
+
+**Coordenação prática (agente principal, isto é, eu):**
+- F1: 2 chamadas `Agent` em paralelo num único turno (4.A + 4.B).
+- F2: 6 chamadas `Agent` em paralelo num único turno.
+- Entre fases: verificar branches (`git log`, `pnpm test`, `pytest`), resolver conflitos manualmente, abrir PRs.
+- **NÃO** delegar a abertura de PRs aos subagentes — fica no agente principal pra controle e aplicação do auto-merge.
+
+**Marcos 5+ usam o mesmo padrão**, ajustado pela coesão do marco. Marco 5 (CRUD editorial) tem menos paralelização possível porque mutations compartilham mais código; provável split: 2 subagentes (backend mutations + frontend editor UI). Marco 6 (offline PWA) é predominantemente sequencial (service worker + Dexie + Workbox são uma stack acoplada).
+
+---
 
 ## Riscos & mitigações
 
