@@ -37,6 +37,13 @@ uv run pytest tests/e2e/ -v         # E2E (requires a live server on :9000)
 uv run python tests/e2e/validate_fase2.py     # screenshot-driven Phase 2 visual validation
 ```
 
+There is a **fourth** job in a separate workflow (`.github/workflows/ci-web.yml`, job "Web Test & Build"): `svelte-check` + Vitest + `pnpm build` for `web/`. It is **not** a required status check, so a red `web/` does not block a merge — worth knowing before trusting a green PR.
+
+Two CI traps were fixed on 2026-08-26; don't reintroduce either:
+- `ci-web.yml` filtered `branches: [main, develop]` while the integration branch is `development`. The job never ran on any feature PR, which is how a merge regression that broke `pnpm build` reached `development` unnoticed.
+- `ci.yml` had `paths-ignore: ['_design/**', '_plan/**']`. Combined with required status checks, a docs-only PR never triggers the workflow, the three contexts never report, and the PR is `BLOCKED` forever with nothing to re-run. (Workaround previously used: a whitespace commit to force the trigger.) **Do not add `paths-ignore` back to a workflow whose jobs are required checks.**
+- `ffmpeg` comes from the runner's `apt`, not from `FedericoCarboni/setup-ffmpeg@v3` — that action downloads a third-party release and failed with `TypeError: fetch failed` in 6 of 40 runs, killing the job before pytest ran (and making codecov complain about a missing `coverage.xml`, which hides the real cause in the log).
+
 CI on every PR runs three jobs (`.github/workflows/ci.yml`):
 1. **Lint** — `black --check`, `isort --check-only`, `ruff check`.
 2. **Unit tests** — needs `ffmpeg` installed at runtime (already added to the workflow).
@@ -65,7 +72,7 @@ feature/* ─PR─▶ development ─PR─▶ main ─auto-deploy─▶ Railway
 
 #### Protection on `development`
 - Same required status checks as `main`.
-- **strict: true** — branch must be up to date with `development` before merging into it.
+- **strict: false** (changed 2026-08-26) — a PR branch does **not** need to be up to date before merging. It used to be `true`, but with several PRs queued behind auto-merge, every merge left the others `BEHIND` and GitHub's auto-merge does **not** press "Update branch" — the queue stalled after each merge and needed a manual nudge per PR. Trade-off accepted: a PR tested against an older base can merge, so semantic conflicts (green PR + green base = broken merge) are possible. `main` keeps `strict: true`, since that is the branch that deploys.
 - **enforce_admins: false** — admin can push directly if needed for emergency fixes, though normal flow is still feature → PR → squash.
 - `allow_force_pushes: false`, `allow_deletions: false`.
 
