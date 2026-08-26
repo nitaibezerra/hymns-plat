@@ -15,10 +15,18 @@
    * está em `editable_fields`). Enquanto o schema não expuser, editar aqui
    * seria mentira de UI.
    */
+  import { AUTOSAVE_DELAY_MS, debounce, formatSavedAt } from "$lib/autosave";
   import InlineDiff from "$lib/components/editor/InlineDiff.svelte";
   import OcrConfidenceBar from "$lib/components/editor/OcrConfidenceBar.svelte";
   import RepetitionPills from "$lib/components/editor/RepetitionPills.svelte";
   import StylePills from "$lib/components/editor/StylePills.svelte";
+  import { GRAPHQL_URL } from "$lib/config";
+  import { getCsrfTokenFromCookie } from "$lib/graphql/client";
+  import { gqlFetch } from "$lib/graphql/fetcher";
+  import {
+    SET_REVIEW_STATUS_MUTATION,
+    UPDATE_HYMN_MUTATION,
+  } from "$lib/graphql/operations/revise-hymn";
 
   import type { PageData } from "./$types";
   import type { ReviewStatus } from "./+page";
@@ -68,14 +76,161 @@
   // svelte-ignore state_referenced_locally
   let seededId: string | null = data.hymn?.id ?? null;
 
+  let previewLines = $derived(form.text.split("\n"));
+
+  /* ===== 5C.8 · autosave ===================================================
+   *
+   * Um `$effect` observa o formulário inteiro; qualquer mudança agenda o
+   * `updateHymn` para 2s depois do último toque. Autosave **não redireciona**
+   * (é o ponto do ciclo) e só troca o rótulo do rodapé.
+   *
+   * O gatilho é a comparação com o último snapshot persistido, não um "já
+   * montei" — assim o mount nunca dispara mutation e a re-semeadura ao
+   * avançar de hino também não.
+   *
+   * `reviewStatus` não cabe em `HymnUpdateInput`; quando o segmentado muda, o
+   * autosave manda um `setReviewStatus` em seguida (a view Django salvava
+   * `review_status` no mesmo POST de autosave — mantemos a paridade de
+   * comportamento com duas mutations).
+   */
+  type AutosaveState = "idle" | "pending" | "saving" | "saved" | "error";
+
+  function snapshotOf(value: FormState): string {
+    return JSON.stringify([
+      value.number,
+      value.title,
+      value.text,
+      value.repetitions,
+      value.style,
+      value.offeredTo,
+      value.section,
+      value.extraInstructions,
+      value.reviewStatus,
+    ]);
+  }
+
+  // svelte-ignore state_referenced_locally
+  let persistedSnapshot = snapshotOf(form);
+  // svelte-ignore state_referenced_locally
+  let persistedStatus: ReviewStatus = form.reviewStatus;
+
+  let autosaveState = $state<AutosaveState>("idle");
+  let autosaveMessage = $state("");
+  let savedLabel = $state("");
+
+  let autosaveLabel = $derived.by(() => {
+    if (autosaveState === "pending") return "Alterações não salvas…";
+    if (autosaveState === "saving") return "Salvando…";
+    if (autosaveState === "error") return autosaveMessage || "Erro ao salvar.";
+    if (autosaveState === "saved") return savedLabel;
+    return "—";
+  });
+
+  function buildUpdateInput() {
+    return {
+      number: Number(form.number),
+      title: form.title,
+      text: form.text,
+      repetitions: form.repetitions,
+      style: form.style,
+      offeredTo: form.offeredTo,
+      section: form.section,
+      extraInstructions: form.extraInstructions,
+    };
+  }
+
+  interface MutationPayload {
+    __typename: string;
+    message?: string;
+  }
+
+  /** Roda `updateHymn` (+ `setReviewStatus` se preciso). Devolve `ok`. */
+  async function persistForm(): Promise<boolean> {
+    const hymn = data.hymn;
+    if (!hymn) return false;
+
+    const snapshot = snapshotOf(form);
+    const status = form.reviewStatus;
+    autosaveState = "saving";
+    autosaveMessage = "";
+
+    try {
+      const response = await gqlFetch<{ updateHymn: MutationPayload }>(
+        globalThis.fetch,
+        GRAPHQL_URL,
+        UPDATE_HYMN_MUTATION,
+        { pk: hymn.id, input: buildUpdateInput() },
+        { csrfToken: getCsrfTokenFromCookie() },
+      );
+      const payload = response.data?.updateHymn;
+      if (response.errors?.length || !payload || payload.__typename !== "HymnType") {
+        autosaveState = "error";
+        autosaveMessage =
+          response.errors?.[0]?.message ?? payload?.message ?? "Não foi possível salvar.";
+        return false;
+      }
+
+      if (status !== persistedStatus) {
+        const statusResponse = await gqlFetch<{ setReviewStatus: MutationPayload }>(
+          globalThis.fetch,
+          GRAPHQL_URL,
+          SET_REVIEW_STATUS_MUTATION,
+          { pk: hymn.id, status },
+          { csrfToken: getCsrfTokenFromCookie() },
+        );
+        const statusPayload = statusResponse.data?.setReviewStatus;
+        if (
+          statusResponse.errors?.length ||
+          !statusPayload ||
+          statusPayload.__typename !== "HymnType"
+        ) {
+          autosaveState = "error";
+          autosaveMessage =
+            statusResponse.errors?.[0]?.message ??
+            statusPayload?.message ??
+            "Não foi possível salvar o status.";
+          return false;
+        }
+        persistedStatus = status;
+      }
+
+      persistedSnapshot = snapshot;
+      savedLabel = formatSavedAt(new Date());
+      autosaveState = "saved";
+      return true;
+    } catch {
+      autosaveState = "error";
+      autosaveMessage = "Falha de rede ao salvar.";
+      return false;
+    }
+  }
+
+  const scheduleAutosave = debounce(() => {
+    void persistForm();
+  }, AUTOSAVE_DELAY_MS);
+
   $effect(() => {
     const id = data.hymn?.id ?? null;
     if (id === seededId) return;
     seededId = id;
-    Object.assign(form, seedForm(data.hymn));
+    scheduleAutosave.cancel();
+    const fresh = seedForm(data.hymn);
+    persistedSnapshot = snapshotOf(fresh);
+    persistedStatus = fresh.reviewStatus;
+    autosaveState = "idle";
+    autosaveMessage = "";
+    savedLabel = "";
+    Object.assign(form, fresh);
   });
 
-  let previewLines = $derived(form.text.split("\n"));
+  $effect(() => {
+    const current = snapshotOf(form);
+    if (current === persistedSnapshot) return;
+    autosaveState = "pending";
+    scheduleAutosave();
+  });
+
+  $effect(() => () => scheduleAutosave.cancel());
 </script>
 
 <section data-testid="revise-hymn">
@@ -197,6 +352,13 @@
         </div>
       </section>
     </div>
+
+    <footer class="action-bar">
+      <a class="btn-ghost" href="/editor/hinarios/{data.hymn.hymnBook.slug}">← Voltar</a>
+      <span class="autosave-status" data-testid="autosave-status" data-state={autosaveState}>
+        {autosaveLabel}
+      </span>
+    </footer>
   {/if}
 </section>
 
@@ -436,5 +598,50 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .action-bar {
+    align-items: center;
+    background: var(--color-bg);
+    border-top: 1px solid var(--color-border);
+    bottom: 0;
+    box-shadow: 0 -8px 20px var(--color-shadow);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.875rem 1.5rem;
+    position: sticky;
+    z-index: 10;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-soft);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    padding: 0.5rem 0.875rem;
+  }
+
+  .btn-ghost:hover {
+    border-color: var(--color-gold);
+  }
+
+  .autosave-status {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    margin-left: auto;
+  }
+
+  .autosave-status[data-state="error"] {
+    color: var(--color-status-not);
+  }
+
+  .autosave-status[data-state="saved"] {
+    color: var(--color-status-ok);
   }
 </style>

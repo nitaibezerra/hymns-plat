@@ -7,14 +7,31 @@
  */
 
 import { fireEvent, render, screen } from "@testing-library/svelte";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { goto } from "$app/navigation";
 import Page from "./+page.svelte";
 import type { ReviseHymnData } from "./+page";
 
 vi.mock("$app/navigation", () => ({
   goto: vi.fn(),
 }));
+
+/** Stub de `globalThis.fetch` que devolve sempre o mesmo payload GraphQL. */
+function stubFetch(payload: unknown, status = 200) {
+  const fn = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+  vi.stubGlobal("fetch", fn);
+  return fn;
+}
+
+function bodyOf(fn: ReturnType<typeof vi.fn>, callIndex = 0) {
+  return JSON.parse(fn.mock.calls[callIndex][1].body as string);
+}
 
 export const sampleData: ReviseHymnData & { currentUser: null } = {
   currentUser: null,
@@ -169,5 +186,105 @@ describe("5C.7 — pílulas de repetição preenchem o campo", () => {
     expect(
       screen.getAllByTestId("repetition-suggestion").map((el) => el.textContent?.trim()),
     ).toEqual(["5-8"]);
+  });
+});
+
+describe("5C.8 — autosave com debounce de 2s", () => {
+  beforeEach(() => {
+    vi.mocked(goto).mockClear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("não salva nada no mount (formulário intocado)", async () => {
+    const fetchFn = stubFetch({ data: { updateHymn: { __typename: "HymnType", id: "h-1" } } });
+    render(Page, { props: { data: sampleData } });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(screen.getByTestId("autosave-status")).toHaveTextContent("—");
+  });
+
+  it("espera 2s de silêncio antes de chamar updateHymn", async () => {
+    const fetchFn = stubFetch({
+      data: { updateHymn: { __typename: "HymnType", id: "h-1", number: 7, title: "Novo" } },
+    });
+    render(Page, { props: { data: sampleData } });
+
+    await fireEvent.input(screen.getByLabelText("Título"), { target: { value: "Novo" } });
+    expect(screen.getByTestId("autosave-status")).toHaveTextContent("Alterações não salvas");
+
+    await vi.advanceTimersByTimeAsync(1900);
+    expect(fetchFn).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(200);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const body = bodyOf(fetchFn);
+    expect(body.query).toContain("updateHymn");
+    expect(body.variables.pk).toBe("h-1");
+    expect(body.variables.input.title).toBe("Novo");
+    expect(body.variables.input.text).toBe("Eu vou subindo\nEu vou subindo");
+  });
+
+  it("colapsa uma rajada de digitação numa única mutation", async () => {
+    const fetchFn = stubFetch({ data: { updateHymn: { __typename: "HymnType", id: "h-1" } } });
+    render(Page, { props: { data: sampleData } });
+    const input = screen.getByLabelText("Título");
+
+    for (const value of ["E", "Es", "Est", "Estr"]) {
+      await fireEvent.input(input, { target: { value } });
+      await vi.advanceTimersByTimeAsync(300);
+    }
+    expect(fetchFn).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(bodyOf(fetchFn).variables.input.title).toBe("Estr");
+  });
+
+  it("autosave NÃO redireciona e mostra `Salvo às HH:MM`", async () => {
+    stubFetch({ data: { updateHymn: { __typename: "HymnType", id: "h-1" } } });
+    render(Page, { props: { data: sampleData } });
+
+    await fireEvent.input(screen.getByLabelText("Letra"), { target: { value: "Outra letra" } });
+    await vi.advanceTimersByTimeAsync(2100);
+
+    expect(goto).not.toHaveBeenCalled();
+    expect(screen.getByTestId("autosave-status").textContent?.trim() ?? "").toMatch(
+      /^Salvo às \d{2}:\d{2}$/,
+    );
+  });
+
+  it("erro de permissão no autosave vira aviso, não redirect", async () => {
+    stubFetch({
+      data: { updateHymn: { __typename: "PermissionDeniedError", message: "Sem permissão." } },
+    });
+    render(Page, { props: { data: sampleData } });
+
+    await fireEvent.input(screen.getByLabelText("Título"), { target: { value: "X" } });
+    await vi.advanceTimersByTimeAsync(2100);
+
+    expect(goto).not.toHaveBeenCalled();
+    expect(screen.getByTestId("autosave-status")).toHaveTextContent("Sem permissão.");
+  });
+
+  it("mudança de status de revisão também é persistida (setReviewStatus)", async () => {
+    const fetchFn = stubFetch({
+      data: {
+        updateHymn: { __typename: "HymnType", id: "h-1" },
+        setReviewStatus: { __typename: "HymnType", id: "h-1", reviewStatus: "REVIEWED" },
+      },
+    });
+    render(Page, { props: { data: sampleData } });
+
+    await fireEvent.click(screen.getByLabelText("Revisado"));
+    await vi.advanceTimersByTimeAsync(2100);
+
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    const second = bodyOf(fetchFn, 1);
+    expect(second.query).toContain("setReviewStatus");
+    expect(second.variables).toEqual({ pk: "h-1", status: "REVIEWED" });
   });
 });
