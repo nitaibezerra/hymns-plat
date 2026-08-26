@@ -96,6 +96,9 @@
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
   }
 
+  /** 5C.14 — divergência inutiliza a avaliação de qualidade. */
+  let qualityDisabled = $derived(isMatch === false);
+
   function toggleObservation(value: string) {
     observations = observations.includes(value)
       ? observations.filter((item) => item !== value)
@@ -160,7 +163,11 @@
         </div>
       </div>
 
-      <div class="quality-block">
+      <!-- 5C.14 — divergência desabilita o bloco de qualidade inteiro. O
+           template Django *esconde* o bloco; aqui ele fica visível e inerte,
+           que é o comportamento pedido pelo ciclo (o editor continua vendo o
+           que havia avaliado antes de sinalizar a divergência). -->
+      <fieldset class="quality-block" disabled={isMatch === false}>
         <p class="block-title">Qualidade da gravação</p>
         <p class="block-help">Ajuda a priorizar uploads melhores no futuro.</p>
         <div class="stars">
@@ -172,6 +179,7 @@
               data-rating={value}
               data-active={rating !== null && value <= rating ? "true" : "false"}
               aria-pressed={rating !== null && value <= rating}
+              disabled={qualityDisabled}
               onclick={() => (rating = rating === value ? null : value)}
             >
               {value}
@@ -187,33 +195,39 @@
               data-testid="observation-chip"
               data-active={observations.includes(observation) ? "true" : "false"}
               aria-pressed={observations.includes(observation)}
+              disabled={qualityDisabled}
               onclick={() => toggleObservation(observation)}
             >
               {observation}
             </button>
           {/each}
         </div>
-      </div>
+      </fieldset>
 
-      <div class="mismatch-block">
-        <p class="block-title">Motivo da divergência</p>
-        <div class="chips">
-          {#each MISMATCH_REASONS as reason (reason.value)}
-            <button
-              class="chip"
-              type="button"
-              data-testid="mismatch-chip"
-              data-value={reason.value}
-              data-active={mismatchReason === reason.value ? "true" : "false"}
-              aria-pressed={mismatchReason === reason.value}
-              onclick={() =>
-                (mismatchReason = mismatchReason === reason.value ? "" : reason.value)}
-            >
-              {reason.label}
-            </button>
-          {/each}
+      {#if isMatch === false}
+        <div class="mismatch-block" data-testid="mismatch-block">
+          <p class="block-title">
+            <strong>Áudio sinalizado.</strong> Vai para a fila de revisão de moderador. Marque o
+            motivo:
+          </p>
+          <div class="chips">
+            {#each MISMATCH_REASONS as reason (reason.value)}
+              <button
+                class="chip"
+                type="button"
+                data-testid="mismatch-chip"
+                data-value={reason.value}
+                data-active={mismatchReason === reason.value ? "true" : "false"}
+                aria-pressed={mismatchReason === reason.value}
+                onclick={() =>
+                  (mismatchReason = mismatchReason === reason.value ? "" : reason.value)}
+              >
+                {reason.label}
+              </button>
+            {/each}
+          </div>
         </div>
-      </div>
+      {/if}
 
       <p class="audio-note" data-testid="audio-review-note">
         Registrar a revisão não aprova o áudio — a aprovação é um passo separado.
@@ -319,11 +333,17 @@
 
   .quality-block,
   .mismatch-block {
+    border: 0;
     border-top: 1px solid var(--color-border-soft);
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    padding-top: 0.875rem;
+    margin: 0;
+    padding: 0.875rem 0 0;
+  }
+
+  .quality-block:disabled {
+    opacity: 0.45;
   }
 
   .stars {

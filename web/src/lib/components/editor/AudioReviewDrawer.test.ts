@@ -145,3 +145,55 @@ describe("AudioReviewDrawer — 5C.13", () => {
     );
   });
 });
+
+describe("AudioReviewDrawer — 5C.14 (divergência)", () => {
+  beforeEach(() => {
+    audioPlayer.reset();
+  });
+
+  it("sem resposta ainda: motivo escondido, rating habilitado", () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    expect(screen.queryByTestId("mismatch-block")).toBeNull();
+    expect((screen.getAllByTestId("quality-star")[0] as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("`Confere` mantém o motivo escondido e o rating habilitado", async () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    expect(screen.queryByTestId("mismatch-block")).toBeNull();
+    expect((screen.getAllByTestId("quality-star")[0] as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("`Não confere` exibe o selector de motivo e desabilita o rating", async () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    await fireEvent.click(screen.getByTestId("audio-match-no"));
+
+    expect(screen.getByTestId("mismatch-block")).toBeInTheDocument();
+    expect(screen.getAllByTestId("mismatch-chip")).toHaveLength(5);
+    for (const star of screen.getAllByTestId("quality-star")) {
+      expect((star as HTMLButtonElement).disabled).toBe(true);
+    }
+    for (const chip of screen.getAllByTestId("observation-chip")) {
+      expect((chip as HTMLButtonElement).disabled).toBe(true);
+    }
+  });
+
+  it("escolher o motivo marca o chip", async () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    await fireEvent.click(screen.getByTestId("audio-match-no"));
+
+    const chip = screen.getByRole("button", { name: "Letra diferente" });
+    await fireEvent.click(chip);
+    expect(chip.dataset.active).toBe("true");
+  });
+
+  it("voltar para `Confere` esconde o motivo de novo", async () => {
+    render(AudioReviewDrawer, {
+      props: { audio: { ...AUDIO, isMatch: false, mismatchReason: "other" }, hymnTitle: "E", open: true },
+    });
+    expect(screen.getByTestId("mismatch-block")).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    expect(screen.queryByTestId("mismatch-block")).toBeNull();
+  });
+});
