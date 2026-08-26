@@ -324,6 +324,50 @@ export function suggestNextNumber(numbers: number[]): number {
   return Math.max(...numbers) + 1;
 }
 
+export interface HymnInputValues {
+  number: number;
+  title: string;
+  text: string;
+  style: string;
+  repetitions: string;
+  extraInstructions: string;
+  offeredTo: string;
+  section: string;
+}
+
+export interface HymnRef {
+  __typename: string;
+  id: string;
+  number: number;
+  title: string;
+}
+
+export const CREATE_HYMN_MUTATION = `
+  mutation CreateHymn($hymnbookSlug: String!, $input: HymnInput!) {
+    createHymn(hymnbookSlug: $hymnbookSlug, input: $input) {
+      __typename
+      ... on HymnType { id number title }
+      ... on ValidationError { message field }
+      ... on PermissionDeniedError { message }
+      ... on NotFoundError { message }
+    }
+  }
+`;
+
+export function createHymn(
+  fetchFn: typeof globalThis.fetch,
+  hymnbookSlug: string,
+  values: HymnInputValues,
+): Promise<MutationOutcome<HymnRef>> {
+  return runMutation<HymnRef>(
+    fetchFn,
+    CREATE_HYMN_MUTATION,
+    { hymnbookSlug, input: values },
+    "createHymn",
+    ["HymnType"],
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 5D.6 / 5D.7 — checklist e publicação
 // ---------------------------------------------------------------------------

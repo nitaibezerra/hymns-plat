@@ -7,8 +7,8 @@
  * 5D.9 — submit chama `createHymn` e redireciona pro hino criado.
  */
 
-import { render, screen } from "@testing-library/svelte";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { _loadNovoHymn } from "./+page";
 import Page from "./+page.svelte";
@@ -146,5 +146,84 @@ describe("/editor/hinarios/[slug]/hinos/novo — form (5D.8)", () => {
   it("mostra acesso negado quando forbidden", () => {
     render(Page, { props: { data: buildData({ forbidden: true, hymnbook: null }) } });
     expect(screen.getByTestId("editor-forbidden")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5D.9 — submit chama `createHymn` e redireciona
+// ---------------------------------------------------------------------------
+
+const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+function stubFetch(payload: unknown) {
+  const fn = vi.fn().mockResolvedValue(jsonResponse(payload));
+  globalThis.fetch = fn as unknown as typeof fetch;
+  return fn;
+}
+
+async function fillAndSubmit() {
+  await fireEvent.input(screen.getByLabelText(/título/i), { target: { value: "Sol, Lua, Estrela" } });
+  await fireEvent.input(screen.getByLabelText(/letra/i), { target: { value: "Verso 1\nVerso 2" } });
+  await fireEvent.input(screen.getByLabelText(/estilo/i), { target: { value: "Valsa" } });
+  await fireEvent.submit(screen.getByTestId("hymn-form"));
+}
+
+describe("/editor/hinarios/[slug]/hinos/novo — submit (5D.9)", () => {
+  it("chama createHymn com hymnbookSlug + input", async () => {
+    const fetchFn = stubFetch({
+      data: { createHymn: { __typename: "HymnType", id: "h9", number: 8, title: "Sol, Lua, Estrela" } },
+    });
+    render(Page, { props: { data: buildData() } });
+    await fillAndSubmit();
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.query).toContain("createHymn");
+    expect(body.variables).toEqual({
+      hymnbookSlug: "cruzeiro",
+      input: {
+        number: 8,
+        title: "Sol, Lua, Estrela",
+        text: "Verso 1\nVerso 2",
+        style: "Valsa",
+        repetitions: "",
+        extraInstructions: "",
+        offeredTo: "",
+        section: "",
+      },
+    });
+  });
+
+  it("redireciona pro hino criado", async () => {
+    stubFetch({
+      data: { createHymn: { __typename: "HymnType", id: "h9", number: 8, title: "Sol, Lua, Estrela" } },
+    });
+    render(Page, { props: { data: buildData() } });
+    await fillAndSubmit();
+
+    await waitFor(() => expect(goto).toHaveBeenCalledWith("/hinos/h9"));
+  });
+
+  it("mostra ValidationError (número duplicado) e não redireciona", async () => {
+    stubFetch({
+      data: {
+        createHymn: {
+          __typename: "ValidationError",
+          message: "Já existe um hino com o número 8 neste hinário.",
+          field: "number",
+        },
+      },
+    });
+    render(Page, { props: { data: buildData() } });
+    await fillAndSubmit();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("form-error")).toHaveTextContent(/já existe um hino com o número 8/i),
+    );
+    expect(goto).not.toHaveBeenCalled();
   });
 });
