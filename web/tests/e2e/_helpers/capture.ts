@@ -20,6 +20,8 @@
  *   renderiza no servidor com `|timesince` e o SvelteKit formata no cliente.
  *   Congelar o relógio do browser não resolveria esse caso justamente porque
  *   um dos lados calcula o texto no servidor; mascarar resolve.
+ * - **Esconder** (`hide`) o chrome que existe só num dos lados — o
+ *   `django-debug-toolbar` do dev server, que cobre ~17% da viewport.
  */
 
 import type { Page } from "@playwright/test";
@@ -47,6 +49,14 @@ const prepared = new WeakSet<Page>();
 export type CaptureOptions = {
   /** Seletores CSS cobertos com cor chapada antes da captura. */
   mask?: string[];
+  /**
+   * Seletores escondidos (`display: none`) antes da captura — pra chrome que
+   * existe só num dos lados. O caso real é o `django-debug-toolbar`: painel
+   * fixo que ocupa ~17% da viewport no dev server do Django e não existe no
+   * shell. Mascarar não resolveria (a máscara viraria diff contra o lado sem
+   * painel); esconder faz a página renderizar como sem ele.
+   */
+  hide?: string[];
   /** `true` captura a página inteira em vez de só a viewport. */
   fullPage?: boolean;
 };
@@ -96,6 +106,12 @@ export async function captureRouteWithDiagnostics(
   await preparePage(page);
   const response = await page.goto(url, { waitUntil: "networkidle" });
   await page.addStyleTag({ content: CSS_FREEZE });
+  const hide = options.hide ?? [];
+  if (hide.length > 0) {
+    await page.addStyleTag({
+      content: `${hide.join(", ")} { display: none !important; }`,
+    });
+  }
   await page.evaluate(async () => {
     if ("fonts" in document) {
       await document.fonts.ready;

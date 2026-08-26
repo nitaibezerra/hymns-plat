@@ -57,6 +57,13 @@ test.describe("fixture de auth (auth-fixture)", () => {
     expect(hasSessionCookie(state([]))).toBe(false);
   });
 
+  test("aponta pro form de login que realmente aceita usuário e senha", () => {
+    // O `/accounts/login/` do allauth neste projeto só oferece Google OAuth —
+    // não existe campo de senha pra postar. O login do django-admin tem, e
+    // produz um `sessionid` que vale pro app inteiro.
+    expect(describeAuthFixture()).toContain("/django-admin/login/");
+  });
+
   test("sem credencial, recusa com motivo explícito em vez de silenciar", async () => {
     const senhaOriginal = process.env.HINARIA_E2E_PASSWORD;
     delete process.env.HINARIA_E2E_PASSWORD;

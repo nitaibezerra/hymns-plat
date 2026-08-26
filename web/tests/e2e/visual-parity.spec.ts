@@ -45,6 +45,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { captureRouteWithDiagnostics } from "./_helpers/capture";
+import { contentBalance, formatRatio, inkRatio } from "./_helpers/image-diff";
 import { authenticatedContextState, describeAuthFixture } from "./_helpers/auth-fixture";
 import {
   DEFAULT_MAX_DIFF_RATIO,
@@ -76,6 +77,44 @@ const GLOBAL_MASKS = {
   svelte: [".meta"],
 };
 
+/**
+ * Chrome escondido antes da captura, porque existe só num dos lados.
+ *
+ * O `django-debug-toolbar` roda no dev server do Django (`config.settings.local`)
+ * e o painel abre expandido, cobrindo ~220px da direita da viewport — ~17% da
+ * área. Não existe no shell SvelteKit. Medido: comparando o Django contra ELE
+ * MESMO, a rota `profile` dava 1,52% de diff só pelo texto de CPU/queries do
+ * painel, que muda a cada request; contra o SvelteKit o painel inteiro entraria
+ * na conta como se fosse divergência de design.
+ */
+const GLOBAL_HIDE = {
+  django: ["#djDebug"],
+  svelte: [] as string[],
+};
+
+/**
+ * Modo auto-verificação: `HINARIA_E2E_SELF_COMPARE=1` aplica as máscaras e os
+ * `hide` do Django aos DOIS lados. Aponte as duas bases pro mesmo app e o diff
+ * tem que cair no chão de ruído — é como se prova que a suíte compara duas
+ * capturas ao vivo, e não uma baseline em disco contra si mesma (o bug do
+ * Sub-marco 4.I passaria "verde" nesse teste tanto quanto num real).
+ *
+ * ```bash
+ * HINARIA_E2E_SELF_COMPARE=1 \
+ *   HINARIA_DJANGO_BASE_URL=http://localhost:9010 \
+ *   HINARIA_SVELTE_BASE_URL=http://localhost:9010 \
+ *   pnpm test:e2e:parity
+ * ```
+ */
+const SELF_COMPARE = !!process.env.HINARIA_E2E_SELF_COMPARE;
+
+/**
+ * Equilíbrio mínimo de densidade de conteúdo entre os dois lados (ver
+ * `contentBalance`). Abaixo disso um dos lados claramente não renderizou o
+ * conteúdo, e comparar pixels não mede paridade de design.
+ */
+const MIN_CONTENT_BALANCE = 0.5;
+
 type Paths = { django: string; svelte: string };
 
 type RouteCase = {
@@ -87,6 +126,8 @@ type RouteCase = {
   maxDiffPixelRatio?: number;
   /** Máscaras extras específicas da rota. */
   masks?: { django?: string[]; svelte?: string[] };
+  /** Seletores extras a esconder, específicos da rota. */
+  hide?: { django?: string[]; svelte?: string[] };
   /** Rotas que exigem sessão autenticada. */
   requiresAuth?: boolean;
 };
@@ -212,12 +253,22 @@ test.describe("Paridade visual Django ↔ SvelteKit", () => {
       const django = await captureRouteWithDiagnostics(
         workPage,
         `${DJANGO_BASE}${paths.django}`,
-        { mask: [...GLOBAL_MASKS.django, ...(route.masks?.django ?? [])] },
+        {
+          mask: [...GLOBAL_MASKS.django, ...(route.masks?.django ?? [])],
+          hide: [...GLOBAL_HIDE.django, ...(route.hide?.django ?? [])],
+        },
       );
       const svelte = await captureRouteWithDiagnostics(
         workPage,
         `${SVELTE_BASE}${paths.svelte}`,
-        { mask: [...GLOBAL_MASKS.svelte, ...(route.masks?.svelte ?? [])] },
+        {
+          mask: SELF_COMPARE
+            ? [...GLOBAL_MASKS.django, ...(route.masks?.django ?? [])]
+            : [...GLOBAL_MASKS.svelte, ...(route.masks?.svelte ?? [])],
+          hide: SELF_COMPARE
+            ? [...GLOBAL_HIDE.django, ...(route.hide?.django ?? [])]
+            : [...GLOBAL_HIDE.svelte, ...(route.hide?.svelte ?? [])],
+        },
       );
 
       // Guardas: um percentual só significa paridade se os dois lados
@@ -245,6 +296,22 @@ test.describe("Paridade visual Django ↔ SvelteKit", () => {
           "não paridade de design — ver o bloqueador de CSRF em " +
           "_plan/marco4-diff-notes.md.",
       ).toBeNull();
+
+      // Guarda de densidade de conteúdo. Um threshold de pixel sozinho não
+      // distingue "quase igual" de "quase vazio dos dois lados": medido em
+      // 2026-08-26, `/busca/?q=luz` dava 1,74% de diff (PASSA no threshold de
+      // 5%) com o Django listando 50 resultados e o shell dizendo "Nenhum
+      // resultado". Duas páginas majoritariamente vazias batem em pixels mesmo
+      // dizendo coisas opostas.
+      const balance = contentBalance(django.png, svelte.png);
+      expect(
+        balance,
+        `Densidade de conteúdo desequilibrada em ${route.id}: Django com ` +
+          `${formatRatio(inkRatio(django.png))} de tinta contra ` +
+          `${formatRatio(inkRatio(svelte.png))} do SvelteKit ` +
+          `(equilíbrio ${formatRatio(balance)}). Um dos lados não renderizou o ` +
+          "conteúdo — o diff de pixels não significaria paridade.",
+      ).toBeGreaterThan(MIN_CONTENT_BALANCE);
 
       assertVisualParity({
         id: route.id,

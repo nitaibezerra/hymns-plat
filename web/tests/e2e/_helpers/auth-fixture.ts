@@ -2,12 +2,20 @@
  * Fixture de sessão autenticada — desbloqueia `/notificacoes/` na tabela de
  * paridade (ficou de fora do Sub-marco 4.I por falta disso).
  *
- * **Por que pelo form do allauth e não pela mutation `login`.** A mutation
- * `login` é `POST /graphql/`, que hoje exige cookie `csrftoken` + header
- * `X-CSRFToken` — o mesmo aperto de CSRF que derruba o SSR do SvelteKit. O
- * form HTML do allauth (`/accounts/login/`) resolve o CSRF sozinho: o token
- * vem no próprio HTML e o cookie vem no `Set-Cookie` do GET. Ou seja, a
- * fixture **não** depende do fix de CSRF pra funcionar.
+ * **Por que pelo form do django-admin.** Duas alternativas foram descartadas:
+ *
+ * - A mutation `login` do GraphQL é `POST /graphql/`, que hoje exige cookie
+ *   `csrftoken` + header `X-CSRFToken` — o mesmo aperto de CSRF que derruba o
+ *   SSR do SvelteKit. Amarrar a fixture nela seria amarrá-la ao bloqueador.
+ * - O `/accounts/login/` do allauth, neste projeto, renderiza **só** o botão
+ *   "Continuar com Google" (verificado no HTML servido em dev): não existe
+ *   campo de usuário/senha pra postar.
+ *
+ * O login do django-admin (`/django-admin/login/`) tem form de usuário e senha,
+ * resolve o CSRF sozinho (token no HTML, cookie no `Set-Cookie` do GET) e o
+ * `sessionid` que ele emite vale pro app inteiro — verificado: com esse cookie,
+ * `GET /notificacoes/` responde 200 com a página real em vez do "Entrar".
+ * Ou seja, a fixture **não** depende do fix de CSRF pra funcionar.
  *
  * **Por que uma sessão serve pros dois lados.** Cookie não distingue porta: o
  * `sessionid` gravado em `localhost` vale tanto pra `:9000` (Django) quanto
@@ -25,7 +33,7 @@ import type { APIRequestContext } from "@playwright/test";
 export type StorageState = Awaited<ReturnType<APIRequestContext["storageState"]>>;
 
 const DJANGO_BASE = process.env.HINARIA_DJANGO_BASE_URL ?? "http://localhost:9000";
-const LOGIN_PATH = process.env.HINARIA_E2E_LOGIN_PATH ?? "/accounts/login/";
+const LOGIN_PATH = process.env.HINARIA_E2E_LOGIN_PATH ?? "/django-admin/login/";
 const CSRF_INPUT =
   /<input[^>]*name=['"]csrfmiddlewaretoken['"][^>]*>|<input[^>]*value=['"][^'"]*['"][^>]*name=['"]csrfmiddlewaretoken['"][^>]*>/i;
 
@@ -74,9 +82,13 @@ export async function authenticatedContextState(): Promise<StorageState | null> 
     const response = await context.post(LOGIN_PATH, {
       form: {
         csrfmiddlewaretoken: csrfToken,
+        // `username` é o campo do django-admin; `login` é o do allauth.
+        // Mandar os dois deixa a fixture funcionar com qualquer um dos forms
+        // via HINARIA_E2E_LOGIN_PATH.
+        username,
         login: username,
         password,
-        remember: "on",
+        next: "/",
       },
       headers: { Referer: `${DJANGO_BASE}${LOGIN_PATH}` },
       maxRedirects: 5,

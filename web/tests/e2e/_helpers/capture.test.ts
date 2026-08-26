@@ -102,6 +102,35 @@ test.describe("captura estabilizada (capture)", () => {
     expect(shot.byteLength).toBeGreaterThan(0);
   });
 
+  test("hide remove overlay que só existe num dos lados", async ({ page }) => {
+    // O caso real é o django-debug-toolbar: um painel fixo que cobre ~17% da
+    // viewport no dev server do Django e não existe no shell SvelteKit.
+    // Mascarar não resolve (a máscara também viraria diff contra o lado sem
+    // painel); esconder faz a página renderizar como renderizaria sem ele.
+    const limpa = await serve(page, "/limpa/", PAGE_WITH_TIMESTAMP("há 5 minutos"));
+    const comOverlay = await serve(
+      page,
+      "/com-overlay/",
+      PAGE_WITH_TIMESTAMP("há 5 minutos").replace(
+        "</body>",
+        `<div id="overlay" style="position:fixed;top:0;right:0;width:220px;
+           height:100%;background:#0af"></div></body>`,
+      ),
+    );
+
+    const semHide = diffPngBuffers(
+      await captureRoute(page, limpa),
+      await captureRoute(page, comOverlay),
+    );
+    const comHide = diffPngBuffers(
+      await captureRoute(page, limpa),
+      await captureRoute(page, comOverlay, { hide: ["#overlay"] }),
+    );
+
+    expect(semHide.ratio).toBeGreaterThan(0.1);
+    expect(comHide.diffPixels).toBe(0);
+  });
+
   test("diagnóstico devolve status HTTP e HTML junto com o PNG", async ({ page }) => {
     const url = `${ORIGIN}/diagnostico/`;
     await page.route(url, (route) =>

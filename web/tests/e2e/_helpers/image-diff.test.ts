@@ -12,7 +12,7 @@
 
 import { expect, test } from "@playwright/test";
 
-import { diffPngBuffers } from "./image-diff";
+import { contentBalance, diffPngBuffers, inkRatio } from "./image-diff";
 import { BLACK, WHITE, solidPng, splitPng } from "./png-fixtures";
 
 test.describe("comparador de imagens (image-diff)", () => {
@@ -72,5 +72,31 @@ test.describe("comparador de imagens (image-diff)", () => {
     expect(result.totalPixels).toBe(400);
     expect(result.diffPixels).toBe(200);
     expect(result.ratio).toBeCloseTo(0.5, 5);
+  });
+
+  test("inkRatio mede quanto da imagem não é fundo", () => {
+    expect(inkRatio(solidPng(100, 100, WHITE))).toBe(0);
+    // 20 das 100 colunas em preto sobre fundo branco.
+    expect(inkRatio(splitPng(100, 100, 80, WHITE, BLACK))).toBeCloseTo(0.2, 2);
+  });
+
+  test("contentBalance acusa quando um lado tem muito menos conteúdo", () => {
+    const cheia = splitPng(100, 100, 50, BLACK, WHITE);
+    const quaseVazia = splitPng(100, 100, 2, BLACK, WHITE);
+
+    // Mesma quantidade de conteúdo nos dois lados: equilíbrio 1.
+    expect(contentBalance(cheia, cheia)).toBeCloseTo(1, 2);
+    // Um lado com 2% de tinta contra outro com 50%: equilíbrio baixo.
+    expect(contentBalance(cheia, quaseVazia)).toBeLessThan(0.1);
+    // Simétrico — a ordem dos argumentos não muda o veredito.
+    expect(contentBalance(quaseVazia, cheia)).toBeCloseTo(
+      contentBalance(cheia, quaseVazia),
+      5,
+    );
+  });
+
+  test("contentBalance vale 1 quando os dois lados estão vazios", () => {
+    const vazia = solidPng(50, 50, WHITE);
+    expect(contentBalance(vazia, vazia)).toBe(1);
   });
 });

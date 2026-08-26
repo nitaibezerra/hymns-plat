@@ -142,3 +142,64 @@ function renderDiffPng(
   }
   return PNG.sync.write(png);
 }
+
+/**
+ * Fração de pixels que NÃO são o fundo da página.
+ *
+ * "Fundo" é a cor mais frequente da imagem (quantizada em blocos de 8 níveis
+ * por canal). Serve como proxy de "quanto conteúdo tem nesta página".
+ */
+export function inkRatio(png: Buffer): number {
+  const img = PNG.sync.read(png);
+  const total = img.width * img.height;
+  if (total === 0) return 0;
+
+  const buckets = new Map<number, number>();
+  for (let i = 0; i < img.data.length; i += 4) {
+    buckets.set(quantize(img.data, i), (buckets.get(quantize(img.data, i)) ?? 0) + 1);
+  }
+  let background = -1;
+  let backgroundCount = -1;
+  for (const [bucket, count] of buckets) {
+    if (count > backgroundCount) {
+      background = bucket;
+      backgroundCount = count;
+    }
+  }
+
+  let ink = 0;
+  for (let i = 0; i < img.data.length; i += 4) {
+    if (quantize(img.data, i) !== background) ink += 1;
+  }
+  return ink / total;
+}
+
+/**
+ * Equilíbrio de conteúdo entre duas capturas: `min(tinta) / max(tinta)`.
+ *
+ * Motivo de existir — um falso verde real, medido em 2026-08-26: na rota
+ * `/busca/?q=luz` o Django listava 50 resultados e o shell dizia "Nenhum
+ * resultado", e o diff de pixels deu só 1,74%, ABAIXO do threshold de 5%.
+ * Duas páginas majoritariamente vazias batem em pixels mesmo dizendo coisas
+ * opostas; um threshold de pixel sozinho não distingue "quase igual" de
+ * "quase vazio dos dois lados". Este número distingue.
+ *
+ * @returns 1 quando os dois lados têm a mesma densidade de conteúdo (e também
+ *   quando os dois estão vazios); perto de 0 quando um lado está vazio e o
+ *   outro cheio.
+ */
+export function contentBalance(a: Buffer, b: Buffer): number {
+  const inkA = inkRatio(a);
+  const inkB = inkRatio(b);
+  const maior = Math.max(inkA, inkB);
+  if (maior === 0) return 1;
+  return Math.min(inkA, inkB) / maior;
+}
+
+/** Cor do pixel em `offset`, quantizada em blocos de 32 por canal. */
+function quantize(data: Buffer | Uint8Array, offset: number): number {
+  const r = data[offset] >> 5;
+  const g = data[offset + 1] >> 5;
+  const b = data[offset + 2] >> 5;
+  return (r << 6) | (g << 3) | b;
+}
