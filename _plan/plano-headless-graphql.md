@@ -473,7 +473,7 @@ Este é o motor da "feature destravada pelo SPA": o player não pode reiniciar a
 
 **Objetivo:** expor todas as mutations editoriais via GraphQL e reescrever o workspace `/editor/` em SvelteKit, com paridade funcional completa ao Django atual (`editor_views.py`, `views.py`, `views_social.py`). Inclui CRUD de hinários e hinos, fluxo de revisão com diff visual OCR↔texto, aprovação de áudios, follow/unfollow e marcação de notificações.
 
-**Escopo de 3 semanas com paralelização:** 1 semana backend (5.A) + 2 semanas frontend (5.B-5.E em paralelo).
+**Escopo de 3-4 semanas com paralelização:** 1 semana backend (5.A + 5.A½) + 2-3 semanas frontend (5.B-5.E em paralelo, e 5.F em paralelo com elas).
 
 **Branch-mãe:** `feat/headless-marco5` (base: `feat/headless-marco4-spa`). **1 PR único** contra `development`.
 
@@ -501,10 +501,21 @@ Este é o motor da "feature destravada pelo SPA": o player não pode reiniciar a
 | `/hinos/<pk>/historico/` | `views.py:hymn_history_view` | drawer lateral via `HymnType.revisions` |
 | `/perfil/<username>/seguir/` (POST) | `users/views_social.py:toggle_follow` | mutations `followUser`/`unfollowUser` |
 | `/notificacoes/<id>/lida/` (POST) | `users/views_social.py:mark_notification_read` | mutations `markNotificationRead`/`markAllNotificationsRead` |
+| `/contribuir/` | `users/views.py:upload_view` (:109) | `/contribuir/` (5.F) |
+| `/contribuir/processando/` | `users/views.py:upload_processing_view` (:402) | `/contribuir/processando/` (5.F) |
+| `/contribuir/ocr-status/<task_id>/` | `users/views.py:upload_ocr_status_view` (:452) | substituído por polling de `Query.ocrTask(id)` (5.F) |
+| `/contribuir/desambiguar/` | `users/views.py:upload_disambiguate_view` (:132) | `/contribuir/desambiguar/` (5.F) |
+| `/contribuir/preview/` | `users/views.py:upload_preview_view` (:205) | `/contribuir/conferir/` (5.F) |
+| `/contribuir/confirmar/` | `users/views.py:upload_confirm_view` (:286) | `/contribuir/confirmar/` (5.F) |
+| `/perfil/<username>/editar/` | `users/views.py:profile_edit_view` | **sem destino decidido** — ver Marco 7, passo 0 |
+| `/hinarios/<slug>/ler/` | `views.py:HymnBookReadView` | **sem destino decidido** — ver Marco 7, passo 0 |
 
 **Endpoints REST mantidos (não migrar para GraphQL):**
-- `upload_pdf_ocr` — streaming multipart OCR; frontend faz polling de `Query.ocrTask(id)`.
-- `editor_preview_render` (POST `/editor/preview/`) — renderiza `render_hymn_body_for_text` sem DB; REST puro, sem overhead de migração para GraphQL.
+- **Upload de PDF pra OCR** — multipart pesado; o frontend faz `fetch` e depois faz polling de `Query.ocrTask(id)`.
+  - ⚠️ **Correção de 2026-08-26:** o plano chamava esse endpoint de `upload_pdf_ocr` e o localizava em `apps/hymns/views.py`. **Esse nome não existe no repo.** O ponto de entrada real é o `POST` de `apps/users/views.py::upload_view` (`/contribuir/`), que valida via `HymnBookPdfUploadForm`, grava o PDF num tempfile e chama `_start_pdf_ocr` → `launch_ocr_task`. Ver 5.F.
+- `editor_preview_render` (POST `/editor/preview/render/`) — renderiza `render_hymn_body_for_text` sem DB; REST puro, sem overhead de migração para GraphQL.
+
+> **Nota de fidelidade do mapa (2026-08-26):** alguns caminhos Django tabelados acima não batem com `apps/hymns/urls.py`. Os reais são `/editor/hinarios/` (não existe `/editor/` raiz), `/editor/hinarios/<slug>/agil/` (não `revisao-agil/`), `/editor/audios/` (não `audios/pendentes/`), `/hinos/<pk>/upload-audio/` (não `/hinos/<pk>/audios/upload/`) e `/editor/preview/render/`. As rotas SvelteKit da coluna da direita continuam valendo como alvo; o que muda é a origem a consultar ao portar.
 
 ---
 
@@ -711,34 +722,114 @@ Depende de 5.A e 5.B. **Paralelo com 5.C e 5.D** após 5.B mergeado. Edita pági
 
 ---
 
+#### Sub-marco 5.F — Fluxo `/contribuir/` (upload PDF + OCR) — ~1 semana, branch `feat/headless-marco5f-contribuir`
+
+> **Sub-marco novo, criado em 2026-08-26 por decisão do usuário.** Até então o plano não mencionava essas telas em nenhum marco, e o link do menu foi escondido no PR #61 justamente porque a SPA não tem a tela. **O escopo `/contribuir/` entra na paridade.**
+
+**Objetivo:** portar pra SvelteKit o wizard de contribuição de hinário via PDF+OCR — 5 páginas server-rendered em `apps/users/urls.py`: `contribuir/` (:15), `contribuir/processando/` (:16), `contribuir/desambiguar/` (:22), `contribuir/preview/` (:23), `contribuir/confirmar/` (:24).
+
+**Dependências:** 5.A (mutations) + 5.A½ (`Query.ocrTask` coberta por teste). **Paralelo com 5.B, 5.C, 5.D e 5.E** — toca arquivos disjuntos (`web/src/routes/contribuir/**` e `web/src/lib/components/contribuir/**`), com a única exceção do link no `Header.svelte` (ciclo 5F.17).
+
+**O fluxo real, lido do código (não inventar):**
+
+1. **`/contribuir/`** — `upload_view`, `@login_required`. Formulário multipart `HymnBookPdfUploadForm`: `name` e `owner_name` obrigatórios (o OCR não consegue inferir), `pdf_file` obrigatório (só `.pdf`, ≤ 50 MB — validado em `clean_pdf_file`), `cover_image` opcional. No POST, `_start_pdf_ocr` grava o PDF num tempfile, cria uma `OCRTask` do usuário e chama `launch_ocr_task` (thread daemon), redirecionando pra `processando/?task=<uuid>`.
+2. **`/contribuir/processando/?task=<uuid>`** — `upload_processing_view`. Hoje a página faz polling do JSON `contribuir/ocr-status/<task_id>/` a cada 1,8 s e desenha barra de progresso + "Página N de M". Quando a task fica `completed`, a view roda `find_duplicates_with_content(name, hymns, name_threshold=0.7, content_threshold=0.8)`, guarda `upload_data` (e `duplicates`, se houver) na **sessão** e redireciona pra `desambiguar/` (se achou duplicata) ou direto pra `preview/`. Se `failed`, renderiza o erro com botão "Tentar novamente".
+3. **`/contribuir/desambiguar/`** — `upload_disambiguate_view`. Mostra o match exato (se houver) e a lista de similares com dois scores por hinário (`name_score`, `content_score`, em %). Formulário `DisambiguationChoiceForm` com 3 escolhas: `create_new` → vai pra `preview/`; `add_version` → exige `selected_hymnbook` **e** `version_name`, grava `version_info` na sessão e vai pra `confirmar/`; `cancel` → limpa a sessão e volta pra `/contribuir/`.
+4. **`/contribuir/preview/`** — `upload_preview_view`. Mostra os **5 primeiros** hinos extraídos + tabela Nº/Título/confiança OCR e o aviso "será criado como rascunho". No POST, cria `HymnBook` + `Hymn`s numa `transaction.atomic()`, com `source=OCR`, `ocr_text` = texto cru e `ocr_avg_confidence` preservados pro diff visual do 5.C; limpa a sessão e redireciona pro detalhe do hinário criado.
+5. **`/contribuir/confirmar/`** — `upload_confirm_view`. Ramo "adicionar como versão": serializa o `result_data` em YAML e cria uma `HymnBookVersion` com `is_primary=False`, `uploaded_by=request.user`; redireciona pro detalhe do hinário.
+
+Além das 5 páginas, existe o **stepper** de 4 passos (`templates/_partials/_upload_stepper.html`, rótulos `UPLOAD · PROCESSANDO · CONFERIR · CONFIRMAR`), compartilhado pelas telas.
+
+**Decisões fixadas (não reavaliar):**
+
+- **O upload NÃO migra pra GraphQL.** A SPA faz `fetch` multipart contra o endpoint REST existente (o `POST` de `/contribuir/`, ponto de entrada real de `_start_pdf_ocr`) e recebe de volta o `id` da `OCRTask`. Isso já é decisão fixa do Marco 5 ("Endpoints REST mantidos") — o 5.F só a executa.
+- **O progresso vem de `Query.ocrTask(id)`**, não do JSON `contribuir/ocr-status/`. `OCRTaskType` **já existe** no schema com `status`, `progressPct`, `resultData`, `currentPage`, `totalPages`, `errorMessage`, `pdfFilename`, e o resolver `Query.ocrTask` já gateia por uploader-ou-editor. **Nada de backend novo é necessário pro polling** — registrar isto explicitamente pra ninguém reimplementar. A rota Django `contribuir/ocr-status/<task_id>/` fica órfã e entra na lista de deleção do Marco 7.
+- **`Query.ocrTask` estava sem nenhum teste** quando foi exposta (5.A). A cobertura está sendo escrita agora na 5.A½; o 5.F **depende** dela e não deve começar antes.
+- **O estado do wizard sai da sessão Django e vira estado de cliente.** Hoje `upload_data`, `duplicates` e `version_info` moram em `request.session`; na SPA o wizard é um store (`contribuirWizard`) alimentado por `ocrTask.resultData`, com a `task` id na URL (`?task=<uuid>`) pra sobreviver a reload. Consequência: as duas mutations de fechamento precisam receber tudo por argumento — nada de estado implícito de servidor.
+- **Duas mutations novas** (o fluxo é escrita, e escrita passa por GraphQL): `createHymnBookFromOcr(taskId: UUID!)` — porta a transação de `upload_preview_view`, incluindo `source=OCR`, `ocr_text` e `ocr_avg_confidence`; e `createHymnBookVersionFromOcr(taskId: UUID!, hymnbookSlug: String!, versionName: String!)` — porta `upload_confirm_view`. Ambas idempotentes por `taskId` (uma task já consumida não cria segundo hinário).
+- **Uma query nova pra desambiguação:** `Query.ocrDuplicates(taskId: UUID!): OcrDuplicatesType`, que **chama** `find_duplicates_with_content` com os mesmos thresholds (0.7 / 0.8) — zero reimplementação da regra de similaridade em TypeScript.
+- **O link do menu volta quando a tela existir.** Foi escondido no PR #61; reexibi-lo é o último ciclo do sub-marco, não um follow-up solto.
+
+**Ciclos TDD:**
+
+| Ciclo | RED | GREEN |
+|---|---|---|
+| 5F.1 | `test_ocr_duplicates_query_returns_exact_match_and_similars`, `test_ocr_duplicates_other_user_blocked` | `Query.ocrDuplicates(taskId)` chamando `find_duplicates_with_content(name, hymns, 0.7, 0.8)`; `OcrDuplicatesType` + `OcrSimilarBookType` (`hymnbook`, `nameScore`, `contentScore`) |
+| 5F.2 | `test_create_hymnbook_from_ocr_creates_book_and_hymns`, `test_create_hymnbook_from_ocr_marks_source_ocr_and_keeps_ocr_text`, `test_create_hymnbook_from_ocr_leaves_book_unpublished`, `test_create_hymnbook_from_ocr_other_user_blocked`, `test_create_hymnbook_from_ocr_is_idempotent_per_task` | Mutation `createHymnBookFromOcr(taskId)` — porta a `transaction.atomic()` de `upload_preview_view` |
+| 5F.3 | `test_create_version_from_ocr_creates_version_not_primary`, `test_create_version_from_ocr_requires_version_name`, `test_create_version_from_ocr_other_user_blocked` | Mutation `createHymnBookVersionFromOcr(taskId, hymnbookSlug, versionName)` — porta `upload_confirm_view` |
+| 5F.4 | `test_schema_graphql_snapshot_is_up_to_date` | Atualiza `schema.graphql` committado |
+| 5F.5 | `routes/contribuir/+page.test.ts` — anônimo é redirecionado pra `/login?next=/contribuir/` | Guard no `+page.ts` (mesmo padrão do 4.H.9) |
+| 5F.6 | `UploadStepper.test.ts` — 4 passos, o atual destacado, os anteriores com ✓ | `UploadStepper.svelte` (porta `_upload_stepper.html`) |
+| 5F.7 | `routes/contribuir/+page.test.ts` — formulário exige nome, dono e PDF; rejeita não-`.pdf` e > 50 MB **antes** do upload | `ContribuirForm.svelte` com validação client-side espelhando `clean_pdf_file` |
+| 5F.8 | submit faz `fetch` multipart e navega pra `/contribuir/processando/?task=<id>` | Handler de submit + `goto` |
+| 5F.9 | `routes/contribuir/processando/+page.test.ts` — faz polling de `Query.ocrTask(id)` e renderiza "Página N de M" + barra de `progressPct` | `+page.{ts,svelte}` + `OcrProgress.svelte`; polling com intervalo de 1,8 s e **stop no unmount** |
+| 5F.10 | `status=failed` renderiza `errorMessage` + ação "Tentar novamente"; polling para | UI condicional |
+| 5F.11 | `status=completed` **com** duplicatas → `goto('/contribuir/desambiguar/?task=…')`; **sem** duplicatas → `goto('/contribuir/conferir/?task=…')` | Ramificação consumindo `ocrDuplicates` |
+| 5F.12 | `routes/contribuir/desambiguar/+page.test.ts` — match exato em destaque; cada similar mostra `nameScore`/`contentScore` em % | `+page.{ts,svelte}` + `SimilarBookCard.svelte` |
+| 5F.13 | escolha `create_new` navega pra conferir; `add_version` exige hinário **e** nome da versão antes de habilitar o submit; `cancel` limpa o store e volta pra `/contribuir/` | `DisambiguationChoice.svelte` (porta `DisambiguationChoiceForm.clean`) |
+| 5F.14 | `routes/contribuir/conferir/+page.test.ts` — mostra os 5 primeiros hinos, a tabela Nº/Título/confiança OCR e o aviso "será criado como rascunho" | `+page.{ts,svelte}` + `OcrPreviewTable.svelte` |
+| 5F.15 | submit chama `createHymnBookFromOcr` e redireciona pra `/hinarios/[slug]/`; erro da mutation renderiza mensagem em PT-BR sem perder o wizard | Mutation + `goto` + tratamento de erro |
+| 5F.16 | `routes/contribuir/confirmar/+page.test.ts` — resumo hinário-alvo + nome da versão; submit chama `createHymnBookVersionFromOcr` e redireciona | `+page.{ts,svelte}` |
+| 5F.17 | `Header.test.ts` — usuário autenticado vê o link "Contribuir" apontando pra `/contribuir/` | Reexibe no `Header.svelte` o link escondido no PR #61 |
+| 5F.18 | Playwright `tests/e2e/contribuir.spec.ts` — login → upload de PDF de fixture → progresso → conferir → hinário criado como rascunho | E2E |
+
+**Arquivos a criar:**
+- Backend: `tests/unit/api/test_query_ocr_duplicates.py` (5F.1), `tests/unit/api/test_mutation_ocr_import.py` (5F.2-5F.3).
+- Rotas: `web/src/routes/contribuir/+page.{ts,svelte}`, `.../processando/+page.{ts,svelte}`, `.../desambiguar/+page.{ts,svelte}`, `.../conferir/+page.{ts,svelte}`, `.../confirmar/+page.{ts,svelte}`.
+- Componentes em `web/src/lib/components/contribuir/`: `UploadStepper.svelte`, `ContribuirForm.svelte`, `OcrProgress.svelte`, `SimilarBookCard.svelte`, `DisambiguationChoice.svelte`, `OcrPreviewTable.svelte`.
+- Store: `web/src/lib/stores/contribuirWizard.ts`.
+- E2E: `web/tests/e2e/contribuir.spec.ts` + fixture de PDF pequeno.
+
+**Arquivos a editar:** `apps/api/mutations.py`, `apps/api/schema.py`, `apps/api/types.py`, `schema.graphql`, `web/src/lib/graphql/operations.ts`, `web/src/lib/components/Header.svelte` (só o link).
+
+**Critério de aceitação 5.F:**
+- 18 ciclos verdes; `pnpm test && pnpm check && pnpm build` e `pytest tests/unit/api/` verdes.
+- Fluxo completo pela SPA: upload de PDF → progresso → (desambiguação, quando houver) → conferência → hinário criado **como rascunho**, com `source=OCR` e `ocr_text` preservado.
+- Nenhum estado do wizard depende de `request.session`.
+- `find_duplicates_with_content` **chamado**, não reimplementado.
+- Link "Contribuir" de volta no menu.
+- Regra de permissão preservada: só o dono da `OCRTask` (ou editor/admin) enxerga a task e consegue importá-la.
+
+**Estimativa 5.F:** ~1 semana (2 dias backend + 3-4 dias frontend).
+
+---
+
 **Plano de paralelização do Marco 5:**
 
 Análise de dependências:
-- **5.A** (mutations backend): sem dependência. Bloqueia 5.B-5.E. Executa primeiro, sozinho.
-- **5.B, 5.C, 5.D**: dependem de 5.A. **Paralelos entre si** (arquivos disjuntos).
+- **5.A** (mutations backend): sem dependência. Bloqueia 5.B-5.F. Executa primeiro, sozinho.
+- **5.A½** (dívidas de schema): depende de 5.A. Bloqueia todo o frontend — inclusive o 5.F, que precisa do teste de `Query.ocrTask`.
+- **5.B, 5.C, 5.D**: dependem de 5.A + 5.A½. **Paralelos entre si** (arquivos disjuntos).
 - **5.E**: depende de 5.A e 5.B. Sequencial após 5.B; paralelo com 5.C/5.D se 5.B mergeado.
+- **5.F**: depende de 5.A + 5.A½. **Paralelo com 5.B-5.E** — só toca `routes/contribuir/**` e `lib/components/contribuir/**`. Único ponto de contato: o link no `Header.svelte` (ciclo 5F.17), que colide com 4.B/5.B se editado no mesmo bloco.
 
 **Fases de execução:**
 
 | Fase | Subagentes | Branch base | Critério pra avançar |
 |---|---|---|---|
-| **F1** (~1 semana) | 5.A único | `feat/headless-marco4-spa` | SDL atualizado committado |
-| **F2** (~1 semana) | 5.B + 5.C + 5.D em paralelo | `feat/headless-marco5-base` | Todas 3 branches verdes |
-| **F3** (~3 dias) | Merge 5.B+5.C+5.D + spawn 5.E | `feat/headless-marco5-base` | Branch unificada + 5.E verdes |
+| **F1** (~1 semana) | 5.A único | `development` | SDL atualizado committado (✅ feito — PR #60) |
+| **F1½** (~2-3 dias) | 5.A½ único (dívidas de schema) | `development` | SDL sem divergência; `Query.ocrTask` com teste |
+| **F2** (~1-1,5 semana) | 5.B + 5.C + 5.D + **5.F** em paralelo | `feat/headless-marco5-base` | Todas 4 branches verdes |
+| **F3** (~3 dias) | Merge 5.B+5.C+5.D+5.F + spawn 5.E | `feat/headless-marco5-base` | Branch unificada + 5.E verdes |
 | **F4** (~1 dia) | Abrir PR contra `development` | `feat/headless-marco5` | Auto-merge fecha |
 
-**Ganho estimado:** F1+F2+F3 ≈ 2,5 semanas vs. 3-4 semanas sequenciais.
+**Ganho estimado:** F1+F1½+F2+F3 ≈ 3 semanas vs. 4-5 semanas sequenciais.
+
+> **Lição da F3 do Marco 4 (aplicar aqui):** antes de declarar a branch unificada verde, rodar `pnpm test && pnpm check && pnpm build` **na branch já mergeada**, e não confiar nos verdes individuais dos subagentes. As duas regressões do Marco 4 (`CURRENT_USER_QUERY` duplicado, `HymnBody.svelte` stub vencendo) nasceram exatamente aqui. Corrigir o `ci-web.yml` e promover "Web Test & Build" a required **antes** da F2 fecha esse buraco de vez.
 
 **Riscos da paralelização:**
 - **Conflito `DeleteHymnBookModal`:** 5.B cria `<!-- TODO: DeleteHymnBookModal slot -->`. Merge resolve substituindo placeholder pelo componente de 5.D.
 - **Conflito `routes/hinos/[pk]/+page.svelte`:** 5.E edita arquivo do Marco 4. Toca apenas bloco de botões condicionais — conflito limitado.
 - **Upload multipart `strawberry.file_uploads.Upload`:** validar end-to-end em 5A.10 antes do frontend em 5.D. Se incompatibilidade, pausar e reportar.
+- **Conflito no `Header.svelte`:** o ciclo 5F.17 reexibe o link "Contribuir". Toca só o bloco de nav links — conflito limitado, mas resolver a favor da versão que mantém **todos** os links (o erro simétrico ao do `HymnBody.svelte` na F3 do Marco 4).
+- **Duas mutations de import OCR e o CRUD do 5.D tocam `apps/api/mutations.py`:** 5.F entra depois do 5.A no mesmo arquivo. Manter as mutations de OCR num bloco próprio no fim do arquivo pra que o merge seja append, não intercalado.
 
 ---
 
 **Critério de aceitação geral do Marco 5:**
-- Sub-marcos 5.A-5.E com CI verde na branch-mãe `feat/headless-marco5`.
+- Sub-marcos 5.A, 5.A½ e 5.B-5.F com CI verde na branch-mãe `feat/headless-marco5` — incluindo o check "Web Test & Build", que precisa estar rodando no PR (ver "Dívida de CI" na seção de processo).
 - Fluxo editorial completo em E2E: login editor → cria hinário → adiciona 3 hinos → upload áudio → aprovação → revisão (formulário + ágil) → publica.
+- Fluxo de contribuição completo em E2E (5.F): login → upload de PDF → OCR → conferência → hinário criado como rascunho. Link "Contribuir" visível no menu.
 - Signal `HymnRevision` cria trilha de auditoria (verificado em 5A.9; implícito em 5C.8/5C.10).
 - Permissões cobertas: editor consegue tudo; usuário comum recebe erro; anônimo recebe 401.
 - SDL `schema.graphql` atualizado e committado.
@@ -1033,10 +1124,10 @@ Tempo →    Semana 1         Semana 2              Semana 3
 | 2. Mutations + Auth | 1 semana |
 | 3. SvelteKit skeleton | 1 semana |
 | 4. Paridade read-only | 4-5 semanas |
-| 5. CRUD editorial | 3-4 semanas |
+| 5. CRUD editorial (+ 5.A½ e 5.F `/contribuir/`) | **4-5 semanas** (revisado em 2026-08-26: +1 semana de 5.F, +2-3 dias de 5.A½) |
 | 6. Offline-first PWA | 2-3 semanas |
 | 7. Cutover | **2-3 semanas** (revisado em 2026-08-26: a estimativa de 1 semana ignorava o deploy do frontend a configurar do zero, os cookies cross-subdomain inexistentes e o refactor da suíte acoplada a template) |
-| **Total** | **13-17 semanas (~3-4 meses)** |
+| **Total** | **15-19 semanas (~4-5 meses)** — revisado em 2026-08-26 |
 
 ## Não-objetivos (explícitos)
 
