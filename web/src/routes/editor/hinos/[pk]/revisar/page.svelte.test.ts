@@ -496,6 +496,68 @@ describe("5C.10 — Marcar revisado e avançar", () => {
   });
 });
 
+describe("5C.15 — drawer de revisão de áudio na tela", () => {
+  const withAudio = {
+    ...sampleData,
+    hymn: {
+      ...sampleData.hymn!,
+      audios: [
+        {
+          id: "a-1",
+          url: "https://media.example.com/a1.mp3",
+          title: "Gravação 1997",
+          waveformPeaks: [1, 2, 3],
+          durationSeconds: 125,
+          isApproved: false,
+          isMatch: null,
+          qualityRating: null,
+          qualityObservations: [],
+          mismatchReason: "",
+          reviewedAt: null,
+          reviewedBy: null,
+        },
+      ],
+    },
+  };
+
+  beforeEach(() => {
+    stubFetch({
+      data: {
+        reviewAudio: {
+          __typename: "HymnAudioType",
+          id: "a-1",
+          isMatch: true,
+          qualityRating: null,
+          qualityObservations: [],
+          mismatchReason: "",
+          isApproved: false,
+        },
+        updateHymn: { __typename: "HymnType", id: "h-1" },
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("drawer começa fechado e abre pelo botão", async () => {
+    render(Page, { props: { data: withAudio } });
+    expect(screen.queryByTestId("audio-review-drawer")).toBeNull();
+
+    await fireEvent.click(screen.getByTestId("open-audio-review"));
+    expect(screen.getByTestId("audio-review-drawer")).toBeInTheDocument();
+  });
+
+  it("sem áudio, o botão de revisão não aparece", () => {
+    render(Page, { props: { data: sampleData } });
+    expect(screen.queryByTestId("open-audio-review")).toBeNull();
+    expect(screen.getByTestId("audio-review-absent")).toHaveTextContent(
+      "Sem gravação para este hino.",
+    );
+  });
+});
+
 describe("5C.12 — indicador de posição na fila", () => {
   beforeEach(() => {
     stubFetch({ data: { updateHymn: { __typename: "HymnType", id: "h-1" } } });

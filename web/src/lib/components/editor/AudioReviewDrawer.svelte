@@ -50,6 +50,10 @@
    * de prometer aprovação.
    */
   import PlayButton from "$lib/components/PlayButton.svelte";
+  import { GRAPHQL_URL } from "$lib/config";
+  import { getCsrfTokenFromCookie } from "$lib/graphql/client";
+  import { gqlFetch } from "$lib/graphql/fetcher";
+  import { REVIEW_AUDIO_MUTATION } from "$lib/graphql/operations/revise-hymn";
   import type { AudioTrack } from "$lib/stores/audio";
 
   let {
@@ -57,12 +61,26 @@
     hymnTitle = "",
     hymnNumber,
     open = $bindable(false),
+    onreviewed,
   }: {
     audio?: AudioReviewTarget | null;
     hymnTitle?: string;
     hymnNumber?: number;
     open?: boolean;
+    /** Avisa a tela para refletir a decisão salva sem recarregar o load. */
+    onreviewed?: (audio: ReviewedAudio) => void;
   } = $props();
+
+  interface ReviewedAudio {
+    __typename: string;
+    id: string;
+    isMatch: boolean | null;
+    qualityRating: number | null;
+    qualityObservations: string[];
+    mismatchReason: string;
+    isApproved: boolean;
+    message?: string;
+  }
 
   let isMatch = $state<boolean | null>(null);
   let rating = $state<number | null>(null);
@@ -107,6 +125,62 @@
 
   function close() {
     open = false;
+  }
+
+  /* ===== 5C.15 · submit ====================================================
+   *
+   * `reviewAudio` aceita a decisão parcial; quando o áudio é sinalizado como
+   * divergente, mandamos a vertente de qualidade zerada — é o que o
+   * `HymnAudio.save()` faria de todo jeito ("zera os campos da vertente
+   * oposta"), e deixar valores velhos viajando só criaria confusão.
+   */
+  let isSaving = $state(false);
+  let submitError = $state("");
+
+  let canSubmit = $derived(audio !== null && isMatch !== null && !isSaving);
+
+  function buildReviewInput() {
+    if (isMatch === false) {
+      return {
+        isMatch: false,
+        qualityRating: null,
+        qualityObservations: [],
+        mismatchReason,
+      };
+    }
+    return {
+      isMatch: true,
+      qualityRating: rating,
+      qualityObservations: [...observations],
+      mismatchReason: "",
+    };
+  }
+
+  async function submit() {
+    if (!audio || isMatch === null || isSaving) return;
+    isSaving = true;
+    submitError = "";
+    try {
+      const response = await gqlFetch<{ reviewAudio: ReviewedAudio }>(
+        globalThis.fetch,
+        GRAPHQL_URL,
+        REVIEW_AUDIO_MUTATION,
+        { pk: audio.id, input: buildReviewInput() },
+        { csrfToken: getCsrfTokenFromCookie() },
+      );
+      const payload = response.data?.reviewAudio;
+      if (response.errors?.length || !payload || payload.__typename !== "HymnAudioType") {
+        submitError =
+          response.errors?.[0]?.message ?? payload?.message ?? "Não foi possível salvar a revisão.";
+        return;
+      }
+      onreviewed?.(payload);
+      close();
+    } catch {
+      submitError = "Falha de rede ao salvar a revisão.";
+    } finally {
+      isSaving = false;
+    }
   }
 </script>
 
@@ -232,6 +306,23 @@
       <p class="audio-note" data-testid="audio-review-note">
         Registrar a revisão não aprova o áudio — a aprovação é um passo separado.
       </p>
+
+      {#if submitError}
+        <p class="audio-error" data-testid="audio-review-error">{submitError}</p>
+      {/if}
+
+      <div class="drawer-actions">
+        <button class="btn-ghost" type="button" onclick={close}>Cancelar</button>
+        <button
+          class="btn-primary"
+          type="button"
+          data-testid="audio-review-submit"
+          disabled={!canSubmit}
+          onclick={submit}
+        >
+          {isSaving ? "Salvando…" : "Registrar revisão do áudio"}
+        </button>
+      </div>
     {/if}
   </section>
 {/if}
@@ -400,5 +491,44 @@
   .audio-empty {
     font-family: var(--font-serif);
     font-style: italic;
+  }
+
+  .audio-error {
+    color: var(--color-status-not);
+    font-size: 0.75rem;
+  }
+
+  .drawer-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-soft);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    padding: 0.5rem 0.875rem;
+  }
+
+  .btn-primary {
+    background: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    color: var(--color-bg);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+  }
+
+  .btn-primary:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
   }
 </style>

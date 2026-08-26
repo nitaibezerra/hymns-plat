@@ -17,6 +17,9 @@
    */
   import { goto } from "$app/navigation";
   import { AUTOSAVE_DELAY_MS, debounce, formatSavedAt } from "$lib/autosave";
+  import AudioReviewDrawer, {
+    type AudioReviewTarget,
+  } from "$lib/components/editor/AudioReviewDrawer.svelte";
   import InlineDiff from "$lib/components/editor/InlineDiff.svelte";
   import OcrConfidenceBar from "$lib/components/editor/OcrConfidenceBar.svelte";
   import RepetitionPills from "$lib/components/editor/RepetitionPills.svelte";
@@ -352,6 +355,33 @@
     );
   }
 
+  /* ===== 5C.15 · drawer de revisão de áudio ================================
+   *
+   * A view Django escolhe `audios.filter(is_approved=True).first()` ou, na
+   * falta, o primeiro áudio; a query pede `approvedOnly: false` justamente
+   * para poder aplicar a mesma regra aqui.
+   */
+  let audioDrawerOpen = $state(false);
+  let audioOverrides = $state<Record<string, Partial<AudioReviewTarget>>>({});
+
+  let reviewAudioTarget = $derived.by<AudioReviewTarget | null>(() => {
+    const audios = data.hymn?.audios ?? [];
+    if (audios.length === 0) return null;
+    const chosen = audios.find((item) => item.isApproved) ?? audios[0];
+    return { ...chosen, ...(audioOverrides[chosen.id] ?? {}) };
+  });
+
+  function applyAudioReview(reviewed: {
+    id: string;
+    isMatch: boolean | null;
+    qualityRating: number | null;
+    qualityObservations: string[];
+    mismatchReason: string;
+    isApproved: boolean;
+  }) {
+    audioOverrides = { ...audioOverrides, [reviewed.id]: reviewed };
+  }
+
   /**
    * 5C.11 — "Salvar rascunho" (`next_action=back` no Django): grava os campos
    * e volta pro hinário sem tocar no `review_status`.
@@ -507,6 +537,31 @@
         <div class="side-block">
           <p class="eyebrow">Fidelidade do OCR</p>
           <OcrConfidenceBar confidences={data.hymn.ocrLineConfidences} />
+        </div>
+
+        <div class="side-block">
+          <p class="eyebrow">Gravação</p>
+          {#if reviewAudioTarget}
+            <button
+              class="btn-ghost"
+              type="button"
+              data-testid="open-audio-review"
+              onclick={() => (audioDrawerOpen = true)}
+            >
+              Revisar áudio · {reviewAudioTarget.title || "sem título"}
+            </button>
+            <AudioReviewDrawer
+              audio={reviewAudioTarget}
+              hymnTitle={form.title}
+              hymnNumber={Number(form.number)}
+              bind:open={audioDrawerOpen}
+              onreviewed={applyAudioReview}
+            />
+          {:else}
+            <p class="preview-note" data-testid="audio-review-absent">
+              Sem gravação para este hino.
+            </p>
+          {/if}
         </div>
       </section>
     </div>

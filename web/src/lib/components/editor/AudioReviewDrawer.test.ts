@@ -14,8 +14,8 @@
  * seta `is_approved=True`. A UI não promete aprovação.
  */
 
-import { fireEvent, render, screen } from "@testing-library/svelte";
-import { beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AudioReviewDrawer, {
   MISMATCH_REASONS,
@@ -195,5 +195,134 @@ describe("AudioReviewDrawer — 5C.14 (divergência)", () => {
 
     await fireEvent.click(screen.getByTestId("audio-match-yes"));
     expect(screen.queryByTestId("mismatch-block")).toBeNull();
+  });
+});
+
+describe("AudioReviewDrawer — 5C.15 (submit)", () => {
+  function stubFetch(payload: unknown, status = 200) {
+    const fn = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fn);
+    return fn;
+  }
+
+  const OK = {
+    data: {
+      reviewAudio: {
+        __typename: "HymnAudioType",
+        id: "a-1",
+        isMatch: true,
+        qualityRating: 4,
+        qualityObservations: ["Cortes"],
+        mismatchReason: "",
+        isApproved: false,
+      },
+    },
+  };
+
+  beforeEach(() => {
+    audioPlayer.reset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("submit fica desabilitado até responder se confere", async () => {
+    stubFetch(OK);
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    const submit = screen.getByTestId("audio-review-submit") as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    expect(submit.disabled).toBe(false);
+  });
+
+  it("envia reviewAudio com rating e observações, depois fecha", async () => {
+    const fetchFn = stubFetch(OK);
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    await fireEvent.click(screen.getAllByTestId("quality-star")[3]);
+    await fireEvent.click(screen.getByRole("button", { name: "Cortes" }));
+    await fireEvent.click(screen.getByTestId("audio-review-submit"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.query).toContain("reviewAudio");
+    expect(body.variables).toEqual({
+      pk: "a-1",
+      input: {
+        isMatch: true,
+        qualityRating: 4,
+        qualityObservations: ["Cortes"],
+        mismatchReason: "",
+      },
+    });
+    await waitFor(() => expect(screen.queryByTestId("audio-review-drawer")).toBeNull());
+  });
+
+  it("divergência envia motivo e zera a qualidade", async () => {
+    const fetchFn = stubFetch({
+      data: {
+        reviewAudio: {
+          __typename: "HymnAudioType",
+          id: "a-1",
+          isMatch: false,
+          qualityRating: null,
+          qualityObservations: [],
+          mismatchReason: "wrong_lyrics",
+          isApproved: false,
+        },
+      },
+    });
+    render(AudioReviewDrawer, {
+      props: { audio: { ...AUDIO, qualityRating: 5 }, hymnTitle: "Estrela", open: true },
+    });
+
+    await fireEvent.click(screen.getByTestId("audio-match-no"));
+    await fireEvent.click(screen.getByRole("button", { name: "Letra diferente" }));
+    await fireEvent.click(screen.getByTestId("audio-review-submit"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetchFn.mock.calls[0][1].body as string).variables.input).toEqual({
+      isMatch: false,
+      qualityRating: null,
+      qualityObservations: [],
+      mismatchReason: "wrong_lyrics",
+    });
+  });
+
+  it("avisa o chamador com o áudio atualizado", async () => {
+    stubFetch(OK);
+    const onreviewed = vi.fn();
+    render(AudioReviewDrawer, {
+      props: { audio: AUDIO, hymnTitle: "Estrela", open: true, onreviewed },
+    });
+
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    await fireEvent.click(screen.getByTestId("audio-review-submit"));
+
+    await waitFor(() => expect(onreviewed).toHaveBeenCalledTimes(1));
+    expect(onreviewed.mock.calls[0][0]).toMatchObject({ id: "a-1", isMatch: true });
+  });
+
+  it("erro mantém o drawer aberto e mostra a mensagem", async () => {
+    stubFetch({
+      data: { reviewAudio: { __typename: "PermissionDeniedError", message: "Sem permissão." } },
+    });
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    await fireEvent.click(screen.getByTestId("audio-review-submit"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("audio-review-error")).toHaveTextContent("Sem permissão."),
+    );
+    expect(screen.getByTestId("audio-review-drawer")).toBeInTheDocument();
   });
 });
