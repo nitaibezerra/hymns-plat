@@ -20,6 +20,7 @@ sobre ele, cito `arquivo:linha`.
 | Testes | `tests/unit/test_sync_version.py` (14 casos) |
 | `web/static/` + manifest | `web/static/manifest.webmanifest` |
 | `<link rel="manifest">` + theme-color claro/escuro | `web/src/app.html` |
+| Ícones PWA (monograma) + `icons` no manifest + `favicon.png` | `web/static/icone-mestre.svg`, `web/static/icons/`, seção 6 |
 
 Detalhe que vale conhecer antes de escrever o cliente offline: o incremento usa
 `F()` + `.update()` (`apps/hymns/signals.py:179-183`), portanto **não** dispara
@@ -254,39 +255,278 @@ servidor, não há fila, não há CSRF, não há conflito. Portanto:
   aceitação do Marco 6 ("E2E Playwright cobre cenário offline") é primeira vez
   nesta casa.
 
+## 6. Ícones PWA: monograma tipográfico derivado do design system
+
+**Decisão:** não esperar arte de marca. O ícone é um **monograma tipográfico**
+extraído do design system que já existe — o glifo `h` da **Cormorant Garamond
+600**, tinta papel sobre fundo firmamento, com um filete dourado abaixo.
+
+Isso não é "um ícone inventado por agente": `font-display` (Cormorant Garamond) é
+a face que o `CLAUDE.md:90` designa para "titles, h1/h2, **brand**, stats,
+**monograms**", o peso 600 é exatamente o da brand no header
+(`web/src/lib/components/Header.svelte:71-77`, `.brand { font-family:
+var(--font-display); font-weight: 600 }`), e as três cores saem literais de
+`static/css/design-tokens.css`: `--color-firmament: #1D3B6A`, `--color-bg:
+#F6EFE2`, `--color-gold: #B8893A` (o token do ouro está documentado como
+"ornamentos, ☀ ☾ ★, **underlines**" — o filete é uso canônico, não enfeite novo).
+
+**Minúscula, não maiúscula.** O wordmark é `hinária` em caixa baixa
+(`Header.svelte:29`, `Footer.svelte:13`). O `h` minúsculo herda a voz tipográfica
+da marca e, de quebra, tem silhueta assimétrica (haste alta à esquerda, ombro à
+direita), que é mais reconhecível em miniatura do que a simetria de um `H`.
+
+**Glifo convertido em PATH, sem dependência de fonte.** O script de referência do
+irmão (`gestao-feitio/app/scripts/gerar-icones.mjs:41`) emite
+`<text font-family="Fraunces, …">` — o render varia conforme o que estiver
+instalado na máquina que gerar. Aqui o contorno foi extraído uma vez com
+fontTools a partir de
+`web/node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-600-normal.woff`
+(upem 1000, bbox do `h`: 488.5 × 725 unidades) e está embutido como `d=` no
+script. Resultado byte-idêntico em qualquer máquina, e `web/static/` deixa de
+depender de `node_modules` para regenerar.
+
+```python
+# Extração do path (rodada uma vez; fontTools 4.60, use o .woff — o .woff2 exige brotli)
+from fontTools.misc.transform import Transform
+from fontTools.pens.svgPathPen import SVGPathPen
+from fontTools.pens.transformPen import TransformPen
+from fontTools.ttLib import TTFont
+
+gs = TTFont(CAMINHO_WOFF).getGlyphSet()
+pen = SVGPathPen(gs, ntos=lambda v: f"{v:.1f}")
+gs["h"].draw(TransformPen(pen, Transform(1, 0, 0, -1, 0, 0)))  # y-up -> y-down
+print(pen.getCommands())
+```
+
+### Fundo firmamento, não papel
+
+As duas variantes pedidas foram geradas e comparadas em 192px e em 48px
+(reamostragem do 192). **Escolhida: fundo `#1D3B6A`, tinta `#F6EFE2`.** Três
+razões, em ordem de peso:
+
+1. **A Cormorant é uma face de alto contraste.** As hastes finas do `h` medem
+   ~1px em 48px. Tinta clara sobre fundo escuro ganha peso aparente por
+   irradiação; tinta escura sobre papel claro *perde* — na variante papel as
+   hastes finas chegam a se romper na reamostragem.
+2. **Ícone de PWA cai em cima de wallpaper arbitrário.** O quadrado de papel
+   `#F6EFE2` some contra tela inicial clara: o ícone fica sem borda e vira uma
+   letra flutuando. O campo firmamento se define contra claro e contra escuro.
+3. **O filete dourado só funciona no escuro.** `#B8893A` sobre `#1D3B6A` tem
+   contraste suficiente para sobreviver como uma linha quente em 48px; sobre
+   `#F6EFE2` ele é ouro-sobre-creme e desaparece antes disso.
+
+A variante papel fica registrada no gerador (parâmetro `invertido: true`) para
+quando fizer sentido — carimbo em fundo escuro, favicon monocromático, impressão.
+
+### Geometria e tamanhos ópticos
+
+Um mesmo SVG paramétrico, viewBox 512, com três geometrias — porque o mesmo
+desenho não serve para 512px e para 16px:
+
+| Saída | Altura do glifo | Filete | Por quê |
+|---|---|---|---|
+| `icons/icon-192.png`, `icons/icon-512.png` (`any`) | 52% do lado | 2.15% × 41% | Massa cheia no quadrado; o filete vira ~1px em 48px, presente sem ruído. |
+| `icons/icon-maskable-512.png` (`maskable`) | 40% do lado | 1.66% × 31.5% | A composição inteira (semi-diagonal ~135px) cabe no círculo de raio 204.8px = safe zone de 80%. Verificado por overlay do círculo sobre o PNG. |
+| `favicon.png` (48px), `apple-touch-icon.png` (180px) | 70% do lado | **nenhum** | Em 16px o filete vira uma linha suja sobre o azul, e o glifo precisa de toda a caixa para continuar legível como `h`. |
+
+Peso: o maior arquivo é 8.6 KB (`icon-512.png`). `-depth 8` +
+`png:color-type=2` é o que segura isso — o build Q16 do ImageMagick grava PNG de
+16 bits por padrão e dobrava o peso sem ganho num ícone chapado.
+
+### Manifest
+
+`icons` com três entradas, `purpose` **separado** (`"any"` e `"maskable"` em
+entradas distintas, nunca `"any maskable"` na mesma — um ícone `any` sem margem
+seria recortado pela máscara do Android, e um `maskable` usado como `any` aparece
+pequeno demais no meio de padding). `src` absoluto (`/icons/…`), coerente com
+`start_url`/`scope` que já eram `/`.
+
+O SVG mestre **não** entra no manifest de propósito: `icone-mestre.svg` é a fonte
+de regeneração, e ícone SVG em manifest ainda tem suporte irregular no Android —
+o critério em jogo é Lighthouse, e ele quer PNG ≥ 192.
+
+### Script gerador
+
+`web/scripts/` está fora do escopo desta frente, então o script não foi
+versionado. O conteúdo abaixo é auto-suficiente: salvar em
+`web/scripts/gerar-icones.mjs`, trocar `STATIC_DIR` por
+`resolve(__dirname, "..", "static")` e adicionar `"gerar-icones": "node
+scripts/gerar-icones.mjs"` aos scripts do `web/package.json`.
+
+```js
+#!/usr/bin/env node
+/**
+ * Gera os ícones PWA da Hinária a partir de um monograma tipográfico.
+ *
+ * O glifo "h" (Cormorant Garamond 600, o mesmo peso da brand no Header) já vem
+ * CONVERTIDO EM PATH — não há dependência de fonte instalada, então o render é
+ * idêntico em qualquer máquina. Ver `_plan/marco6-decisoes.md` para como o path
+ * foi extraído e por que a variante escolhida é tinta-papel sobre firmamento.
+ *
+ * Requer ImageMagick (`magick`) com delegate RSVG. Saída em `web/static/`:
+ *   - icone-mestre.svg          (mestre vetorial, variante "any")
+ *   - icons/icon-192.png        (192×192, purpose "any")
+ *   - icons/icon-512.png        (512×512, purpose "any")
+ *   - icons/icon-maskable-512.png (512×512, safe zone 80%, purpose "maskable")
+ *   - favicon.png               (48×48, glifo maior e sem filete — tamanho óptico)
+ *   - apple-touch-icon.png      (180×180, iOS ignora ícone de manifest)
+ */
+
+import { execFileSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// Ajustar se o script for versionado em `web/scripts/`: resolve(__dirname, "..", "static")
+const STATIC_DIR = process.env.HINARIA_STATIC_DIR ?? resolve(__dirname, "static");
+const MAGICK = process.env.MAGICK_BIN ?? "/opt/homebrew/bin/magick";
+
+/* Paleta canônica — `static/css/design-tokens.css`. */
+const FIRMAMENTO = "#1D3B6A";
+const PAPEL = "#F6EFE2";
+const OURO = "#B8893A";
+
+const C = 512; // lado do viewBox
+
+/* Monograma "h" da Cormorant Garamond 600, contorno em coordenadas de fonte
+   (upem 1000) já com o Y invertido para o sistema do SVG. bbox: x 1.5…490,
+   y -725…0 — ou seja 488.5 × 725 unidades. */
+const GLIFO_H =
+  "M23.0 0.0Q20.0 0.0 20.0 -6.0Q20.0 -12.0 23.0 -12.0Q56.0 -12.0 68.0 -26.0Q80.0 -40.0 80.0 -81.0V-592.0Q80.0 -627.0 73.5 -642.5Q67.0 -658.0 50.0 -658.0Q35.0 -658.0 9.0 -646.0Q6.0 -645.0 3.0 -650.5Q0.0 -656.0 3.0 -658.0L142.0 -724.0Q144.0 -725.0 145.0 -725.0H146.0Q151.0 -725.0 155.5 -721.0Q160.0 -717.0 160.0 -714.0V-315.0Q188.0 -348.0 219.0 -368.0Q263.0 -397.0 313.0 -397.0Q368.0 -397.0 398.5 -363.5Q429.0 -330.0 429.0 -274.0V-81.0Q429.0 -40.0 440.5 -26.0Q452.0 -12.0 486.0 -12.0Q490.0 -12.0 490.0 -6.0Q490.0 0.0 486.0 0.0Q467.0 0.0 442.5 -1.0Q418.0 -2.0 389.0 -2.0Q361.0 -2.0 336.0 -1.0Q311.0 0.0 292.0 0.0Q289.0 0.0 289.0 -6.0Q289.0 -12.0 292.0 -12.0Q325.0 -12.0 337.0 -26.0Q349.0 -40.0 349.0 -81.0V-230.0Q349.0 -340.0 263.0 -340.0Q231.0 -340.0 197.0 -322.0Q176.0 -311.0 160.0 -295.0V-81.0Q160.0 -40.0 171.5 -26.0Q183.0 -12.0 217.0 -12.0Q221.0 -12.0 221.0 -6.0Q221.0 0.0 217.0 0.0Q198.0 0.0 173.5 -1.0Q149.0 -2.0 120.0 -2.0Q92.0 -2.0 67.0 -1.0Q42.0 0.0 23.0 0.0Z";
+const GLIFO_X0 = 1.5;
+const GLIFO_LARG = 488.5;
+const GLIFO_ALT = 725;
+
+const n = (v) => Number(v.toFixed(2));
+
+/**
+ * Monta o SVG do ícone.
+ *
+ * @param {object} o
+ * @param {number} o.alturaGlifo fração do lado ocupada pela altura do "h"
+ * @param {number} o.filete      espessura do filete dourado em frações do lado (0 = sem filete)
+ * @param {number} o.fileteLarg  largura do filete em frações do lado
+ * @param {number} o.vao         respiro entre a base do "h" e o filete, em frações do lado
+ * @param {boolean} o.invertido  true = papel de fundo, tinta firmamento
+ */
+function svgIcone({
+  alturaGlifo,
+  filete = 0.0215,
+  fileteLarg = 0.41,
+  vao = 0.05,
+  invertido = false,
+}) {
+  const fundo = invertido ? PAPEL : FIRMAMENTO;
+  const tinta = invertido ? FIRMAMENTO : PAPEL;
+
+  const hGlifo = alturaGlifo * C;
+  const escala = hGlifo / GLIFO_ALT;
+  const wGlifo = GLIFO_LARG * escala;
+
+  const espFilete = filete * C;
+  const wFilete = fileteLarg * C;
+  const vaoPx = filete > 0 ? vao * C : 0;
+
+  const alturaTotal = hGlifo + vaoPx + espFilete;
+  const topo = (C - alturaTotal) / 2;
+
+  // Glifo: leva a bbox para (X, topo). translate compensa x0 e a baseline.
+  const tx = (C - wGlifo) / 2 - GLIFO_X0 * escala;
+  const ty = topo + hGlifo;
+
+  const fileteSvg =
+    filete > 0
+      ? `\n  <rect x="${n((C - wFilete) / 2)}" y="${n(topo + hGlifo + vaoPx)}" ` +
+        `width="${n(wFilete)}" height="${n(espFilete)}" fill="${OURO}"/>`
+      : "";
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${C}" height="${C}" viewBox="0 0 ${C} ${C}" role="img" aria-label="Hinária">
+  <title>Hinária</title>
+  <rect width="${C}" height="${C}" fill="${fundo}"/>
+  <path transform="translate(${n(tx)} ${n(ty)}) scale(${n(escala)})" d="${GLIFO_H}" fill="${tinta}"/>${fileteSvg}
+</svg>
+`;
+}
+
+/* Geometrias. "any" ocupa 52% do lado; "maskable" encolhe para 40% e estreita o
+   filete, de forma que a composição inteira caiba no círculo de raio 40% do
+   lado (safe zone de 80%). O favicon usa o glifo maior e abre mão do filete: em
+   16px o ouro sobre azul vira uma linha suja. */
+const GEO_ANY = { alturaGlifo: 0.52 };
+const GEO_MASKABLE = { alturaGlifo: 0.4, filete: 0.0166, fileteLarg: 0.315, vao: 0.039 };
+const GEO_FAVICON = { alturaGlifo: 0.7, filete: 0 };
+
+function png(svg, destino, tamanho) {
+  const svgTmp = resolve(STATIC_DIR, `.tmp-${tamanho}-${Date.now()}.svg`);
+  writeFileSync(svgTmp, svg);
+  execFileSync(MAGICK, [
+    "-background", "none",
+    "-density", "600",
+    svgTmp,
+    "-resize", `${tamanho}x${tamanho}`,
+    "-strip",
+    // 8 bits e truecolor sem alpha: o build Q16 do ImageMagick grava PNG de
+    // 16 bits por padrão, o que dobra o peso sem ganho nenhum num ícone chapado.
+    "-depth", "8",
+    "-define", "png:color-type=2",
+    resolve(STATIC_DIR, destino),
+  ]);
+  execFileSync("/bin/rm", ["-f", svgTmp]);
+  console.log(`  ok  ${destino} (${tamanho}px)`);
+}
+
+mkdirSync(resolve(STATIC_DIR, "icons"), { recursive: true });
+
+const mestre = svgIcone(GEO_ANY);
+writeFileSync(resolve(STATIC_DIR, "icone-mestre.svg"), mestre);
+console.log("  ok  icone-mestre.svg");
+
+png(mestre, "icons/icon-192.png", 192);
+png(mestre, "icons/icon-512.png", 512);
+png(svgIcone(GEO_MASKABLE), "icons/icon-maskable-512.png", 512);
+png(svgIcone(GEO_FAVICON), "favicon.png", 48);
+png(svgIcone(GEO_FAVICON), "apple-touch-icon.png", 180);
+
+console.log("Pronto.");
+```
+
 ---
 
 ## Gaps (precisam de insumo externo, não de decisão técnica)
 
-### Ícones PWA — não existe arte de marca no repositório
+### ~~Ícones PWA~~ — RESOLVIDO (não é mais bloqueador)
 
-`web/static/manifest.webmanifest` foi entregue **sem a chave `icons`**, de
-propósito. Motivo: não há nenhuma imagem de marca no repo. Busca por
-`*.png|*.svg|*.ico|*.jpg|*.webp` só retorna screenshots de `_design/ui_v3/` e
-uploads de conversa em `_design/fase2-bundle/project/uploads/` — nada que sirva
-de ícone. E `web/src/app.html` já referenciava
-`%sveltekit.assets%/favicon.png`, arquivo que nunca existiu (404 em toda
-navegação; marcado com `TODO` no próprio `app.html`).
+Este gap deixou de existir. A hipótese em que ele se apoiava — "sem arte de marca
+não há ícone" — estava errada: a marca **já existe no repositório**, na forma do
+design system (Cormorant Garamond 600 + paleta "Luz do Firmamento"), e um
+monograma tipográfico derivado dela é identidade visual do projeto, não invenção
+de agente. A decisão e a justificativa estão na seção 6.
 
-Declarar no manifest ícones que não existem seria pior que omitir, então ficou
-omitido. **Impacto direto:** sem ícone 192+ o app não é instalável e o critério
-"Lighthouse PWA ≥ 90" (`_plan/plano-headless-graphql.md:870`) **não é
-alcançável**. Isto bloqueia o encerramento do Marco 6, não o começo.
+Entregue em `web/static/`: `icone-mestre.svg` (mestre vetorial),
+`icons/icon-192.png`, `icons/icon-512.png`, `icons/icon-maskable-512.png`
+(safe zone de 80% conferida), `favicon.png` (48px — o arquivo que o `app.html`
+referenciava e que dava 404 em toda navegação) e `apple-touch-icon.png` (180px).
+Manifest com `icons` válido, `purpose` `any`/`maskable` em entradas separadas.
+Maior arquivo: 8.6 KB.
 
-Caminho já mapeado (é rápido, falta só a decisão de marca):
-- `ImageMagick` está disponível na máquina (`/opt/homebrew/bin/magick`).
-- `gestao-feitio/app/scripts/gerar-icones.mjs` faz exatamente isto a partir de um
-  SVG inline com um glyph e a paleta do projeto, gerando `icon-192.png`,
-  `icon-512.png` e `icon-maskable.png` (512 com safe zone de ~80%). Copiar pra
-  `web/scripts/`, trocar as constantes de cor para `#F6EFE2` (papel) /
-  `#1D3B6A` (firmamento) e o glyph para um dos ornamentos da paleta
-  (`static/css/design-tokens.css:25` documenta ☀ ☾ ★ como acento gold).
-- Depois: acrescentar `icons` ao manifest, criar `web/static/favicon.png` e um
-  `apple-touch-icon` (Safari ignora ícone de manifest).
+**Consequência para o critério de aceitação:** "Lighthouse PWA ≥ 90"
+(`_plan/plano-headless-graphql.md:870`) volta a ser alcançável — o app é
+instalável. O que resta do Marco 6 é service worker + offline, não marca.
 
-**Pendência de decisão humana:** qual glyph/monograma representa a Hinaria. Um
-ícone gerado por agente e mergeado como se fosse identidade visual é dívida de
-marca, não entrega.
+Duas pendências pequenas, **em arquivos de outra frente** (`web/src/app.html`,
+que esta frente não pode tocar):
+
+1. O comentário `TODO(Marco 6)` no topo do `app.html` está obsoleto —
+   `favicon.png` e os ícones do manifest agora existem. Remover.
+2. Falta `<link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />`.
+   O arquivo já está em `web/static/`, e o iOS o encontra por convenção em
+   `/apple-touch-icon.png` mesmo sem a tag; a tag só torna explícito.
+
+Não pendente, mas registrado: se um dia entrar arte de marca de verdade, o
+gerador na seção 6 é o único ponto a mexer — trocar o `d=` do path pelo desenho
+novo e rodar de novo.
 
 ### Follow-ups de schema (frente do GraphQL, fase 2)
 
