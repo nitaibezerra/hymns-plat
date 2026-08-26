@@ -75,3 +75,75 @@ export const OCR_DUPLICATES_QUERY = `
     }
   }
 `;
+
+/**
+ * Fecha o fluxo "criar novo hinário": porta a `transaction.atomic()` de
+ * `upload_preview_view` pro backend, com `source=OCR`, `ocr_text` e
+ * `ocr_avg_confidence` preservados, e o hinário entrando como rascunho.
+ *
+ * Idempotente por `taskId`: uma task já consumida não cria um segundo hinário.
+ *
+ * O resultado segue a convenção de união do schema (ver `CreateHymnBookResult`
+ * em `schema.graphql`): o tipo de sucesso ou um dos erros tipados.
+ *
+ * ⚠️ Ciclo 5F.2 — **backend**, fora do escopo desta frente. Até ele existir, a
+ * chamada volta erro e a tela mostra a mensagem sem perder o wizard.
+ */
+export const CREATE_HYMNBOOK_FROM_OCR_MUTATION = `
+  mutation CreateHymnBookFromOcr($taskId: UUID!) {
+    createHymnBookFromOcr(taskId: $taskId) {
+      __typename
+      ... on HymnBookType {
+        id
+        name
+        slug
+      }
+      ... on PermissionDeniedError {
+        message
+      }
+      ... on NotFoundError {
+        message
+      }
+      ... on ValidationError {
+        message
+        field
+      }
+    }
+  }
+`;
+
+/**
+ * Fecha o fluxo "adicionar como nova versão": porta `upload_confirm_view`,
+ * criando uma `HymnBookVersion` com `is_primary=False`.
+ *
+ * Devolve o hinário de destino porque é pra ele que a tela navega — o mesmo
+ * `redirect("hymns:hymnbook_detail", slug=hymnbook.slug)` do Django.
+ *
+ * ⚠️ Ciclo 5F.3 — **backend**, fora do escopo desta frente.
+ */
+export const CREATE_HYMNBOOK_VERSION_FROM_OCR_MUTATION = `
+  mutation CreateHymnBookVersionFromOcr($taskId: UUID!, $hymnbookSlug: String!, $versionName: String!) {
+    createHymnBookVersionFromOcr(
+      taskId: $taskId
+      hymnbookSlug: $hymnbookSlug
+      versionName: $versionName
+    ) {
+      __typename
+      ... on HymnBookType {
+        id
+        name
+        slug
+      }
+      ... on PermissionDeniedError {
+        message
+      }
+      ... on NotFoundError {
+        message
+      }
+      ... on ValidationError {
+        message
+        field
+      }
+    }
+  }
+`;

@@ -12,8 +12,8 @@
  * o hinário entra `is_published=False` e cada hino como não revisado.
  */
 
-import { render, screen } from "@testing-library/svelte";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import Page from "./+page.svelte";
 import { _loadConferir } from "./+page";
@@ -170,5 +170,81 @@ describe("conferir page (5F.14)", () => {
   it("tem link pra voltar ao início do wizard", () => {
     render(Page, { props: { data: pageData() } });
     expect(screen.getByRole("link", { name: /voltar/i })).toHaveAttribute("href", "/contribuir/");
+  });
+});
+
+describe("conferir submit (5F.15)", () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    gotoMock.mockClear();
+    document.cookie = "csrftoken=TOKEN123";
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("confirma, cria o hinário e navega pro detalhe", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        data: {
+          createHymnBookFromOcr: {
+            __typename: "HymnBookType",
+            id: "b1",
+            name: "O Justiceiro",
+            slug: "o-justiceiro",
+          },
+        },
+      }),
+    ) as unknown as typeof fetch;
+
+    render(Page, { props: { data: pageData() } });
+    await fireEvent.click(screen.getByTestId("conferir-submit"));
+
+    await waitFor(() => expect(gotoMock).toHaveBeenCalledTimes(1));
+    expect(gotoMock).toHaveBeenCalledWith("/hinarios/o-justiceiro/");
+  });
+
+  it("erro da mutation mostra mensagem e mantém a conferência na tela", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        data: {
+          createHymnBookFromOcr: {
+            __typename: "ValidationError",
+            message: "Task já consumida.",
+            field: null,
+          },
+        },
+      }),
+    ) as unknown as typeof fetch;
+
+    render(Page, { props: { data: pageData() } });
+    await fireEvent.click(screen.getByTestId("conferir-submit"));
+
+    await waitFor(() => expect(screen.getByTestId("conferir-submit-error")).toBeInTheDocument());
+    expect(screen.getByTestId("conferir-submit-error")).toHaveTextContent("Task já consumida.");
+    expect(gotoMock).not.toHaveBeenCalled();
+    // O wizard continua ali: prévia, tabela e o botão pra tentar de novo.
+    expect(screen.getByTestId("conferir-preview")).toBeInTheDocument();
+    expect(screen.getAllByTestId("ocr-preview-row")).toHaveLength(2);
+    expect(screen.getByTestId("conferir-submit")).toBeEnabled();
+  });
+
+  it("desabilita o botão enquanto envia", async () => {
+    let resolveFetch: ((value: Response) => void) | undefined;
+    globalThis.fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    ) as unknown as typeof fetch;
+
+    render(Page, { props: { data: pageData() } });
+    await fireEvent.click(screen.getByTestId("conferir-submit"));
+    expect(screen.getByTestId("conferir-submit")).toBeDisabled();
+
+    resolveFetch?.(jsonResponse({ data: { createHymnBookFromOcr: null } }));
+    await waitFor(() => expect(screen.getByTestId("conferir-submit")).toBeEnabled());
   });
 });

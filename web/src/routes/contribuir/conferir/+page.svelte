@@ -5,13 +5,36 @@
    * Tela 3b do wizard: porta de `templates/users/upload_preview.html`. Duas
    * colunas — a prévia do texto extraído à esquerda e o resumo + tabela à
    * direita, com o aviso de rascunho em destaque.
+   *
+   * O submit chama `createHymnBookFromOcr` e navega pro detalhe do hinário
+   * criado (o mesmo `redirect("hymns:hymnbook_detail")` do Django). Erro **não**
+   * derruba o wizard: a mensagem aparece e a conferência fica na tela pro
+   * usuário tentar de novo.
    */
+  import { goto } from "$app/navigation";
   import OcrPreviewTable from "$lib/components/contribuir/OcrPreviewTable.svelte";
   import UploadStepper from "$lib/components/contribuir/UploadStepper.svelte";
+
+  import { createHymnBookFromOcr } from "../ocr-import";
 
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
+
+  let submitting = $state(false);
+  let submitError = $state<string | null>(null);
+
+  async function handleConfirm() {
+    submitting = true;
+    submitError = null;
+    const result = await createHymnBookFromOcr(fetch, data.taskId);
+    submitting = false;
+    if (result.ok) {
+      await goto(`/hinarios/${result.slug}/`);
+    } else {
+      submitError = result.message;
+    }
+  }
 </script>
 
 <section data-testid="conferir-page">
@@ -60,8 +83,15 @@
           <OcrPreviewTable hymns={data.previewHymns} totalHymns={data.totalHymns} />
         </div>
 
+        {#if submitError}
+          <p class="submit-error" role="alert" data-testid="conferir-submit-error">{submitError}</p>
+        {/if}
+
         <footer class="actions">
           <a class="back" href="/contribuir/">← Voltar</a>
+          <button type="button" onclick={handleConfirm} disabled={submitting} data-testid="conferir-submit">
+            {submitting ? "Criando…" : "Confirmar e criar rascunho"}
+          </button>
         </footer>
       </div>
     </aside>
@@ -205,5 +235,24 @@
     font-size: 0.875rem;
     padding: 0.5rem 1rem;
     text-decoration: none;
+  }
+  .actions button {
+    background: var(--color-accent);
+    border: none;
+    border-radius: var(--radius-pill);
+    color: var(--color-bg);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.875rem;
+    padding: 0.5rem 1.25rem;
+  }
+  .actions button:disabled {
+    cursor: progress;
+    opacity: 0.6;
+  }
+  .submit-error {
+    color: var(--color-status-not);
+    font-size: 0.875rem;
+    margin: 1rem 0 0;
   }
 </style>
