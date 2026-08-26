@@ -208,8 +208,15 @@ mutation($pk: ID!, $input: AudioReviewInput!) {
 """
 
 
-def test_review_audio_match_sets_is_approved_true(editor_client, hymn_book_factory, hymn_factory):
-    """is_match=True com quality_rating preenchido: áudio fica aprovado."""
+def test_review_audio_match_records_quality_and_reviewer(editor_client, hymn_book_factory, hymn_factory):
+    """is_match=True grava match, nota, observações e quem revisou.
+
+    O nome anterior (`..._sets_is_approved_true`) era mentiroso: o teste nunca
+    asseriu `is_approved`, e o resolver deliberadamente NÃO seta
+    `is_approved=True` — a aprovação efetiva continua sendo `approveAudio`,
+    igual à view. O teste seguinte
+    (`test_review_audio_match_does_not_auto_approve`) pina essa regra.
+    """
     hb = hymn_book_factory()
     h = hymn_factory(hymn_book=hb)
     a = _make_audio(h, is_approved=False)
@@ -236,6 +243,25 @@ def test_review_audio_match_sets_is_approved_true(editor_client, hymn_book_facto
     assert a.quality_rating == 4
     assert "Excelente captação" in a.quality_observations
     assert a.reviewed_by_id == editor_client.user.pk
+
+
+def test_review_audio_match_does_not_auto_approve(editor_client, hymn_book_factory, hymn_factory):
+    """A regra que o nome antigo prometia e o código nega, agora explícita:
+    revisar com match=True NÃO aprova o áudio — só `approveAudio` aprova."""
+    hb = hymn_book_factory()
+    h = hymn_factory(hymn_book=hb)
+    a = _make_audio(h, is_approved=False)
+
+    data = gql(
+        editor_client,
+        REVIEW_MUTATION,
+        variables={"pk": str(a.pk), "input": {"isMatch": True, "qualityRating": 5}},
+    )
+    assert "errors" not in data, data
+    assert data["data"]["reviewAudio"]["isApproved"] is False
+
+    a.refresh_from_db()
+    assert a.is_approved is False
 
 
 def test_review_audio_mismatch_forces_unapproval(editor_client, hymn_book_factory, hymn_factory):
