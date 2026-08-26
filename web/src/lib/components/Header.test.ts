@@ -23,6 +23,19 @@ describe("Header", () => {
     expect(screen.getByRole("link", { name: /buscar/i })).toBeInTheDocument();
   });
 
+  it("aponta 'Buscar' pra /busca, a rota que existe de fato", () => {
+    render(Header, { props: { currentUser: null } });
+    const link = screen.getByRole("link", { name: /buscar/i });
+    expect(link.getAttribute("href")).toBe("/busca");
+  });
+
+  it("aponta 'Hinários' pra /hinarios", () => {
+    render(Header, { props: { currentUser: null } });
+    expect(
+      screen.getByRole("link", { name: /hinários/i }).getAttribute("href"),
+    ).toBe("/hinarios");
+  });
+
   it("renderiza o botão de alternância de tema", () => {
     render(Header, { props: { currentUser: null } });
     expect(screen.getByTestId("theme-toggle")).toBeInTheDocument();
@@ -43,5 +56,17 @@ describe("Header", () => {
     expect(screen.getByTestId("user-avatar")).toBeInTheDocument();
     expect(screen.getByTestId("user-avatar")).toHaveTextContent(/ana/i);
     expect(screen.queryByRole("link", { name: /entrar/i })).toBeNull();
+  });
+
+  it("aponta o avatar pra /perfil/<username>, nao pra /perfil pelado", () => {
+    render(Header, {
+      props: {
+        currentUser: { id: "u1", username: "ana", email: "ana@example.com" },
+      },
+    });
+    // A rota implementada é `/perfil/[username]`; `/perfil` é 404.
+    expect(screen.getByTestId("user-avatar").getAttribute("href")).toBe(
+      "/perfil/ana",
+    );
   });
 });
