@@ -323,7 +323,15 @@ class HymnType:
     section: strawberry.auto
     source: strawberry.auto
     ocr_text: strawberry.auto
+    received_at: strawberry.auto
+    last_reviewed_at: strawberry.auto
     review_status: ReviewStatus
+
+    @strawberry.field
+    def last_reviewed_by(self) -> "UserType | None":
+        """Quem assinou a última revisão (`None` se nunca revisado ou se o
+        usuário foi removido — a FK é SET_NULL)."""
+        return self.last_reviewed_by
 
     @strawberry.field
     def hymn_book(self) -> "HymnBookType":
