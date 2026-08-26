@@ -17,20 +17,42 @@ vi.mock("$app/navigation", () => ({
   goto: vi.fn(),
 }));
 
-/** Stub de `globalThis.fetch` que devolve sempre o mesmo payload GraphQL. */
-function stubFetch(payload: unknown, status = 200) {
-  const fn = vi.fn().mockResolvedValue(
-    new Response(JSON.stringify(payload), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    }),
+function jsonResponse(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/**
+ * Stub de `globalThis.fetch`. A tela conversa com dois endpoints — GraphQL e
+ * o REST de prévia — então o roteamento é por URL.
+ */
+function stubFetch(graphqlPayload: unknown, previewPayload: unknown = { html: "" }) {
+  const fn = vi.fn().mockImplementation((url: string) =>
+    Promise.resolve(
+      String(url).includes("/editor/preview/render/")
+        ? jsonResponse(previewPayload)
+        : jsonResponse(graphqlPayload),
+    ),
   );
   vi.stubGlobal("fetch", fn);
   return fn;
 }
 
-function bodyOf(fn: ReturnType<typeof vi.fn>, callIndex = 0) {
-  return JSON.parse(fn.mock.calls[callIndex][1].body as string);
+type FetchMock = ReturnType<typeof vi.fn>;
+
+/** Chamadas ao GraphQL (exclui as do REST de prévia). */
+function graphqlCalls(fn: FetchMock) {
+  return fn.mock.calls.filter((call) => !String(call[0]).includes("/editor/preview/render/"));
+}
+
+function previewCalls(fn: FetchMock) {
+  return fn.mock.calls.filter((call) => String(call[0]).includes("/editor/preview/render/"));
+}
+
+function bodyOf(fn: FetchMock, callIndex = 0) {
+  return JSON.parse(graphqlCalls(fn)[callIndex][1].body as string);
 }
 
 export const sampleData: ReviseHymnData & { currentUser: null } = {
@@ -204,7 +226,7 @@ describe("5C.8 — autosave com debounce de 2s", () => {
     const fetchFn = stubFetch({ data: { updateHymn: { __typename: "HymnType", id: "h-1" } } });
     render(Page, { props: { data: sampleData } });
     await vi.advanceTimersByTimeAsync(5000);
-    expect(fetchFn).not.toHaveBeenCalled();
+    expect(graphqlCalls(fetchFn)).toHaveLength(0);
     expect(screen.getByTestId("autosave-status")).toHaveTextContent("—");
   });
 
@@ -218,10 +240,10 @@ describe("5C.8 — autosave com debounce de 2s", () => {
     expect(screen.getByTestId("autosave-status")).toHaveTextContent("Alterações não salvas");
 
     await vi.advanceTimersByTimeAsync(1900);
-    expect(fetchFn).not.toHaveBeenCalled();
+    expect(graphqlCalls(fetchFn)).toHaveLength(0);
 
     await vi.advanceTimersByTimeAsync(200);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(graphqlCalls(fetchFn)).toHaveLength(1);
     const body = bodyOf(fetchFn);
     expect(body.query).toContain("updateHymn");
     expect(body.variables.pk).toBe("h-1");
@@ -238,9 +260,9 @@ describe("5C.8 — autosave com debounce de 2s", () => {
       await fireEvent.input(input, { target: { value } });
       await vi.advanceTimersByTimeAsync(300);
     }
-    expect(fetchFn).not.toHaveBeenCalled();
+    expect(graphqlCalls(fetchFn)).toHaveLength(0);
     await vi.advanceTimersByTimeAsync(2000);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(graphqlCalls(fetchFn)).toHaveLength(1);
     expect(bodyOf(fetchFn).variables.input.title).toBe("Estr");
   });
 
@@ -282,9 +304,87 @@ describe("5C.8 — autosave com debounce de 2s", () => {
     await fireEvent.click(screen.getByLabelText("Revisado"));
     await vi.advanceTimersByTimeAsync(2100);
 
-    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(graphqlCalls(fetchFn)).toHaveLength(2);
     const second = bodyOf(fetchFn, 1);
     expect(second.query).toContain("setReviewStatus");
     expect(second.variables).toEqual({ pk: "h-1", status: "REVIEWED" });
+  });
+});
+
+describe("5C.9 — prévia renderizada pelo REST /editor/preview/render/", () => {
+  beforeEach(() => {
+    vi.mocked(goto).mockClear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("posta {text, repetitions} no caminho correto", async () => {
+    const fetchFn = stubFetch(
+      { data: { updateHymn: { __typename: "HymnType", id: "h-1" } } },
+      { html: "<p class='hymn-line'>Eu vou subindo</p>" },
+    );
+    render(Page, { props: { data: sampleData } });
+    await vi.advanceTimersByTimeAsync(600);
+
+    const calls = previewCalls(fetchFn);
+    expect(calls).toHaveLength(1);
+    expect(String(calls[0][0])).toBe("http://localhost:8000/editor/preview/render/");
+    expect(calls[0][1].method).toBe("POST");
+    expect(JSON.parse(calls[0][1].body as string)).toEqual({
+      text: "Eu vou subindo\nEu vou subindo",
+      repetitions: "1-2,3-4",
+    });
+  });
+
+  it("injeta o HTML devolvido no corpo da prévia", async () => {
+    stubFetch(
+      { data: { updateHymn: { __typename: "HymnType", id: "h-1" } } },
+      { html: "<p class=\"hymn-line\" data-testid=\"rendered-line\">Linha do Django</p>" },
+    );
+    render(Page, { props: { data: sampleData } });
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(screen.getByTestId("preview-body")).toHaveTextContent("Linha do Django");
+    expect(screen.getByTestId("rendered-line")).toBeInTheDocument();
+  });
+
+  it("re-renderiza quando `repetitions` muda, colapsando a rajada", async () => {
+    const fetchFn = stubFetch(
+      { data: { updateHymn: { __typename: "HymnType", id: "h-1" } } },
+      { html: "<p>ok</p>" },
+    );
+    render(Page, { props: { data: sampleData } });
+    await vi.advanceTimersByTimeAsync(600);
+    expect(previewCalls(fetchFn)).toHaveLength(1);
+
+    const input = screen.getByLabelText("Repetições");
+    await fireEvent.input(input, { target: { value: "1-4" } });
+    await fireEvent.input(input, { target: { value: "1-4,5-8" } });
+    await vi.advanceTimersByTimeAsync(600);
+
+    const calls = previewCalls(fetchFn);
+    expect(calls).toHaveLength(2);
+    expect(JSON.parse(calls[1][1].body as string).repetitions).toBe("1-4,5-8");
+  });
+
+  it("falha no REST cai no render local, sem quebrar a tela", async () => {
+    const fn = vi.fn().mockImplementation((url: string) =>
+      String(url).includes("/editor/preview/render/")
+        ? Promise.reject(new Error("offline"))
+        : Promise.resolve(jsonResponse({ data: { updateHymn: { __typename: "HymnType" } } })),
+    );
+    vi.stubGlobal("fetch", fn);
+
+    render(Page, { props: { data: sampleData } });
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(screen.getByTestId("preview-body")).toHaveTextContent("Eu vou subindo");
+    expect(screen.getByTestId("preview-fallback-note")).toHaveTextContent(
+      "Prévia simplificada (sem conexão com o servidor).",
+    );
   });
 });

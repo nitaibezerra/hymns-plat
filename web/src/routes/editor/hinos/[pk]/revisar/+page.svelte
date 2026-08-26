@@ -24,6 +24,7 @@
   import { getCsrfTokenFromCookie } from "$lib/graphql/client";
   import { gqlFetch } from "$lib/graphql/fetcher";
   import {
+    previewRenderUrl,
     SET_REVIEW_STATUS_MUTATION,
     UPDATE_HYMN_MUTATION,
   } from "$lib/graphql/operations/revise-hymn";
@@ -231,6 +232,53 @@
   });
 
   $effect(() => () => scheduleAutosave.cancel());
+
+  /* ===== 5C.9 · prévia ao vivo ============================================
+   *
+   * A prévia não é reimplementada aqui: um POST em `/editor/preview/render/`
+   * devolve o HTML do `render_hymn_body` do Django — a mesma fonte que
+   * renderiza corrido/carrossel/detalhe, incluindo as barras de repetição.
+   *
+   * Enquanto a resposta não chega (ou se o endpoint falhar), a prévia cai num
+   * render local linha-a-linha, avisado por `preview-fallback-note`.
+   */
+  const PREVIEW_DELAY_MS = 400;
+
+  let previewHtml = $state<string | null>(null);
+  let previewFailed = $state(false);
+
+  async function renderPreview(text: string, repetitions: string) {
+    try {
+      const response = await globalThis.fetch(previewRenderUrl(GRAPHQL_URL), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(getCsrfTokenFromCookie() ? { "X-CSRFToken": getCsrfTokenFromCookie()! } : {}),
+        },
+        body: JSON.stringify({ text, repetitions }),
+      });
+      if (!response.ok) {
+        previewFailed = true;
+        return;
+      }
+      const payload = (await response.json()) as { html?: string };
+      previewHtml = typeof payload.html === "string" ? payload.html : null;
+      previewFailed = false;
+    } catch {
+      previewFailed = true;
+    }
+  }
+
+  const schedulePreview = debounce((text: string, repetitions: string) => {
+    void renderPreview(text, repetitions);
+  }, PREVIEW_DELAY_MS);
+
+  $effect(() => {
+    schedulePreview(form.text, form.repetitions);
+  });
+
+  $effect(() => () => schedulePreview.cancel());
 </script>
 
 <section data-testid="revise-hymn">
@@ -335,11 +383,25 @@
             {form.number} - {form.title}
           </h2>
           <div class="preview-body" data-testid="preview-body">
-            {#each previewLines as line, index (index)}
-              <p class="preview-line">{line}</p>
-            {/each}
+            {#if previewHtml !== null}
+              <!-- HTML vem do próprio backend Django (`render_hymn_body`), que
+                   já escapa o texto do hino — é a fonte única do markup. -->
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+              {@html previewHtml}
+            {:else}
+              {#each previewLines as line, index (index)}
+                <p class="preview-line">{line}</p>
+              {/each}
+            {/if}
           </div>
         </article>
+        {#if previewHtml === null}
+          <p class="preview-note" data-testid="preview-fallback-note">
+            {previewFailed
+              ? "Prévia simplificada (sem conexão com o servidor)."
+              : "Prévia simplificada · aguardando renderização do servidor."}
+          </p>
+        {/if}
 
         <div class="side-block">
           <p class="eyebrow">Diff vs OCR</p>
@@ -592,6 +654,12 @@
   .preview-line {
     min-height: 1.7em;
     text-align: left;
+  }
+
+  .preview-note {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
   }
 
   .side-block {

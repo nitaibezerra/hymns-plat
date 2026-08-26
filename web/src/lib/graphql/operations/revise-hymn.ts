@@ -10,6 +10,23 @@
  * de `body` e a escreve de volta em `HymnUpdateInput.text`.
  */
 
+/**
+ * 5C.9 — endpoint REST que renderiza o corpo do hino para um par
+ * `{text, repetitions}` arbitrário (`apps/hymns/urls.py` →
+ * `editor_preview_render`). É o único pedaço da tela que não é GraphQL:
+ * reusa o `render_hymn_body` do Django, que é a fonte única do markup das
+ * barras de repetição usado nas telas públicas.
+ *
+ * Atenção ao caminho: `/editor/preview/render/` (partes do plano escrevem
+ * `/editor/preview/`, que não existe).
+ */
+export const PREVIEW_RENDER_PATH = "/editor/preview/render/";
+
+/** Resolve o endpoint REST a partir da URL do GraphQL (mesma origem). */
+export function previewRenderUrl(graphqlUrl: string): string {
+  return new URL(PREVIEW_RENDER_PATH, graphqlUrl).toString();
+}
+
 /** Query do load: hino + contexto editorial completo da tela de revisão. */
 export const REVISE_HYMN_QUERY = `
   query ReviseHymn($pk: ID!) {
