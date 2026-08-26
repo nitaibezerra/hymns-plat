@@ -496,6 +496,72 @@ describe("5C.10 — Marcar revisado e avançar", () => {
   });
 });
 
+describe("5C.12 — indicador de posição na fila", () => {
+  beforeEach(() => {
+    stubFetch({ data: { updateHymn: { __typename: "HymnType", id: "h-1" } } });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("mostra `NN de T · R restante` como o template Django", () => {
+    render(Page, { props: { data: sampleData } });
+    // h-1 é o 2º de 3; o único outro pendente é h-2.
+    expect(screen.getByTestId("queue-indicator")).toHaveTextContent("02 de 3 · 1 restante");
+  });
+
+  it("pluraliza `restantes` em PT-BR", () => {
+    render(Page, {
+      props: {
+        data: {
+          ...sampleData,
+          hymn: {
+            ...sampleData.hymn!,
+            hymnBook: {
+              ...sampleData.hymn!.hymnBook,
+              hymns: [
+                { id: "h-1", number: 7, reviewStatus: "IN_REVIEW" },
+                { id: "h-2", number: 8, reviewStatus: "NOT_REVIEWED" },
+                { id: "h-3", number: 9, reviewStatus: "IN_REVIEW" },
+              ],
+            },
+          },
+        },
+      },
+    });
+    expect(screen.getByTestId("queue-indicator")).toHaveTextContent("01 de 3 · 2 restantes");
+  });
+
+  it("hinário todo revisado mostra `0 restantes`", () => {
+    render(Page, {
+      props: {
+        data: {
+          ...sampleData,
+          hymn: {
+            ...sampleData.hymn!,
+            hymnBook: {
+              ...sampleData.hymn!.hymnBook,
+              hymns: [{ id: "h-1", number: 7, reviewStatus: "REVIEWED" }],
+            },
+          },
+        },
+      },
+    });
+    expect(screen.getByTestId("queue-indicator")).toHaveTextContent("01 de 1 · 0 restantes");
+  });
+
+  it("a barra de progresso reflete revisados/total e reage ao segmentado", async () => {
+    render(Page, { props: { data: sampleData } });
+    const bar = screen.getByTestId("queue-progress");
+    // 1 de 3 revisados (h-0).
+    expect(bar.style.width).toBe("33.3%");
+
+    await fireEvent.click(screen.getByLabelText("Revisado"));
+    expect(bar.style.width).toBe("66.7%");
+  });
+});
+
 describe("5C.11 — Salvar rascunho e voltar", () => {
   beforeEach(() => {
     vi.mocked(goto).mockClear();

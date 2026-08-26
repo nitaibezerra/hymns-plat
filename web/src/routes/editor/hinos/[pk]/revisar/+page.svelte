@@ -80,6 +80,45 @@
 
   let previewLines = $derived(form.text.split("\n"));
 
+  /* ===== 5C.12 · posição na fila ===========================================
+   *
+   * Paridade com o cálculo da view Django: `position` é o índice (1-based) do
+   * hino na ordem por `number`; `remaining` conta os pendentes **exceto este**
+   * (a view subtrai 1 quando o hino atual não está revisado — o resultado é
+   * sempre "quantos sobram depois deste").
+   *
+   * A barra de progresso usa revisados/total e inclui o hino atual com o
+   * valor do segmentado, então ela reage na hora quando o editor marca
+   * "Revisado". (O template Django usa `width: {{ position }}%`, que é um bug
+   * de porcentagem; aqui a barra mede progresso de revisão de verdade.)
+   */
+  let queue = $derived.by(() => {
+    const hymn = data.hymn;
+    if (!hymn) return { position: 0, total: 0, remaining: 0, progress: 0 };
+
+    const ordered = [...hymn.hymnBook.hymns].sort((a, b) => a.number - b.number);
+    const total = ordered.length;
+    const position = ordered.findIndex((item) => item.id === hymn.id) + 1;
+    const remaining = ordered.filter(
+      (item) => item.id !== hymn.id && item.reviewStatus !== "REVIEWED",
+    ).length;
+    const reviewed = ordered.filter((item) =>
+      item.id === hymn.id ? form.reviewStatus === "REVIEWED" : item.reviewStatus === "REVIEWED",
+    ).length;
+
+    return {
+      position,
+      total,
+      remaining,
+      progress: total === 0 ? 0 : Math.round((reviewed / total) * 1000) / 10,
+    };
+  });
+
+  let queueLabel = $derived(
+    `${String(queue.position).padStart(2, "0")} de ${queue.total} · ` +
+      `${queue.remaining} ${queue.remaining === 1 ? "restante" : "restantes"}`,
+  );
+
   /* ===== 5C.8 · autosave ===================================================
    *
    * Um `$effect` observa o formulário inteiro; qualquer mudança agenda o
@@ -342,11 +381,17 @@
       <a class="back-link" href="/editor/hinarios/{data.hymn.hymnBook.slug}">
         ← {data.hymn.hymnBook.name}
       </a>
-      <p class="revise-title" data-testid="revise-title">Revisar hino</p>
+      <div class="revise-heading">
+        <p class="revise-title" data-testid="revise-title">Revisar hino</p>
+        <p class="queue-indicator" data-testid="queue-indicator">{queueLabel}</p>
+      </div>
       <span class="status-pill" data-status={form.reviewStatus}>
         ● {STATUS_OPTIONS.find((option) => option.value === form.reviewStatus)?.label ?? "—"}
       </span>
     </header>
+    <div class="queue-track">
+      <div class="queue-progress" data-testid="queue-progress" style="width: {queue.progress}%"></div>
+    </div>
 
     <div class="revise-grid">
       <!-- ESQUERDA: editor de texto -->
@@ -518,9 +563,34 @@
     text-transform: uppercase;
   }
 
+  .revise-heading {
+    text-align: center;
+  }
+
   .revise-title {
     font-family: var(--font-display);
     font-size: 1.25rem;
+  }
+
+  .queue-indicator {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.15em;
+    margin-top: 2px;
+    text-transform: uppercase;
+  }
+
+  .queue-track {
+    background: var(--color-bg-deep);
+    height: 4px;
+  }
+
+  .queue-progress {
+    background: linear-gradient(90deg, var(--color-gold), var(--color-gold-soft));
+    height: 100%;
+    max-width: 100%;
+    transition: width 200ms;
   }
 
   .status-pill {
