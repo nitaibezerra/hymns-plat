@@ -146,3 +146,28 @@ describe("5C.6 — pílulas de estilo preenchem o campo", () => {
     ]);
   });
 });
+
+describe("5C.7 — pílulas de repetição preenchem o campo", () => {
+  it("clicar em `3-4,1-4` escreve no input de Repetições", async () => {
+    render(Page, { props: { data: sampleData } });
+    const input = screen.getByLabelText("Repetições") as HTMLInputElement;
+    expect(input.value).toBe("1-2,3-4");
+
+    await fireEvent.click(screen.getByRole("button", { name: "3-4,1-4" }));
+    expect(input.value).toBe("3-4,1-4");
+  });
+
+  it("`commonRepetitions` do hinário entra como sugestão extra", () => {
+    render(Page, {
+      props: {
+        data: {
+          ...sampleData,
+          hymn: { ...sampleData.hymn!, commonRepetitions: ["1-4", "5-8"] },
+        },
+      },
+    });
+    expect(
+      screen.getAllByTestId("repetition-suggestion").map((el) => el.textContent?.trim()),
+    ).toEqual(["5-8"]);
+  });
+});

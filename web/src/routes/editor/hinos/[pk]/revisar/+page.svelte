@@ -17,6 +17,7 @@
    */
   import InlineDiff from "$lib/components/editor/InlineDiff.svelte";
   import OcrConfidenceBar from "$lib/components/editor/OcrConfidenceBar.svelte";
+  import RepetitionPills from "$lib/components/editor/RepetitionPills.svelte";
   import StylePills from "$lib/components/editor/StylePills.svelte";
 
   import type { PageData } from "./$types";
@@ -116,10 +117,16 @@
         <p class="hint">Linha 1 de {previewLines.length} · destaque sincronizado com a prévia →</p>
 
         <div class="meta-grid">
-          <label class="field">
-            <span class="eyebrow">Repetições</span>
-            <input class="input" type="text" bind:value={form.repetitions} />
-          </label>
+          <div class="field">
+            <label class="field">
+              <span class="eyebrow">Repetições</span>
+              <input class="input input-mono" type="text" bind:value={form.repetitions} />
+            </label>
+            <RepetitionPills
+              bind:value={form.repetitions}
+              suggestions={data.hymn.commonRepetitions}
+            />
+          </div>
           <div class="field">
             <label class="field">
               <span class="eyebrow">Estilo</span>
@@ -307,6 +314,11 @@
     font-size: 0.9375rem;
     padding: 0.5rem 0.75rem;
     width: 100%;
+  }
+
+  .input-mono {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
   }
 
   .input-number {
