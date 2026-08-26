@@ -172,8 +172,14 @@ export const NOTIFICATIONS_QUERY = `
   }
 `;
 
+/**
+ * `audios(approvedOnly:)` tem default `true` no schema. Sem passar o
+ * argumento explicitamente, os áudios pendentes nunca chegam ao frontend e o
+ * gating de editor do `HymnAudioList` (badge "Aguardando aprovação") nunca
+ * dispara. A load function passa `approvedOnly: false` pra editor.
+ */
 export const HYMN_DETAIL_QUERY = `
-  query HymnDetail($pk: ID!) {
+  query HymnDetail($pk: ID!, $approvedOnly: Boolean!) {
     hymn(pk: $pk) {
       id
       number
@@ -183,11 +189,12 @@ export const HYMN_DETAIL_QUERY = `
       previousInBook { id number title }
       nextInBook { id number title }
       siblingsWithSameNumber { id number title }
-      audios {
+      audios(approvedOnly: $approvedOnly) {
         id
         url
         waveformPeaks
         durationSeconds
+        isApproved
         uploadedBy { id username }
       }
     }

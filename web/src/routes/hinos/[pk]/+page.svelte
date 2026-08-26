@@ -10,7 +10,9 @@
    *   - 4E.4: `SiblingHymnsList` pra disambiguação "este número aparece em…".
    *   - 4E.5: `HymnAudioList` pros áudios aprovados.
    *   - 4E.6: o componente de áudios mostra pendentes pro uploader/editor
-   *           (gating recebido via prop `currentUser` do layout data).
+   *           (gating via props `currentUser` do layout data + `isEditor`
+   *           calculado na load function, que também é quem pede
+   *           `approvedOnly: false` ao backend).
    *
    * `currentUser` é repassado do `+layout.ts` via `$page.data` — buscamos
    * pelo `$app/state`/`page` store. Pra manter teste/componente simples e
@@ -73,6 +75,7 @@
         hymnTitle={data.hymn.title}
         hymnNumber={data.hymn.number}
         currentUser={(data.currentUser as LayoutUser | null) ?? null}
+        isEditor={data.isEditor}
       />
     {/if}
   {/if}

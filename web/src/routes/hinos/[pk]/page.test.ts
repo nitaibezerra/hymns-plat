@@ -73,7 +73,7 @@ describe("_loadHymn (load function do detalhe de hino)", () => {
 
     expect(fetchFn).toHaveBeenCalledOnce();
     const body = JSON.parse(fetchFn.mock.calls[0]![1]!.body as string);
-    expect(body.variables).toEqual({ pk: "h-1" });
+    expect(body.variables).toEqual({ pk: "h-1", approvedOnly: true });
     expect(body.query).toMatch(/hymn\s*\(\s*pk:\s*\$pk\s*\)/);
     expect(body.query).toMatch(/previousInBook/);
     expect(body.query).toMatch(/nextInBook/);
@@ -113,6 +113,39 @@ describe("_loadHymn (load function do detalhe de hino)", () => {
     expect(result.hymn).toBeNull();
     expect(result.error).toMatch(/HTTP 500/);
   });
+
+  it("pede approvedOnly=false e isApproved quando ha usuario logado (editor)", async () => {
+    const fetchFn = fakeFetch(FULL_HYMN_PAYLOAD);
+    const result = await _loadHymn({
+      fetch: fetchFn,
+      params: { pk: "h-1" },
+      parent: async () => ({
+        currentUser: { id: "u-9", username: "nitaibezerra", email: "n@x.dev" },
+      }),
+    });
+
+    const body = JSON.parse(fetchFn.mock.calls[0]![1]!.body as string);
+    // Sem passar o argumento, `audios` cai no default do schema
+    // (`approvedOnly: Boolean! = true`) e os pendentes nunca chegam.
+    expect(body.variables).toEqual({ pk: "h-1", approvedOnly: false });
+    expect(body.query).toMatch(/audios\s*\(\s*approvedOnly:\s*\$approvedOnly\s*\)/);
+    // Sem `isApproved` no payload o componente não sabe marcar o pendente.
+    expect(body.query).toMatch(/isApproved/);
+    expect(result.isEditor).toBe(true);
+  });
+
+  it("mantem approvedOnly=true pra anonimo", async () => {
+    const fetchFn = fakeFetch(FULL_HYMN_PAYLOAD);
+    const result = await _loadHymn({
+      fetch: fetchFn,
+      params: { pk: "h-1" },
+      parent: async () => ({ currentUser: null }),
+    });
+
+    const body = JSON.parse(fetchFn.mock.calls[0]![1]!.body as string);
+    expect(body.variables).toEqual({ pk: "h-1", approvedOnly: true });
+    expect(result.isEditor).toBe(false);
+  });
 });
 
 const HYMN_OK: HymnDetailData = {
@@ -128,14 +161,15 @@ const HYMN_OK: HymnDetailData = {
     audios: [],
   },
   error: null,
+  isEditor: false,
 };
 
 // `+page.svelte` recebe `data: PageData`, que o SvelteKit infere como
 // união de `LayoutData & PageDataFromLoad`. Pra evitar repetir o cast
 // completo, helper anexa `currentUser` (do layout) ao payload do page.
-function pageProps(data: HymnDetailData) {
+function pageProps(data: HymnDetailData, currentUser: unknown = null) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return { data: { currentUser: null, ...data } as any };
+  return { data: { currentUser, ...data } as any };
 }
 
 describe("+page.svelte (detalhe de hino)", () => {
@@ -171,6 +205,7 @@ describe("+page.svelte (detalhe de hino)", () => {
     const data: HymnDetailData = {
       hymn: { ...HYMN_OK.hymn!, previousInBook: null },
       error: null,
+      isEditor: false,
     };
     render(Page, { props: pageProps(data) });
     expect(screen.queryByTestId("nav-prev")).toBeNull();
@@ -180,18 +215,58 @@ describe("+page.svelte (detalhe de hino)", () => {
     const data: HymnDetailData = {
       hymn: { ...HYMN_OK.hymn!, nextInBook: null },
       error: null,
+      isEditor: false,
     };
     render(Page, { props: pageProps(data) });
     expect(screen.queryByTestId("nav-next")).toBeNull();
   });
 
   it("mostra fallback quando hymn=null (não encontrado ou sem permissão)", () => {
-    render(Page, { props: pageProps({ hymn: null, error: null }) });
+    render(Page, { props: pageProps({ hymn: null, error: null, isEditor: false }) });
     expect(screen.getByTestId("hymn-not-found")).toBeInTheDocument();
   });
 
   it("mostra mensagem de erro quando data.error não é null", () => {
-    render(Page, { props: pageProps({ hymn: null, error: "HTTP 500" }) });
+    render(Page, { props: pageProps({ hymn: null, error: "HTTP 500", isEditor: false }) });
     expect(screen.getByTestId("error")).toHaveTextContent(/HTTP 500/);
+  });
+
+  it("repassa isEditor pro HymnAudioList, de forma que pendentes aparecem (4E.6)", () => {
+    const pendente = {
+      id: "a-pend",
+      url: "https://media.example.com/pend.mp3",
+      waveformPeaks: [1, 2],
+      durationSeconds: 90,
+      uploadedBy: { id: "u-outro", username: "outra-pessoa" },
+      isApproved: false,
+    };
+    const data: HymnDetailData = {
+      hymn: { ...HYMN_OK.hymn!, audios: [pendente] },
+      error: null,
+      isEditor: true,
+    };
+    render(Page, {
+      props: pageProps(data, { id: "u-9", username: "editora", email: "e@x.dev" }),
+    });
+    expect(screen.getAllByTestId("audio-item")).toHaveLength(1);
+    expect(screen.getByTestId("badge-pending")).toBeInTheDocument();
+  });
+
+  it("esconde pendentes de terceiros quando isEditor=false (4E.6)", () => {
+    const pendente = {
+      id: "a-pend",
+      url: "https://media.example.com/pend.mp3",
+      waveformPeaks: [1, 2],
+      durationSeconds: 90,
+      uploadedBy: { id: "u-outro", username: "outra-pessoa" },
+      isApproved: false,
+    };
+    const data: HymnDetailData = {
+      hymn: { ...HYMN_OK.hymn!, audios: [pendente] },
+      error: null,
+      isEditor: false,
+    };
+    render(Page, { props: pageProps(data) });
+    expect(screen.queryByTestId("badge-pending")).toBeNull();
   });
 });
