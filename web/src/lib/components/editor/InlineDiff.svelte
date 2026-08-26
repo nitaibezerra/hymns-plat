@@ -32,12 +32,32 @@
   let { diff = null }: { diff?: InlineDiffProp | null } = $props();
 
   let lines = $derived(diff?.lines ?? []);
+
+  /**
+   * 5C.3 — pluralização PT-BR das badges de contagem. O Django resolve isso
+   * com `|pluralize`; aqui a regra é explícita porque as três palavras têm
+   * plurais diferentes ("substituições" muda a sílaba tônica).
+   */
+  function pluralize(count: number, singular: string, plural: string): string {
+    return `${count} ${count === 1 ? singular : plural}`;
+  }
 </script>
 
 {#if !diff || lines.length === 0}
   <p class="diff-empty" data-testid="diff-empty">Sem OCR para comparar.</p>
 {:else}
   <div class="diff-inline" data-testid="inline-diff">
+    <header class="diff-badges">
+      <span class="diff-badge is-change" data-testid="diff-count-changes">
+        {pluralize(diff.changes, "substituição", "substituições")}
+      </span>
+      <span class="diff-badge is-add" data-testid="diff-count-adds">
+        {pluralize(diff.adds, "adição", "adições")}
+      </span>
+      <span class="diff-badge is-del" data-testid="diff-count-dels">
+        {pluralize(diff.dels, "remoção", "remoções")}
+      </span>
+    </header>
     {#each lines as line, index (index)}
       <p class="diff-line" data-testid="diff-line" data-kind={line.kind}>
         {#each line.tokens as token, tokenIndex (tokenIndex)}
@@ -74,6 +94,37 @@
     font-size: 0.8125rem;
     line-height: 1.7;
     padding: 1rem;
+  }
+
+  .diff-badges {
+    border-bottom: 1px solid var(--color-border-soft);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.625rem;
+  }
+
+  .diff-badge {
+    border: 1px solid currentcolor;
+    border-radius: var(--radius-pill);
+    color: var(--color-text-muted);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    padding: 2px 10px;
+    text-transform: uppercase;
+  }
+
+  .diff-badge.is-change {
+    color: var(--color-status-mid);
+  }
+
+  .diff-badge.is-add {
+    color: var(--color-status-ok);
+  }
+
+  .diff-badge.is-del {
+    color: var(--color-status-not);
   }
 
   .diff-line {

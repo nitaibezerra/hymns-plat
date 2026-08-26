@@ -1,5 +1,5 @@
 /**
- * Sub-marco 5.C — Ciclo 5C.2.
+ * Sub-marco 5.C — Ciclos 5C.2 e 5C.3.
  *
  * `InlineDiff` renderiza `HymnType.inlineDiff` (diff OCR × texto revisado em
  * duas camadas: linha → palavra). Espelha `.diff-inline` de
@@ -83,5 +83,28 @@ describe("InlineDiff — 5C.2", () => {
     render(InlineDiff, { props: { diff: null } });
     expect(screen.getByTestId("diff-empty")).toHaveTextContent("Sem OCR para comparar.");
     expect(screen.queryAllByTestId("diff-line")).toHaveLength(0);
+  });
+});
+
+describe("InlineDiff — 5C.3 (badges de contagem)", () => {
+  it("exibe badges de substituições, acréscimos e remoções", () => {
+    render(InlineDiff, { props: { diff: DIFF } });
+    expect(screen.getByTestId("diff-count-changes")).toHaveTextContent("2 substituições");
+    expect(screen.getByTestId("diff-count-adds")).toHaveTextContent("1 adição");
+    expect(screen.getByTestId("diff-count-dels")).toHaveTextContent("1 remoção");
+  });
+
+  it("pluraliza em PT-BR conforme a contagem", () => {
+    render(InlineDiff, {
+      props: { diff: { changes: 1, adds: 0, dels: 3, lines: DIFF.lines } },
+    });
+    expect(screen.getByTestId("diff-count-changes")).toHaveTextContent("1 substituição");
+    expect(screen.getByTestId("diff-count-adds")).toHaveTextContent("0 adições");
+    expect(screen.getByTestId("diff-count-dels")).toHaveTextContent("3 remoções");
+  });
+
+  it("estado vazio não mostra badges", () => {
+    render(InlineDiff, { props: { diff: null } });
+    expect(screen.queryByTestId("diff-count-changes")).toBeNull();
   });
 });
