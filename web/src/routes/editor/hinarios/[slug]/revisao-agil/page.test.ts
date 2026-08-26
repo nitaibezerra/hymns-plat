@@ -7,9 +7,11 @@
  * apontado no primeiro hino sem estilo ou sem repetições).
  */
 
+import { fireEvent, render, screen } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
 import { _loadQuickReview } from "./+page";
+import Page from "./+page.svelte";
 
 function jsonResponse(payload: unknown) {
   return new Response(JSON.stringify(payload), {
@@ -99,5 +101,61 @@ describe("/editor/hinarios/[slug]/revisao-agil — load (5E.1)", () => {
     };
     const result = await _loadQuickReview(ev);
     expect(result.hymns.map((h) => h.number)).toEqual([1, 3]);
+  });
+});
+
+/** `data` já resolvido, do jeito que a load devolve. */
+function pageData(overrides: Record<string, unknown> = {}) {
+  const hymns = HYMNBOOK.hymns;
+  return {
+    hymnbook: { id: HYMNBOOK.id, name: HYMNBOOK.name, slug: HYMNBOOK.slug },
+    hymns,
+    current: hymns[1],
+    ...overrides,
+  };
+}
+
+describe("/editor/hinarios/[slug]/revisao-agil — pílulas na tela (5E.2)", () => {
+  it("renderiza as pílulas da revisão ágil", () => {
+    render(Page, { props: { data: pageData() } });
+    expect(screen.getByTestId("quick-review-pills")).toBeInTheDocument();
+  });
+
+  it("pré-marca a pílula do estilo já gravado no hino", () => {
+    render(Page, { props: { data: pageData() } });
+    const active = screen
+      .getAllByTestId("quick-style-tile")
+      .filter((el) => el.dataset.active === "true");
+    expect(active.map((el) => el.dataset.value)).toEqual(["Valsa"]);
+  });
+
+  it("pré-preenche o campo livre com o valor gravado", () => {
+    render(Page, { props: { data: pageData() } });
+    expect(screen.getByTestId("quick-style-input")).toHaveValue("Valsa");
+  });
+
+  it("atalho de teclado muda a pílula ativa na tela", async () => {
+    render(Page, { props: { data: pageData() } });
+    await fireEvent.keyDown(window, { key: "z" });
+    const active = screen
+      .getAllByTestId("quick-style-tile")
+      .filter((el) => el.dataset.active === "true");
+    expect(active.map((el) => el.dataset.value)).toEqual(["Mazurca"]);
+  });
+
+  it("atalho numérico muda a pílula de repetição na tela", async () => {
+    render(Page, { props: { data: pageData() } });
+    await fireEvent.keyDown(window, { key: "2" });
+    const active = screen
+      .getAllByTestId("quick-repetition-tile")
+      .filter((el) => el.dataset.active === "true");
+    expect(active.map((el) => el.dataset.value)).toEqual(["1-4"]);
+  });
+
+  it("avisa que esta tela não conclui a revisão (nunca toca review_status)", () => {
+    render(Page, { props: { data: pageData() } });
+    expect(screen.getByTestId("quick-review-disclaimer")).toHaveTextContent(
+      /não conclui a revisão/i,
+    );
   });
 });
