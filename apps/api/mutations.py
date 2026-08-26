@@ -24,12 +24,14 @@ from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
 from apps.hymns.forms import HymnAudioUploadForm, HymnBookForm, HymnForm, QuickReviewForm
-from apps.hymns.permissions import _is_editor_or_admin, can_create_hymnbook, can_edit_hymnbook, can_publish_hymnbook
+from apps.hymns.permissions import can_create_hymnbook, can_edit_hymnbook, can_publish_hymnbook
 from apps.hymns.services.review import publish_readiness
 from apps.users import models as user_models
 
+from .context import request_from_info, user_from_info
 from .errors import NotFoundError, PermissionDeniedError, ValidationError
 from .lookups import get_or_none
+from .permissions import gate, is_authenticated, is_editor_or_admin, is_staff
 from .types import (
     AudioReviewInput,
     DeleteResult,
@@ -56,11 +58,6 @@ class HymnUpdateInput:
     repetitions: str | None = strawberry.UNSET
     extra_instructions: str | None = strawberry.UNSET
     offered_to: str | None = strawberry.UNSET
-
-
-def _request(info: Info):
-    """Obtém o `HttpRequest` do contexto Strawberry."""
-    return info.context["request"] if isinstance(info.context, dict) else info.context.request
 
 
 def _hymn_form_data(input: HymnInput, instance=None) -> dict:
@@ -150,7 +147,7 @@ LoginResult = Annotated[Union[LoginSuccess, LoginError], strawberry.union("Login
 class Mutation:
     @strawberry.mutation
     def login(self, info: Info, username: str, password: str) -> LoginResult:
-        request = _request(info)
+        request = request_from_info(info)
         user = authenticate(request, username=username, password=password)
         if user is None:
             return LoginError(message="Credenciais inválidas.")
@@ -159,7 +156,7 @@ class Mutation:
 
     @strawberry.mutation
     def logout(self, info: Info) -> bool:
-        django_logout(_request(info))
+        django_logout(request_from_info(info))
         return True
 
     @strawberry.mutation
@@ -167,9 +164,9 @@ class Mutation:
         Union[HymnType, PermissionDeniedError, NotFoundError],
         strawberry.union("SetReviewStatusResult"),
     ]:
-        user = _request(info).user
-        if not _is_editor_or_admin(user):
-            return PermissionDeniedError()
+        user = user_from_info(info)
+        if denied := gate(user, is_editor_or_admin):
+            return denied
 
         hymn = get_or_none(hymn_models.Hymn.objects, pk=pk)
         if hymn is None:
@@ -190,9 +187,9 @@ class Mutation:
         Union[HymnType, PermissionDeniedError, NotFoundError, ValidationError],
         strawberry.union("UpdateHymnResult"),
     ]:
-        user = _request(info).user
-        if not _is_editor_or_admin(user):
-            return PermissionDeniedError()
+        user = user_from_info(info)
+        if denied := gate(user, is_editor_or_admin):
+            return denied
 
         hymn = get_or_none(hymn_models.Hymn.objects, pk=pk)
         if hymn is None:
@@ -222,9 +219,9 @@ class Mutation:
         strawberry.union("CreateHymnBookResult"),
     ]:
         """Cria um HymnBook reusando `HymnBookForm` (paridade com `hymnbook_create_view`)."""
-        user = _request(info).user
-        if not can_create_hymnbook(user):
-            return PermissionDeniedError()
+        user = user_from_info(info)
+        if denied := gate(user, can_create_hymnbook):
+            return denied
 
         data = _hymnbook_form_data(input)
         form = HymnBookForm(data=data, files=_hymnbook_form_files(input))
@@ -243,12 +240,12 @@ class Mutation:
         strawberry.union("UpdateHymnBookResult"),
     ]:
         """Atualiza um HymnBook reusando `HymnBookForm` (paridade com `hymnbook_edit_view`)."""
-        user = _request(info).user
+        user = user_from_info(info)
         hymnbook = hymn_models.HymnBook.objects.filter(slug=slug).first()
         if hymnbook is None:
             return NotFoundError()
-        if not can_edit_hymnbook(user, hymnbook):
-            return PermissionDeniedError()
+        if denied := gate(user, can_edit_hymnbook, hymnbook):
+            return denied
 
         data = _hymnbook_form_data(input, instance=hymnbook)
         form = HymnBookForm(data=data, files=_hymnbook_form_files(input), instance=hymnbook)
@@ -265,12 +262,12 @@ class Mutation:
     ]:
         """Publica um HymnBook após validar `publish_readiness`. Retorna
         `PublishResult` com `failedChecks` quando algum critério falha."""
-        user = _request(info).user
+        user = user_from_info(info)
         hymnbook = hymn_models.HymnBook.objects.filter(slug=slug).first()
         if hymnbook is None:
             return NotFoundError()
-        if not can_publish_hymnbook(user, hymnbook):
-            return PermissionDeniedError()
+        if denied := gate(user, can_publish_hymnbook, hymnbook):
+            return denied
 
         report = publish_readiness(hymnbook)
         if not report["can_publish"]:
@@ -289,12 +286,12 @@ class Mutation:
         strawberry.union("UnpublishHymnBookResult"),
     ]:
         """Despublica um HymnBook (paridade com `hymnbook_unpublish_view`)."""
-        user = _request(info).user
+        user = user_from_info(info)
         hymnbook = hymn_models.HymnBook.objects.filter(slug=slug).first()
         if hymnbook is None:
             return NotFoundError()
-        if not can_publish_hymnbook(user, hymnbook):
-            return PermissionDeniedError()
+        if denied := gate(user, can_publish_hymnbook, hymnbook):
+            return denied
 
         hymnbook.is_published = False
         hymnbook.save(update_fields=["is_published", "updated_at"])
@@ -306,12 +303,12 @@ class Mutation:
         strawberry.union("DeleteHymnBookResult"),
     ]:
         """Deleta um HymnBook em cascata (paridade com `hymnbook_delete_view`)."""
-        user = _request(info).user
+        user = user_from_info(info)
         hymnbook = hymn_models.HymnBook.objects.filter(slug=slug).first()
         if hymnbook is None:
             return NotFoundError()
-        if not can_edit_hymnbook(user, hymnbook):
-            return PermissionDeniedError()
+        if denied := gate(user, can_edit_hymnbook, hymnbook):
+            return denied
 
         pk = str(hymnbook.pk)
         hymnbook.delete()
@@ -331,9 +328,9 @@ class Mutation:
         """Curadoria editorial (prioridade da fila + flag "em destaque"). Restrito
         a `is_staff` — editor comum pode editar conteúdo do hinário, mas
         curadoria global é decisão da equipe editorial."""
-        user = _request(info).user
-        if not getattr(user, "is_authenticated", False) or not user.is_staff:
-            return PermissionDeniedError()
+        user = user_from_info(info)
+        if denied := gate(user, is_staff):
+            return denied
 
         hymnbook = hymn_models.HymnBook.objects.filter(slug=slug).first()
         if hymnbook is None:
@@ -358,12 +355,12 @@ class Mutation:
         strawberry.union("CreateHymnResult"),
     ]:
         """Cria um Hymn dentro de um HymnBook (paridade com `hymn_create_view`)."""
-        user = _request(info).user
+        user = user_from_info(info)
         hymnbook = hymn_models.HymnBook.objects.filter(slug=hymnbook_slug).first()
         if hymnbook is None:
             return NotFoundError()
-        if not can_edit_hymnbook(user, hymnbook):
-            return PermissionDeniedError()
+        if denied := gate(user, can_edit_hymnbook, hymnbook):
+            return denied
 
         data = _hymn_form_data(input)
         form = HymnForm(data=data, hymn_book=hymnbook)
@@ -381,12 +378,12 @@ class Mutation:
         strawberry.union("DeleteHymnResult"),
     ]:
         """Deleta um Hymn (paridade com `hymn_delete_view`)."""
-        user = _request(info).user
+        user = user_from_info(info)
         hymn = get_or_none(hymn_models.Hymn.objects, pk=pk)
         if hymn is None:
             return NotFoundError()
-        if not can_edit_hymnbook(user, hymn.hymn_book):
-            return PermissionDeniedError()
+        if denied := gate(user, can_edit_hymnbook, hymn.hymn_book):
+            return denied
 
         pk_str = str(hymn.pk)
         hymn.delete()
@@ -401,12 +398,12 @@ class Mutation:
         `repetitions`. NUNCA toca `review_status` — manter REVIEWED exige a
         mutation completa. Signal `_create_hymn_revision_on_edit` grava a
         HymnRevision automaticamente."""
-        user = _request(info).user
+        user = user_from_info(info)
         hymn = get_or_none(hymn_models.Hymn.objects, pk=pk)
         if hymn is None:
             return NotFoundError()
-        if not can_edit_hymnbook(user, hymn.hymn_book):
-            return PermissionDeniedError()
+        if denied := gate(user, can_edit_hymnbook, hymn.hymn_book):
+            return denied
 
         form = QuickReviewForm(data={"style": style, "repetitions": repetitions}, instance=hymn)
         if not form.is_valid():
@@ -432,9 +429,9 @@ class Mutation:
         """Upload de áudio (paridade com `upload_audio` view). Multipart via
         `strawberry.file_uploads.Upload`. Signal `_generate_waveform_for_audio`
         dispara automaticamente após o save."""
-        user = _request(info).user
-        if not getattr(user, "is_authenticated", False):
-            return PermissionDeniedError(message="É preciso estar autenticado para enviar áudios.")
+        user = user_from_info(info)
+        if denied := gate(user, is_authenticated, message="É preciso estar autenticado para enviar áudios."):
+            return denied
 
         hymn = get_or_none(hymn_models.Hymn.objects, pk=hymn_pk)
         if hymn is None:
@@ -471,12 +468,12 @@ class Mutation:
         strawberry.union("ApproveAudioResult"),
     ]:
         """Aprova um HymnAudio (paridade com `editor_approve_audio`)."""
-        user = _request(info).user
+        user = user_from_info(info)
         audio = get_or_none(hymn_models.HymnAudio.objects.select_related("hymn__hymn_book"), pk=pk)
         if audio is None:
             return NotFoundError()
-        if not can_edit_hymnbook(user, audio.hymn.hymn_book):
-            return PermissionDeniedError()
+        if denied := gate(user, can_edit_hymnbook, audio.hymn.hymn_book):
+            return denied
         audio.is_approved = True
         audio.save(update_fields=["is_approved", "updated_at"])
         return audio
@@ -487,12 +484,12 @@ class Mutation:
         strawberry.union("RejectAudioResult"),
     ]:
         """Rejeita = deleta o áudio (paridade com `editor_reject_audio`)."""
-        user = _request(info).user
+        user = user_from_info(info)
         audio = get_or_none(hymn_models.HymnAudio.objects.select_related("hymn__hymn_book"), pk=pk)
         if audio is None:
             return NotFoundError()
-        if not can_edit_hymnbook(user, audio.hymn.hymn_book):
-            return PermissionDeniedError()
+        if denied := gate(user, can_edit_hymnbook, audio.hymn.hymn_book):
+            return denied
         pk_str = str(audio.pk)
         audio.delete()
         return DeleteResult(ok=True, deleted_id=pk_str)
@@ -507,12 +504,12 @@ class Mutation:
         O `save()` do `HymnAudio` força `is_approved=False` quando `is_match=False`
         e zera `quality_*` — replicamos a regra delegando ao model.
         """
-        user = _request(info).user
+        user = user_from_info(info)
         audio = get_or_none(hymn_models.HymnAudio.objects.select_related("hymn__hymn_book"), pk=pk)
         if audio is None:
             return NotFoundError()
-        if not can_edit_hymnbook(user, audio.hymn.hymn_book):
-            return PermissionDeniedError()
+        if denied := gate(user, can_edit_hymnbook, audio.hymn.hymn_book):
+            return denied
 
         audio.is_match = bool(input.is_match)
 
@@ -548,15 +545,15 @@ class Mutation:
         mesmo sem ser editor) reflete a UX: o usuário comum precisa poder se
         retratar do envio enquanto está pendente.
         """
-        user = _request(info).user
+        user = user_from_info(info)
         audio = get_or_none(hymn_models.HymnAudio.objects.select_related("hymn__hymn_book"), pk=pk)
         if audio is None:
             return NotFoundError()
-        if not getattr(user, "is_authenticated", False):
-            return PermissionDeniedError()
+        if denied := gate(user, is_authenticated):
+            return denied
         is_owner = audio.uploaded_by_id == user.pk
-        if not (is_owner or can_edit_hymnbook(user, audio.hymn.hymn_book)):
-            return PermissionDeniedError()
+        if denied := gate(user, lambda u: is_owner or can_edit_hymnbook(u, audio.hymn.hymn_book)):
+            return denied
         pk_str = str(audio.pk)
         audio.delete()
         return DeleteResult(ok=True, deleted_id=pk_str)
@@ -567,9 +564,9 @@ class Mutation:
         strawberry.union("FollowUserResult"),
     ]:
         """Segue um usuário (paridade com `toggle_follow` direção "follow")."""
-        user = _request(info).user
-        if not getattr(user, "is_authenticated", False):
-            return PermissionDeniedError(message="É preciso estar autenticado para seguir usuários.")
+        user = user_from_info(info)
+        if denied := gate(user, is_authenticated, message="É preciso estar autenticado para seguir usuários."):
+            return denied
         target = user_models.User.objects.filter(username=username).first()
         if target is None:
             return NotFoundError()
@@ -594,9 +591,9 @@ class Mutation:
         strawberry.union("UnfollowUserResult"),
     ]:
         """Deixa de seguir um usuário. No-op idempotente quando já não segue."""
-        user = _request(info).user
-        if not getattr(user, "is_authenticated", False):
-            return PermissionDeniedError(message="É preciso estar autenticado.")
+        user = user_from_info(info)
+        if denied := gate(user, is_authenticated, message="É preciso estar autenticado."):
+            return denied
         target = user_models.User.objects.filter(username=username).first()
         if target is None:
             return NotFoundError()
@@ -614,9 +611,9 @@ class Mutation:
         `PermissionDeniedError` — não vaza existência de notificação que o
         usuário não deveria ver.
         """
-        user = _request(info).user
-        if not getattr(user, "is_authenticated", False):
-            return PermissionDeniedError()
+        user = user_from_info(info)
+        if denied := gate(user, is_authenticated):
+            return denied
         notif = get_or_none(user_models.Notification.objects, pk=pk, recipient=user)
         if notif is None:
             return NotFoundError()
@@ -632,7 +629,7 @@ class Mutation:
         Anônimo recebe 0 (sem erro — feed vazio é resposta natural).
         Retorna o número de notificações afetadas.
         """
-        user = _request(info).user
+        user = user_from_info(info)
         if not getattr(user, "is_authenticated", False):
             return 0
         return user_models.Notification.objects.filter(recipient=user, is_read=False).update(is_read=True)
@@ -642,9 +639,9 @@ class Mutation:
         Union[ToggleFavoriteSuccess, PermissionDeniedError, NotFoundError],
         strawberry.union("ToggleFavoriteResult"),
     ]:
-        user = _request(info).user
-        if not getattr(user, "is_authenticated", False):
-            return PermissionDeniedError(message="É preciso estar autenticado para favoritar hinos.")
+        user = user_from_info(info)
+        if denied := gate(user, is_authenticated, message="É preciso estar autenticado para favoritar hinos."):
+            return denied
 
         hymn = get_or_none(hymn_models.Hymn.objects, pk=hymn_pk)
         if hymn is None:

@@ -28,9 +28,10 @@ from apps.hymns.featured import hourly_featured
 from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
 from apps.users import models as user_models
 
-from .errors import raise_permission_denied
+from .context import user_from_info
 from .lookups import get_or_none
 from .mutations import Mutation
+from .permissions import require
 from .types import (
     EditorDashboardStatsType,
     HymnAudioType,
@@ -61,12 +62,6 @@ def _build_sort_expressions(sort_inputs):
     return [expr for expr in (_sort_expression(m, d) for m, d in _parse_sort(raw)) if expr is not None]
 
 
-def _user(info: Info):
-    """Extrai o usuário do request. Strawberry passa context como dict."""
-    request = info.context["request"] if isinstance(info.context, dict) else info.context.request
-    return request.user
-
-
 @strawberry.type
 class GlobalStats:
     hymnbooks: int
@@ -79,20 +74,20 @@ class GlobalStats:
 class Query:
     @strawberry.field
     def hymnbooks(self, info: Info) -> list[HymnBookType]:
-        return list(hymn_models.HymnBook.objects.visible_to(_user(info)).order_by("name"))
+        return list(hymn_models.HymnBook.objects.visible_to(user_from_info(info)).order_by("name"))
 
     @strawberry.field
     def hymnbook(self, info: Info, slug: str) -> Optional[HymnBookType]:
-        return hymn_models.HymnBook.objects.visible_to(_user(info)).filter(slug=slug).first()
+        return hymn_models.HymnBook.objects.visible_to(user_from_info(info)).filter(slug=slug).first()
 
     @strawberry.field
     def hymn(self, info: Info, pk: strawberry.ID) -> Optional[HymnType]:
-        visible_books = hymn_models.HymnBook.objects.visible_to(_user(info))
+        visible_books = hymn_models.HymnBook.objects.visible_to(user_from_info(info))
         return get_or_none(hymn_models.Hymn.objects, pk=pk, hymn_book__in=visible_books)
 
     @strawberry.field
     def current_user(self, info: Info) -> Optional[UserType]:
-        user = _user(info)
+        user = user_from_info(info)
         return user if getattr(user, "is_authenticated", False) else None
 
     @strawberry.field
@@ -112,7 +107,7 @@ class Query:
         exception (não union) — o cliente nunca vai querer renderizar feed
         sem login.
         """
-        user = _user(info)
+        user = user_from_info(info)
         if not getattr(user, "is_authenticated", False):
             from graphql import GraphQLError
 
@@ -129,7 +124,7 @@ class Query:
         Reusa `apps.hymns.featured.hourly_featured`, a MESMA função que
         `views.py::_hourly_featured` chama — então `is_featured` (curadoria do
         admin / `updateHymnBookEditorial`) manda aqui igual manda na home."""
-        visible_qs = hymn_models.HymnBook.objects.visible_to(_user(info))
+        visible_qs = hymn_models.HymnBook.objects.visible_to(user_from_info(info))
         return hourly_featured(visible_qs, n=6)
 
     @strawberry.field
@@ -140,7 +135,7 @@ class Query:
         — mesma lógica de `apps/hymns/views.py::search_view`. `kind` zera o
         bucket que não foi pedido. Visibilidade segue `HymnBook.visible_to`.
         """
-        user = _user(info)
+        user = user_from_info(info)
         hymns: list = []
         hymnbooks: list = []
         if kind in (SearchKind.ALL, SearchKind.HYMN):
@@ -163,9 +158,8 @@ class Query:
         PRIMÁRIO — P1 antes de P2 antes de P3 — deixando os sorts do usuário
         como secundários, igual à view. `name` fecha como tie-breaker estável.
         """
-        user = _user(info)
-        if not _has_editor_access(user):
-            raise_permission_denied()
+        user = user_from_info(info)
+        require(user, _has_editor_access)
         qs = _editor_visible_books(user).with_review_progress()
         if priority in hymn_models.HymnBook.Priority.values:
             qs = qs.filter(priority=priority)
@@ -183,9 +177,8 @@ class Query:
 
         from apps.hymns.models import HymnRevision
 
-        user = _user(info)
-        if not _has_editor_access(user):
-            raise_permission_denied()
+        user = user_from_info(info)
+        require(user, _has_editor_access)
         visible_qs = _editor_visible_books(user)
         visible_ids = list(visible_qs.values_list("pk", flat=True))
 
@@ -229,9 +222,8 @@ class Query:
 
         Reusa `_pending_audios_for` de `editor_views` — mesma regra de escopo
         que a tela `/editor/audios-pendentes/`."""
-        user = _user(info)
-        if not _has_editor_access(user):
-            raise_permission_denied()
+        user = user_from_info(info)
+        require(user, _has_editor_access)
         return list(_pending_audios_for(user).order_by("-created_at"))
 
     @strawberry.field(name="publishReadiness")
@@ -241,7 +233,7 @@ class Query:
         from apps.hymns.permissions import can_publish_hymnbook
         from apps.hymns.services.review import publish_readiness as _readiness
 
-        user = _user(info)
+        user = user_from_info(info)
         hb = hymn_models.HymnBook.objects.filter(slug=slug).first()
         if hb is None or not can_publish_hymnbook(user, hb):
             return None
@@ -254,7 +246,7 @@ class Query:
     @strawberry.field(name="ocrTask")
     def ocr_task(self, info: Info, id: strawberry.ID) -> Optional[OCRTaskType]:
         """OCRTask por id, gateada ao próprio uploader ou editor/admin."""
-        user = _user(info)
+        user = user_from_info(info)
         if not getattr(user, "is_authenticated", False):
             return None
         task = get_or_none(hymn_models.OCRTask.objects, pk=id)

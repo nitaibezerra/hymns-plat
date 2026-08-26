@@ -19,14 +19,10 @@ from strawberry.file_uploads import Upload
 from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
-from apps.hymns.permissions import _is_editor_or_admin
 from apps.users import models as user_models
 
-
-def _user_from_info(info: Info):
-    """Atalho pra extrair `request.user` do contexto Strawberry."""
-    request = info.context["request"] if isinstance(info.context, dict) else info.context.request
-    return request.user
+from .context import user_from_info
+from .permissions import is_editor_or_admin
 
 
 @strawberry.input
@@ -378,7 +374,7 @@ class HymnType:
 
         Contraparte de leitura da mutation `toggleFavorite`. Anônimo recebe
         `False` — coração apagado é resposta natural, não erro."""
-        user = _user_from_info(info)
+        user = user_from_info(info)
         if not getattr(user, "is_authenticated", False):
             return False
         return hymn_models.Favorite.objects.filter(user=user, hymn=self).exists()
@@ -458,7 +454,7 @@ class HymnType:
         Espelha a disambiguação que o monolito faz no detalhe do hino (links
         "este número aparece também em…"). Exclui o próprio hino.
         """
-        user = _user_from_info(info)
+        user = user_from_info(info)
         visible_books = hymn_models.HymnBook.objects.visible_to(user)
         return list(
             hymn_models.Hymn.objects.filter(number=self.number, hymn_book__in=visible_books)
@@ -477,11 +473,11 @@ class HymnType:
           vê todos; uploader autenticado vê os próprios (+ aprovados de qualquer
           um); anônimo segue restrito a aprovados.
         """
-        user = _user_from_info(info)
+        user = user_from_info(info)
         base = hymn_models.HymnAudio.objects.filter(hymn=self)
         if approved_only or not getattr(user, "is_authenticated", False):
             return list(base.filter(is_approved=True).order_by("-created_at"))
-        if _is_editor_or_admin(user):
+        if is_editor_or_admin(user):
             return list(base.order_by("-created_at"))
         return list(base.filter(Q(is_approved=True) | Q(uploaded_by=user)).order_by("-created_at"))
 
@@ -544,9 +540,9 @@ class UserType:
     def is_editor(self) -> bool:
         """True quando o usuário tem papel editorial (grupo `editor` ou superuser).
 
-        Reusa `apps.hymns.permissions._is_editor_or_admin` — mesma regra que
+        Reusa `apps.api.permissions.is_editor_or_admin` — mesma regra que
         gateia as views do workspace. O guard de rota do SPA depende disso."""
-        return _is_editor_or_admin(self)
+        return is_editor_or_admin(self)
 
 
 @strawberry.enum
@@ -644,7 +640,7 @@ class UserProfileType:
     @strawberry.field
     def is_followed_by_current_user(self, info: Info) -> bool:
         """True se o `currentUser` segue esse perfil. Anônimo recebe False."""
-        viewer = _user_from_info(info)
+        viewer = user_from_info(info)
         if not getattr(viewer, "is_authenticated", False):
             return False
         if viewer == self.user:
