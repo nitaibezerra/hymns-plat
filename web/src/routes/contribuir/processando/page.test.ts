@@ -221,3 +221,121 @@ describe("processando estados terminais (5F.10)", () => {
     expect(screen.queryByTestId("ocr-network-error")).toBeNull();
   });
 });
+
+describe("processando ramifica ao concluir (5F.11)", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.useRealTimers();
+    gotoMock.mockClear();
+  });
+
+  function jsonResponse(payload: unknown, status = 200) {
+    return new Response(JSON.stringify(payload), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const completedTask = () =>
+    taskPayload({
+      status: "completed",
+      progressPct: 100,
+      resultData: { hymn_book: { name: "O Justiceiro", owner: "Padrinho", hymns: [] } },
+    });
+
+  function renderPage() {
+    render(Page, { props: { data: { currentUser: null, taskId: TASK_ID, task: null, error: null } } });
+  }
+
+  it("com duplicatas navega pra desambiguar", async () => {
+    vi.useFakeTimers();
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(completedTask()))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            ocrDuplicates: {
+              exactMatch: null,
+              highConfidence: [
+                {
+                  nameScore: 0.9,
+                  contentScore: 0.95,
+                  hymnbook: {
+                    id: "b1",
+                    name: "O Justiceiro",
+                    slug: "o-justiceiro",
+                    ownerName: "Padrinho",
+                    stats: { hymnsTotal: 20 },
+                  },
+                },
+              ],
+            },
+          },
+        }),
+      ) as unknown as typeof fetch;
+
+    renderPage();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(gotoMock).toHaveBeenCalledWith(`/contribuir/desambiguar/?task=${TASK_ID}`);
+  });
+
+  it("sem duplicatas navega direto pra conferir", async () => {
+    vi.useFakeTimers();
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(completedTask()))
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { ocrDuplicates: { exactMatch: null, highConfidence: [] } } }),
+      ) as unknown as typeof fetch;
+
+    renderPage();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(gotoMock).toHaveBeenCalledWith(`/contribuir/conferir/?task=${TASK_ID}`);
+  });
+
+  it("desambiguação indisponível no backend não trava: vai pra conferir", async () => {
+    vi.useFakeTimers();
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(completedTask()))
+      .mockResolvedValueOnce(
+        jsonResponse({ data: null, errors: [{ message: "Cannot query field 'ocrDuplicates'" }] }),
+      ) as unknown as typeof fetch;
+
+    renderPage();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(gotoMock).toHaveBeenCalledWith(`/contribuir/conferir/?task=${TASK_ID}`);
+  });
+
+  it("task que falhou não navega pra nenhum passo", async () => {
+    vi.useFakeTimers();
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(taskPayload({ status: "failed", errorMessage: "erro" }))) as unknown as typeof fetch;
+
+    renderPage();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(gotoMock).not.toHaveBeenCalled();
+  });
+
+  it("completed sem resultData ainda não navega", async () => {
+    vi.useFakeTimers();
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(taskPayload({ status: "completed", resultData: null })),
+      ) as unknown as typeof fetch;
+
+    renderPage();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(gotoMock).not.toHaveBeenCalled();
+  });
+});

@@ -5,11 +5,17 @@
    * Tela 2 do wizard. O polling vive em `$lib/ocr-polling` e é ligado no
    * mount / desligado no unmount (`$effect` devolve o cleanup) — sem isso a
    * tela continuaria batendo no backend depois de o usuário sair.
+   *
+   * Quando a task fica pronta, esta tela decide o próximo passo — é o mesmo
+   * desvio que a `upload_processing_view` fazia no servidor: com duplicata vai
+   * pra desambiguação, sem duplicata vai direto pra conferência.
    */
+  import { goto } from "$app/navigation";
   import OcrProgress from "$lib/components/contribuir/OcrProgress.svelte";
   import UploadStepper from "$lib/components/contribuir/UploadStepper.svelte";
   import { startOcrPolling } from "$lib/ocr-polling";
 
+  import { fetchOcrDuplicates } from "../ocr-duplicates";
   import { fetchOcrTask } from "../ocr-task";
 
   import type { OcrTaskSnapshot } from "$lib/ocr-polling";
@@ -29,6 +35,12 @@
   // Depois do primeiro snapshot do polling, um erro do SSR já é notícia velha.
   const networkError = $derived(polledError ?? (polledTask ? null : data.error));
 
+  async function advance(taskId: string) {
+    const duplicates = await fetchOcrDuplicates(fetch, taskId);
+    const next = duplicates.hasDuplicates ? "desambiguar" : "conferir";
+    await goto(`/contribuir/${next}/?task=${taskId}`);
+  }
+
   $effect(() => {
     const taskId = data.taskId;
     if (!taskId) return;
@@ -45,6 +57,12 @@
       onMissing: () => {
         polledError = null;
         fatalError = "Tarefa de OCR não encontrada.";
+      },
+      onDone: (snapshot) => {
+        // `failed` fica na tela (o OcrProgress desenha o erro); só a task
+        // pronta segue pro próximo passo.
+        if (snapshot.status !== "completed") return;
+        void advance(taskId);
       },
     });
 

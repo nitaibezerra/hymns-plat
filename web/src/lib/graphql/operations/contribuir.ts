@@ -31,3 +31,47 @@ export const OCR_TASK_QUERY = `
     }
   }
 `;
+
+/**
+ * Desambiguação: hinários parecidos com o que está sendo enviado.
+ *
+ * O resolver **chama** `apps/hymns/disambiguation.py::find_duplicates_with_content`
+ * com os thresholds do fluxo Django (nome 0.7 / conteúdo 0.8) — a regra de
+ * similaridade não é reimplementada em TypeScript.
+ *
+ * Os nomes de campo seguem as chaves do dict devolvido por aquela função
+ * (`exact_match` / `high_confidence`), em camelCase.
+ *
+ * ⚠️ Depende dos ciclos 5F.1–5F.3, que são **backend** e ficaram fora do
+ * escopo desta frente. Enquanto `Query.ocrDuplicates` não existir no schema,
+ * a consulta volta erro e o wizard degrada pra "sem duplicatas" (vai direto
+ * pra conferência) — nunca trava a tela.
+ */
+export const OCR_DUPLICATES_QUERY = `
+  query OcrDuplicates($taskId: UUID!) {
+    ocrDuplicates(taskId: $taskId) {
+      exactMatch {
+        id
+        name
+        slug
+        ownerName
+        stats {
+          hymnsTotal
+        }
+      }
+      highConfidence {
+        nameScore
+        contentScore
+        hymnbook {
+          id
+          name
+          slug
+          ownerName
+          stats {
+            hymnsTotal
+          }
+        }
+      }
+    }
+  }
+`;
