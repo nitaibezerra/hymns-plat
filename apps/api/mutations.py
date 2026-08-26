@@ -113,6 +113,20 @@ def _hymnbook_form_data(input: HymnBookInput, instance=None) -> dict:
     }
 
 
+def _hymnbook_form_files(input: HymnBookInput) -> dict:
+    """Extrai os campos-arquivo de `HymnBookInput` no formato que `HymnBookForm`
+    espera em `files`.
+
+    `cover_image` UNSET/None não entra no dict: `forms.FileField.clean` cai no
+    `initial` da instance, então a capa atual é preservada em update e o
+    hinário nasce sem capa em create.
+    """
+    cover = input.cover_image
+    if cover is strawberry.UNSET or cover is None:
+        return {}
+    return {"cover_image": cover}
+
+
 @strawberry.type
 class LoginSuccess:
     user: UserType
@@ -207,7 +221,7 @@ class Mutation:
             return PermissionDeniedError()
 
         data = _hymnbook_form_data(input)
-        form = HymnBookForm(data=data)
+        form = HymnBookForm(data=data, files=_hymnbook_form_files(input))
         if not form.is_valid():
             field, errors = next(iter(form.errors.items()))
             return ValidationError(message=errors[0], field=field)
@@ -231,7 +245,7 @@ class Mutation:
             return PermissionDeniedError()
 
         data = _hymnbook_form_data(input, instance=hymnbook)
-        form = HymnBookForm(data=data, instance=hymnbook)
+        form = HymnBookForm(data=data, files=_hymnbook_form_files(input), instance=hymnbook)
         if not form.is_valid():
             field, errors = next(iter(form.errors.items()))
             return ValidationError(message=errors[0], field=field)

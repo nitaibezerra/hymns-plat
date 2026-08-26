@@ -15,6 +15,7 @@ import enum
 import strawberry
 import strawberry_django
 from django.db.models import Count, Q
+from strawberry.file_uploads import Upload
 from strawberry.types import Info
 
 from apps.hymns import models as hymn_models
@@ -30,12 +31,18 @@ def _user_from_info(info: Info):
 
 @strawberry.input
 class HymnBookInput:
-    """Payload de criação/edição de HymnBook — espelha `HymnBookForm.Meta.fields`."""
+    """Payload de criação/edição de HymnBook — espelha `HymnBookForm.Meta.fields`.
+
+    `cover_image` é arquivo: usa o scalar `Upload` e chega pelo multipart spec
+    do GraphQL (igual a `uploadAudio`). Deixá-lo UNSET preserva a capa atual —
+    mesma regra de UNSET dos demais campos opcionais.
+    """
 
     name: str
     owner_name: str
     intro_name: str | None = strawberry.UNSET
     description: str | None = strawberry.UNSET
+    cover_image: Upload | None = strawberry.UNSET
 
 
 @strawberry.input
