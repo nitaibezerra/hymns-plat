@@ -85,7 +85,7 @@
 </script>
 
 {#if open}
-  <aside
+  <div
     class="drawer"
     role="dialog"
     aria-modal="true"
@@ -156,7 +156,7 @@
         </button>
       </div>
     </form>
-  </aside>
+  </div>
 {/if}
 
 <style>
