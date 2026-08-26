@@ -171,6 +171,30 @@ describe("render do dashboard editorial (5B.2)", () => {
   });
 });
 
+describe("card de retomada no dashboard (5B.4)", () => {
+  const resumeHymn = {
+    id: "h9",
+    number: 7,
+    title: "Estrela Brilhante",
+    hymnBook: { name: "O Cruzeiro", slug: "o-cruzeiro" },
+  };
+
+  it("aparece quando resumeHymn não é nulo, apontando pra tela de revisão do hino", () => {
+    const data = buildData();
+    data.stats.resumeHymn = resumeHymn;
+    render(Page, { props: { data } });
+
+    const card = screen.getByTestId("resume-card");
+    expect(card).toHaveAttribute("href", "/editor/hinos/h9/revisar/");
+    expect(card).toHaveTextContent("Estrela Brilhante");
+  });
+
+  it("não aparece quando resumeHymn é nulo — nada a retomar, nada a mostrar", () => {
+    render(Page, { props: { data: buildData() } });
+    expect(screen.queryByTestId("resume-card")).not.toBeInTheDocument();
+  });
+});
+
 describe("stats no dashboard (5B.3)", () => {
   it("o header hospeda a EditorStatsBar com os números do load", () => {
     render(Page, { props: { data: buildData() } });

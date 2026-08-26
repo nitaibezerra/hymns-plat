@@ -64,6 +64,18 @@ export function editorLoginRedirect(pathname: string): string {
   return `/login?next=${pathname}`;
 }
 
+/**
+ * URL da tela de revisão de um hino.
+ *
+ * A rota em si é entregue pelo sub-marco 5.C; o 5.B já precisa apontar pra
+ * ela em dois lugares (card "Continuar revisão" e botão "Próximo pendente").
+ * Centralizar aqui deixa um ponto único pra ajustar se o 5.C escolher outro
+ * path — em vez de dois literais espalhados pelas telas.
+ */
+export function editorReviseHref(hymnPk: string): string {
+  return `/editor/hinos/${hymnPk}/revisar/`;
+}
+
 export async function _loadEditorLayout(event: {
   fetch: typeof globalThis.fetch;
   url: URL;

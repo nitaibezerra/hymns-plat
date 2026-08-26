@@ -12,6 +12,9 @@
    * é o próximo que você deveria pegar".
    */
   import EditorStatsBar from "$lib/components/editor/EditorStatsBar.svelte";
+  import ResumeCard from "$lib/components/editor/ResumeCard.svelte";
+
+  import { editorReviseHref } from "./+layout";
 
   import type { PageData } from "./$types";
 
@@ -56,6 +59,13 @@
 
     <EditorStatsBar stats={data.stats} />
   </header>
+
+  {#if data.stats.resumeHymn}
+    <ResumeCard
+      hymn={data.stats.resumeHymn}
+      href={editorReviseHref(data.stats.resumeHymn.id)}
+    />
+  {/if}
 
   {#if data.error}
     <p class="alert" role="alert" data-testid="editor-error">
