@@ -293,6 +293,68 @@ Because the Worker overrides `Host`, Django needs the visitor's original host to
 
 If Railway eventually issues the cert later and you want to drop the Worker: delete the two routes (zone `workers/routes`), turn `proxied: false` back on the CNAMEs, and you can also drop the custom middleware (Railway's own headers will work without it).
 
+### SPA em beta (`beta.hinaria.com.br` → `hinaria.com.br/graphql/`)
+
+A SPA SvelteKit sobe primeiro em `beta.hinaria.com.br` e fala com o Django que já está em produção no apex — é o passo "sobe em beta antes do cutover" do Marco 7 (`_plan/plano-headless-graphql.md`). Enquanto isso durar, **o backend atende dois hosts**: ele mesmo, e a SPA num subdomínio.
+
+**Quatro variáveis no Railway, e nenhuma é opcional.** Faltando qualquer uma o beta parece "quase funcionar", e o sintoma nunca aponta a causa:
+
+| Variável | Valor para o beta | Sintoma se faltar |
+|---|---|---|
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | inclui `https://beta.hinaria.com.br` | mutation 403 `Origin checking failed` |
+| `CORS_ALLOWED_ORIGINS` | inclui `https://beta.hinaria.com.br` | `blocked by CORS policy` no console; o Django responde 200 e o browser joga fora |
+| `CSRF_COOKIE_DOMAIN` | `.hinaria.com.br` | mutation 403, **login incluído** |
+| `SESSION_COOKIE_DOMAIN` | `.hinaria.com.br` | SSR anônimo: header mostra "Entrar" e `/editor/**` responde 302 para `/login` com editor logado |
+
+`production.py` traz `beta.` nos **defaults** das duas listas de origem, mas `DJANGO_CSRF_TRUSTED_ORIGINS` **já está setada no Railway** e env sempre vence default — então essa precisa ser atualizada lá à mão:
+
+```bash
+railway variables -s hinaria --set 'DJANGO_CSRF_TRUSTED_ORIGINS=https://beta.hinaria.com.br,https://hinaria.com.br,https://www.hinaria.com.br,https://*.up.railway.app'
+railway variables -s hinaria --set 'SESSION_COOKIE_DOMAIN=.hinaria.com.br'
+railway variables -s hinaria --set 'CSRF_COOKIE_DOMAIN=.hinaria.com.br'
+```
+
+Os dois `*_COOKIE_DOMAIN` são **vazios por default no código**, de propósito: alargar o escopo do cookie de sessão do site que já está no ar é decisão de operação, reversível por variável, não efeito colateral de um merge.
+
+#### Por que os cookies precisam de `Domain` (a parte contra-intuitiva)
+
+`beta.hinaria.com.br` e `hinaria.com.br` são **same-site** e **cross-origin** — as duas coisas ao mesmo tempo, e confundi-las é o que faz esse debug demorar.
+
+- **Same-site**, porque `SameSite` compara o domínio *registrável* (eTLD+1), que é `hinaria.com.br` para os dois. Logo `SESSION_COOKIE_SAMESITE = "Lax"` **não bloqueia nada** aqui, nem em POST — Lax só gateia requisição cross-*site*. Não troque para `None`: exigiria `Secure` e abriria o cookie para cross-site de verdade, surface a mais sem ganho. Pelo mesmo motivo esses cookies **não** são third-party, então bloqueio de third-party cookie (Safari ITP e afins) não morde.
+- **Cross-origin**, porque o host difere. Daí `credentials: 'include'` no `fetch` da SPA (o default `same-origin` omitiria o cookie) e daí as listas de CORS/CSRF.
+
+E aqui está o ponto que engana: **um cookie host-only do apex É enviado numa requisição PARA o apex, venha ela da página que vier.** O envio olha a URL de *destino*, não a origem do documento. Ou seja, no caminho puramente client-side (a SPA já hidratada lendo dados), a sessão funciona com zero `Domain`.
+
+Host-only quebra nos dois caminhos em que quem precisa **enxergar** o cookie é o host da SPA:
+
+1. **`document.cookie`.** Toda mutation monta `X-CSRFToken` lendo `csrftoken` do documento (`web/src/lib/graphql/client.ts::getCsrfTokenFromCookie`, e também `auth.ts`, `crud.ts`, a página de revisão). Numa página em `beta.`, o cookie host-only do apex é invisível — o header nunca é montado e toda escrita leva 403. Inclusive o login. Por isso `CSRF_COOKIE_HTTPONLY` tem que continuar desligado.
+2. **SSR.** O `handleFetch` de `web/src/hooks.server.ts` repassa `event.request.headers.get("cookie")`, ou seja o que o navegador mandou para `beta.hinaria.com.br`. Sem `Domain`, `sessionid` não está lá. Esse hook resolve "o SvelteKit não repassa cookie entre hostnames"; ele não pode resolver "o navegador nunca entregou o cookie".
+
+**Divergência do que o plano supunha.** O Marco 7 registrou `SESSION_COOKIE_DOMAIN`/`CSRF_COOKIE_DOMAIN` como necessários para `app.` ↔ `api.` — hostnames irmãos, onde nenhuma requisição é para o host que setou o cookie. Em `beta.` → apex esse argumento **não** vale (a requisição vai justamente para quem setou o cookie), e ainda assim as duas variáveis são necessárias, pelas duas razões acima. Conclusão igual, raciocínio diferente — e isso importa porque leva a `CSRF_COOKIE_DOMAIN` ser tão obrigatório quanto o de sessão, o que o enquadramento antigo não deixava óbvio.
+
+**Medido, não deduzido** (Django com `config.settings.production` + as quatro variáveis, `curl` contra `/graphql/`):
+
+| Requisição | Resultado |
+|---|---|
+| preflight `OPTIONS` com `Origin: https://beta.hinaria.com.br` | 200 + `access-control-allow-origin: https://beta.hinaria.com.br`, `allow-credentials: true`, `x-csrftoken` entre os headers permitidos |
+| preflight com origem arbitrária | 200 **sem** `access-control-allow-origin` — o navegador descarta |
+| `GET /graphql/` | `Set-Cookie: csrftoken=…; Domain=.hinaria.com.br; Path=/; SameSite=Lax; Secure` (sem `HttpOnly`, que é o que deixa a SPA lê-lo) |
+| mutation com `Origin: beta` + cookie + `X-CSRFToken` | 200, executa |
+| mutation com origem arbitrária | 403 |
+| mutation com `Origin: beta` **sem** `X-CSRFToken` | 403 — exatamente o que acontece quando `CSRF_COOKIE_DOMAIN` está vazio |
+
+E o cookie de sessão sai como `sessionid=…; Domain=.hinaria.com.br; HttpOnly; Path=/; SameSite=Lax; Secure` — `HttpOnly` continua ligado nele de propósito: a SPA nunca precisa ler `sessionid`, só o navegador precisa enviá-lo.
+
+`tests/unit/test_beta_cross_origin.py` trava tudo isso: origem do beta presente em CORS e CSRF, listas não permissivas (sem `CORS_ALLOW_ALL_ORIGINS`, sem regex, sem localhost em produção), `CORS_ALLOW_CREDENTIALS` ligado, `x-csrftoken` aceito no preflight, cookies host-only por default e configuráveis por env.
+
+#### O que muda no cutover (beta → apex)
+
+Quando a SPA assumir `hinaria.com.br`:
+
+- **Se a SPA e o Django ficarem no mesmo host**, `SESSION_COOKIE_DOMAIN` e `CSRF_COOKIE_DOMAIN` voltam a ficar **vazios** (host-only) e `CORS_ALLOWED_ORIGINS` deixa de ter função — tudo vira same-origin. Esvaziar é a ação afirmativa a fazer: deixar `.hinaria.com.br` ligado é escopo largo sem motivo.
+- **Se o Django for para `api.hinaria.com.br`** (a topologia que o plano previa), aí sim vale o argumento original do Marco 7: os dois `*_COOKIE_DOMAIN` continuam em `.hinaria.com.br`, e `CORS_ALLOWED_ORIGINS`/`CSRF_TRUSTED_ORIGINS` trocam `beta.` pelo apex.
+- Em qualquer dos casos, tirar `beta.` das duas listas faz parte do cutover — subdomínio que não serve mais nada não deve continuar confiável.
+
 ### Cloudflare DNS / SSL state (current)
 
 - Zone `hinaria.com.br` (id `52478c632c59cd33a3447a13fd548bad`)
