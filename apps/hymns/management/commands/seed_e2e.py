@@ -451,23 +451,21 @@ class Command(BaseCommand):
     # -- hinários e hinos --------------------------------------------------- #
 
     def _ensure_book(self, spec: BookSpec, editor: User) -> HymnBook:
-        book, created = HymnBook.objects.get_or_create(
-            slug=spec.slug,
-            defaults={
-                "name": spec.name,
-                "owner_name": spec.owner_name,
-                "priority": spec.priority,
-                "is_published": spec.is_published,
-                "description": spec.description,
-            },
-        )
+        # `owner_user` NÃO é enfeite de metadado aqui: `publish_readiness`
+        # exige "Dono do hinário identificado", e sem ele TODOS os hinários da
+        # fixture nascem com `canPublish: false` — inclusive o rascunho, que
+        # existe justamente para ser o alvo do modal de publicação. Era o
+        # estado até esta correção. O dono é o editor (quem a suíte loga);
+        # `owner_name` continua sendo o texto livre do design.
         desejado = {
             "name": spec.name,
             "owner_name": spec.owner_name,
+            "owner_user": editor,
             "priority": spec.priority,
             "is_published": spec.is_published,
             "description": spec.description,
         }
+        book, created = HymnBook.objects.get_or_create(slug=spec.slug, defaults=desejado)
         if not created:
             self._apply(book, desejado)
 

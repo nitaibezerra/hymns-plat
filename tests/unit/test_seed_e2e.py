@@ -406,3 +406,56 @@ def test_segunda_execucao_nao_escreve_no_banco():
     book.refresh_from_db()
     assert book.sync_version == versao
     assert dict(Hymn.objects.filter(hymn_book=book).values_list("pk", "updated_at")) == carimbos
+
+
+# --------------------------------------------------------------------------- #
+# Contrato de dados: dono do hinário (`publish_readiness`)
+# --------------------------------------------------------------------------- #
+
+
+def test_todo_hinario_semeado_tem_dono_identificado():
+    """
+    `publish_readiness` exige `owner_user` no check "Dono do hinário
+    identificado". Sem ele, TODO hinário da fixture nasce com
+    `canPublish: false` — inclusive o rascunho, que existe justamente para ser
+    o alvo do modal de publicação. Era o caso até esta correção (medido: os 4
+    semeados vinham com `owner_user=None`).
+    """
+    _seed()
+    assert not _seeded_books().filter(owner_user__isnull=True).exists()
+
+
+def test_dono_dos_hinarios_e_o_editor_da_fixture():
+    """Dono é o editor: é quem a suíte loga e quem tem papel para publicar."""
+    _seed()
+    editor = User.objects.get(username=seed_module.editor_username())
+    assert set(_seeded_books().values_list("owner_user_id", flat=True)) == {editor.pk}
+
+
+def test_rascunho_passa_no_check_de_dono_do_publish_readiness():
+    """
+    O check que estava reprovando, verificado na fonte da verdade — o serviço
+    do Django, não uma releitura da regra aqui.
+    """
+    from apps.hymns.services.review import publish_readiness
+
+    _seed()
+    report = publish_readiness(HymnBook.objects.get(slug=seed_module.DRAFT_BOOK_SLUG))
+    dono = next(check for check in report["checks"] if check["key"] == "owner")
+    assert dono["ok"], report["checks"]
+
+
+def test_dono_reatribuido_e_devolvido_na_proxima_corrida():
+    """
+    Idempotência do campo novo: a jornada de CRUD pode trocar o dono pela UI e
+    a corrida seguinte tem que devolver o estado semeado.
+    """
+    _seed()
+    book = HymnBook.objects.get(slug=seed_module.DRAFT_BOOK_SLUG)
+    outro = User.objects.get(username=seed_module.viewer_username())
+    HymnBook.objects.filter(pk=book.pk).update(owner_user=outro)
+
+    _seed()
+
+    book.refresh_from_db()
+    assert book.owner_user_id == User.objects.get(username=seed_module.editor_username()).pk
