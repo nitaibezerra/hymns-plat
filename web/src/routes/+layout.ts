@@ -25,7 +25,7 @@ import type { LayoutLoad } from "./$types";
 export interface LayoutUser {
   id: string;
   username: string;
-  email: string;
+  email: string | null;
 }
 
 export interface LayoutData {

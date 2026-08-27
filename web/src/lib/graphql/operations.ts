@@ -123,7 +123,7 @@ export const LOGIN_MUTATION = `
 export const USER_PROFILE_QUERY = `
   query UserProfile($username: String!) {
     userProfile(username: $username) {
-      user { id username email }
+      user { id username }
       followersCount
       followingCount
       # Estado inicial do botão "Seguir" (ProfileHeader). Sem este campo o
@@ -135,7 +135,7 @@ export const USER_PROFILE_QUERY = `
         url
         durationSeconds
         waveformPeaks
-        uploadedBy { id username email }
+        uploadedBy { id username }
       }
       activityHeatmap(days: 365) {
         date
@@ -148,12 +148,11 @@ export const USER_PROFILE_QUERY = `
 export const USER_FOLLOWERS_QUERY = `
   query UserFollowers($username: String!, $first: Int!, $offset: Int!) {
     userProfile(username: $username) {
-      user { id username email }
+      user { id username }
       followersCount
       followers(first: $first, offset: $offset) {
         id
         username
-        email
       }
     }
   }
@@ -162,12 +161,11 @@ export const USER_FOLLOWERS_QUERY = `
 export const USER_FOLLOWING_QUERY = `
   query UserFollowing($username: String!, $first: Int!, $offset: Int!) {
     userProfile(username: $username) {
-      user { id username email }
+      user { id username }
       followingCount
       following(first: $first, offset: $offset) {
         id
         username
-        email
       }
     }
   }

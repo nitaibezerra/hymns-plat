@@ -14,7 +14,7 @@
     url: string;
     durationSeconds: number | null;
     waveformPeaks: number[];
-    uploadedBy: { id: string; username: string; email: string } | null;
+    uploadedBy: { id: string; username: string } | null;
   }
 
   let { audios }: { audios: UploadedAudio[] } = $props();
