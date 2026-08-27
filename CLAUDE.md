@@ -189,14 +189,24 @@ URL temporária do Railway: `https://hinaria-production.up.railway.app`. Sempre 
 
 ### Auto-deploy (default flow)
 
-`.github/workflows/deploy.yml` deploys `main` to Railway automatically:
-1. PR merged → push to `main` → `CI` workflow runs.
-2. `CI` succeeds on `main` → `Deploy` workflow fires via `workflow_run` trigger.
-3. Deploy job installs the Railway CLI (npm `@railway/cli@4`), runs `railway up --ci --service <SERVICE_ID>` with project/env/service IDs hardcoded in the workflow (no stateful `railway link` needed), then probes `https://hinaria.com.br/health/` until it returns 200 (up to 90s).
+`.github/workflows/deploy.yml` deploys `main` to Railway automatically.
 
-`workflow_dispatch` is also enabled — manual redeploy from the Actions UI when needed (e.g., re-run after a Railway-side hiccup that wasn't a code issue).
+**O gate é a branch protection, não um encadeamento de workflows** (corrigido em 2026-08-27; a descrição anterior aqui dizia que o `Deploy` disparava por `workflow_run` depois do `CI` passar em `main`, e isso não é o que o arquivo faz):
 
-`concurrency: deploy-railway` cancels an in-flight deploy if a newer one starts.
+1. PR mergeada → **push em `main`** dispara o `Deploy` direto (`on: push: branches: [main]`).
+2. Não há re-execução do CI no push, e é deliberado: `main` exige os 5 checks e tem `enforce_admins: true`, então **a única forma de um commit chegar lá é por PR que já passou pela suíte inteira**. Push direto está bloqueado até para o dono do repo. Rodar o CI de novo seria redundância, não proteção.
+
+Se algum dia `enforce_admins` cair ou os required checks saírem de `main`, **esse raciocínio deixa de valer** e o deploy passa a rodar sem rede — é a dependência a lembrar antes de mexer na proteção.
+
+O job tem três passos desacoplados de propósito, porque `railway up --ci` fazia streaming de log e um hiccup do streaming reprovava o workflow com o deploy tendo dado certo:
+
+1. **Upload** — `railway up --detach`, que sai assim que o arquivo entra na fila; sem streaming, flake de log não reprova.
+2. **Build** — captura o deployment ID da saída do upload e faz polling de `railway deployment list` até estado terminal (até 60 tentativas).
+3. **Smoke** — probe externo de `https://hinaria.com.br/health/` (até 12 tentativas).
+
+`workflow_dispatch` também está habilitado — redeploy manual pela UI do Actions quando o problema foi do lado do Railway, não do código.
+
+`concurrency: deploy-railway` com `cancel-in-progress` cancela um deploy em vôo se outro começar.
 
 The `RAILWAY_API_TOKEN` GitHub secret authenticates the CLI in CI (account-scoped Railway token, same one in `/Users/nitai/dev/copa-dos-reis/dev/portal/.env.railway`).
 
