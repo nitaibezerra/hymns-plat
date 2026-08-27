@@ -60,20 +60,45 @@
       </p>
     </div>
 
-    <EditorStatsBar stats={data.stats} />
+    <div class="page-header-side">
+      <EditorStatsBar stats={data.stats} />
+      <!--
+        Porta de entrada pra criação (1.1). Paridade com
+        `templates/hymns/hymnbook_list.html`, que mostra "+ Novo hinário" sob
+        `{% if perms.hymns.can_review_any_hymnbook %}`. Aqui não há `{% if %}`
+        equivalente porque o guard de `/editor/+layout.ts` já barrou quem não
+        é editor — a mesma permissão, checada uma vez na porta.
+      -->
+      <a class="new-hymnbook" href="/editor/hinarios/novo/" data-testid="new-hymnbook-link">
+        + Novo hinário
+      </a>
+    </div>
   </header>
 
   <!--
-    Áudios aguardando aprovação. O template Django faz disto um link pra
-    `/editor/audios-pendentes/`, rota que pertence ao sub-marco 5.D — até ela
-    existir, o aviso fica como badge informativo em vez de um link morto.
+    Áudios aguardando aprovação. O 5.B entregou isto como badge sem href
+    porque `/editor/audios/pendentes/` ainda não existia; ela existe desde o
+    5.D, então virou o link que o template Django sempre teve
+    (`hymns:editor_pending_audios`), com a mesma linha de convite.
   -->
   {#if data.stats.pendingAudiosCount > 0}
-    <p class="pending-audios" data-testid="pending-audios-badge">
+    <a
+      class="pending-audios"
+      href="/editor/audios/pendentes/"
+      data-testid="pending-audios-badge"
+    >
       <span class="pending-audios-glyph" aria-hidden="true">♫</span>
-      {data.stats.pendingAudiosCount}
-      {data.stats.pendingAudiosCount === 1 ? "áudio" : "áudios"} aguardando aprovação
-    </p>
+      <span class="pending-audios-text">
+        <span class="pending-audios-count">
+          {data.stats.pendingAudiosCount}
+          {data.stats.pendingAudiosCount === 1 ? "áudio" : "áudios"} aguardando aprovação
+        </span>
+        <span class="pending-audios-hint">
+          Ouça e libere para aparecer no detalhe do hino
+        </span>
+      </span>
+      <span class="pending-audios-cta">Revisar áudios →</span>
+    </a>
   {/if}
 
   {#if data.stats.resumeHymn}
@@ -170,6 +195,28 @@
   .page-header-text {
     max-width: 34rem;
   }
+  .page-header-side {
+    align-items: flex-end;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-left: auto;
+  }
+  .new-hymnbook {
+    background: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-pill);
+    color: var(--color-bg);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    padding: 0.5rem 1.125rem;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .new-hymnbook:hover,
+  .new-hymnbook:focus-visible {
+    background: var(--color-accent-2);
+  }
   .eyebrow {
     color: var(--color-text-muted);
     font-family: var(--font-mono, var(--font-sans));
@@ -199,6 +246,36 @@
     gap: 0.75rem;
     margin: 0;
     padding: 0.75rem 1.125rem;
+    text-decoration: none;
+  }
+  .pending-audios:hover,
+  .pending-audios:focus-visible {
+    background: color-mix(in srgb, var(--color-gold) 25%, transparent);
+  }
+  .pending-audios-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+  .pending-audios-count {
+    font-weight: 500;
+  }
+  .pending-audios-hint {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono, var(--font-sans));
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .pending-audios-cta {
+    color: var(--color-text-soft);
+    flex-shrink: 0;
+    font-family: var(--font-mono, var(--font-sans));
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
   .pending-audios-glyph {
     align-items: center;
