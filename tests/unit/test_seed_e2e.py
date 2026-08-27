@@ -459,3 +459,155 @@ def test_dono_reatribuido_e_devolvido_na_proxima_corrida():
 
     book.refresh_from_db()
     assert book.owner_user_id == User.objects.get(username=seed_module.editor_username()).pk
+
+
+# --------------------------------------------------------------------------- #
+# Contrato de dados: fixture de paridade visual (Sub-marco 4.I)
+# --------------------------------------------------------------------------- #
+
+
+def test_hinario_de_paridade_e_publicado_e_denso():
+    """
+    A suíte de paridade compara telas; comparar telas quase vazias mede o
+    fundo, não o design. O hinário de paridade existe para que o viewport de
+    1280×720 esteja CHEIO de conteúdo real nas rotas de hinário — índice,
+    corrido e carrossel — nos dois lados.
+    """
+    _seed()
+    book = HymnBook.objects.get(slug=seed_module.PARITY_BOOK_SLUG)
+    assert book.is_published, "rota pública: hinário não publicado não é visível ao anônimo"
+    assert book.hymns.count() == seed_module.PARITY_HYMN_COUNT
+    assert seed_module.PARITY_HYMN_COUNT >= 24, "menos que isso não enche o índice em duas colunas"
+
+
+def test_hinos_de_paridade_tem_letra_longa():
+    """
+    Corrido e carrossel renderizam a LETRA. Duas linhas de texto deixariam o
+    viewport majoritariamente vazio, e aí um diff baixo não diria nada.
+    """
+    _seed()
+    hymns = Hymn.objects.filter(hymn_book__slug=seed_module.PARITY_BOOK_SLUG)
+    for hymn in hymns:
+        linhas = [linha for linha in hymn.text.splitlines() if linha.strip()]
+        assert len(linhas) >= seed_module.PARITY_MIN_LINES, (hymn.number, len(linhas))
+
+
+def test_hinos_de_paridade_tem_letras_diferentes_entre_si():
+    """
+    24 hinos com a MESMA letra fariam o corrido e o carrossel medirem a mesma
+    tela 24 vezes — e esconderiam divergência que só aparece com texto de
+    tamanho variável.
+    """
+    _seed()
+    textos = list(Hymn.objects.filter(hymn_book__slug=seed_module.PARITY_BOOK_SLUG).values_list("text", flat=True))
+    assert len(set(textos)) == len(textos)
+
+
+def test_termo_de_busca_da_paridade_acha_hino_na_fixture():
+    """
+    `/busca/?q=<termo>` só é medível se os DOIS lados listarem resultado. O
+    termo default da suíte tem que existir na fixture — senão a rota mede
+    "nenhum resultado" contra "nenhum resultado" num banco de CI recém-semeado.
+    """
+    _seed()
+    termo = seed_module.PARITY_SEARCH_QUERY
+    achados = Hymn.objects.filter(hymn_book__slug=seed_module.PARITY_BOOK_SLUG, text__icontains=termo)
+    assert achados.exists(), f"nenhum hino da fixture de paridade contém {termo!r}"
+
+
+def test_hino_de_paridade_tem_audio_aprovado_e_tocavel():
+    """
+    Teste-âncora do 4.F (áudio segue tocando ao navegar) precisa de áudio que
+    o browser consiga DECODIFICAR: `audio.currentTime` só avança se houver
+    som de verdade. O resto da fixture usa bytes falsos de propósito (a fila
+    de pendentes é `preload="none"`); este áudio é a exceção deliberada.
+    """
+    _seed()
+    audio = HymnAudio.objects.get(title=seed_module.PARITY_AUDIO_TITLE)
+    assert audio.is_approved, "anônimo só vê áudio aprovado"
+    assert audio.hymn.hymn_book.slug == seed_module.PARITY_BOOK_SLUG
+    assert audio.hymn.number == 1
+    assert audio.waveform_peaks, "waveform pronta evita acordar o ffmpeg no signal"
+    assert audio.duration and audio.duration >= 2, "curto demais para o teste de progressão"
+
+    dados = audio.audio_file.read()
+    assert dados[:4] == b"RIFF" and dados[8:12] == b"WAVE", "não é um WAV decodificável"
+    assert len(dados) > 10_000, "sem amostras suficientes para tocar"
+
+
+def test_editor_tem_seguidores_e_segue_alguem():
+    """
+    `/perfil/<u>/seguidores/` e `/perfil/<u>/seguindo/` só são medíveis com
+    lista não vazia — medido em 2026-08-27, com o usuário de dev as duas
+    rotas renderizavam estado vazio nos dois lados e a comparação media
+    cabeçalho contra cabeçalho.
+    """
+    from apps.users.models import UserFollow
+
+    _seed()
+    editor = User.objects.get(username=seed_module.editor_username())
+    assert UserFollow.objects.filter(followed=editor).count() == seed_module.PARITY_FOLLOWERS_EXPECTED
+    assert UserFollow.objects.filter(follower=editor).count() == seed_module.PARITY_FOLLOWING_EXPECTED
+
+
+def test_editor_tem_notificacoes_nao_lidas():
+    """`/notificacoes/` (rota autenticada da tabela de paridade)."""
+    from apps.users.models import Notification
+
+    _seed()
+    editor = User.objects.get(username=seed_module.editor_username())
+    nao_lidas = Notification.objects.filter(recipient=editor, is_read=False)
+    assert nao_lidas.count() == seed_module.PARITY_NOTIFICATIONS_EXPECTED
+    assert nao_lidas.values("notification_type").distinct().count() >= 2
+
+
+def test_editor_aparece_como_uploader_no_proprio_perfil():
+    """`userProfile.uploadedAudios` alimenta a seção de uploads do perfil."""
+    _seed()
+    editor = User.objects.get(username=seed_module.editor_username())
+    assert HymnAudio.objects.filter(uploaded_by=editor, title__startswith=seed_module.SEED_PREFIX).exists()
+
+
+def test_segunda_execucao_nao_duplica_seguidores_nem_notificacoes():
+    from apps.users.models import Notification, UserFollow
+
+    _seed()
+    follows = UserFollow.objects.count()
+    notifs = Notification.objects.count()
+
+    _seed()
+
+    assert UserFollow.objects.count() == follows
+    assert Notification.objects.count() == notifs
+
+
+def test_segunda_execucao_nao_escreve_no_hinario_de_paridade():
+    """
+    O hinário de paridade é o maior da fixture (24 hinos): se a idempotência
+    falhasse em algum lugar, é aqui que o `sync_version` explodiria.
+    """
+    _seed()
+    book = HymnBook.objects.get(slug=seed_module.PARITY_BOOK_SLUG)
+    versao = book.sync_version
+    carimbos = dict(Hymn.objects.filter(hymn_book=book).values_list("pk", "updated_at"))
+
+    _seed()
+
+    book.refresh_from_db()
+    assert book.sync_version == versao
+    assert dict(Hymn.objects.filter(hymn_book=book).values_list("pk", "updated_at")) == carimbos
+
+
+def test_audio_aprovado_nasce_com_is_match_resolvido():
+    """
+    Regressão medida ao semear o hinário de paridade: o áudio aprovado nascia
+    com `is_match=None` e a corrida SEGUINTE corrigia o campo. Esse `save()`
+    acordava o signal que incrementa `HymnBook.sync_version` — o contador que
+    diz ao cliente offline que o cache expirou. Resultado: todo segundo seed
+    invalidava o cache de quem estivesse sincronizado, sem nada ter mudado.
+    """
+    _seed()
+    for audio in _seeded_audios().filter(is_approved=True):
+        assert audio.is_match is True, audio.title
+    for audio in _seeded_audios().filter(is_approved=False):
+        assert audio.is_match is None, audio.title
