@@ -1,0 +1,76 @@
+// Configuração do Worker que serve a SPA em https://beta.hinaria.com.br.
+//
+// ## Por que Workers e não Pages
+//
+// O plano original dizia Cloudflare Pages. O token disponível nesta conta
+// gerencia **zona (DNS)** e **Workers**, mas devolve "Authentication error"
+// em `/pages/projects`, e não consegue emitir tokens novos. Então o alvo é
+// **Workers com static assets** — que faz a mesma coisa (SSR + assets no
+// edge) com a permissão que existe.
+//
+// Isso é o que obrigou o upgrade do `@sveltejs/adapter-cloudflare` de 4.9.0
+// para 7.x: a linha 4.x só sabe emitir o formato de Pages Functions
+// (`_worker.js` + `_routes.json`, sem binding de assets). Da 5.0.0 em diante
+// o adapter lê ESTE arquivo e decide o formato por ele: `main` + `assets`
+// presentes => Worker; ausentes => Pages (`is_building_for_cloudflare_pages`
+// em `adapter-cloudflare/utils.js`).
+//
+// ## O contrato com o adapter
+//
+// O adapter valida quatro coisas antes de emitir (mesmo arquivo, em
+// `validate_worker_settings`) e o build morre se faltar qualquer uma:
+//   - nada de `site` (Workers Sites é o modelo antigo);
+//   - `assets.directory` — senão os estáticos não sobem;
+//   - `assets.binding` junto com `main` — senão o Worker não alcança os
+//     estáticos;
+//   - `main` junto com `assets.binding` — senão seria deploy só de estáticos.
+//
+// O `_worker.js` mora DENTRO de `assets.directory` de propósito: é o layout
+// que o próprio adapter assume, e ele escreve um `.assetsignore` no diretório
+// listando `_worker.js`, `_routes.json`, `_headers` e `_redirects` pra que
+// esses arquivos não sejam publicados como assets acessíveis.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hinaria-beta",
+  "main": ".svelte-kit/cloudflare/_worker.js",
+
+  // Casada com a versão do `workerd` que a `wrangler` deste lockfile embute
+  // (1.2026.08.26). Data no futuro é rejeitada pela API no deploy; data muito
+  // velha reverte comportamentos de runtime silenciosamente. Ao subir a
+  // wrangler, suba esta data junto e re-rode `pnpm build:deploy`.
+  "compatibility_date": "2026-08-01",
+
+  // O runtime de servidor do SvelteKit 2 usa `node:async_hooks`
+  // (AsyncLocalStorage) pra sustentar `getRequestEvent`, e o bundle puxa
+  // outros builtins de Node por tabela. Sem esta flag o deploy passa e o
+  // Worker quebra no primeiro request com "No such module node:async_hooks".
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".svelte-kit/cloudflare"
+  },
+
+  // O hostname do beta como **custom domain**, não como route.
+  //
+  // Um registro DNS sozinho não entrega request nenhum a um Worker: é o
+  // custom domain que cria o registro E ativa a rota, no mesmo passo.
+  // Declarar aqui faz `wrangler deploy` garantir o vínculo de forma
+  // idempotente, em vez de depender de alguém ter clicado no painel.
+  //
+  // Modo de falha conhecido: se `beta.hinaria.com.br` já existir na zona como
+  // registro DNS comum (A/CNAME apontando pra outro lugar), o deploy falha
+  // com conflito de registro em vez de adotá-lo. O conserto é apagar esse
+  // registro e deixar o custom domain criá-lo — não criar o registro à mão.
+  "routes": [{ "pattern": "beta.hinaria.com.br", "custom_domain": true }],
+
+  // Escape hatch deliberado: mantém `hinaria-beta.<subdomínio>.workers.dev`
+  // no ar. É por onde se verifica que o deploy em si funcionou quando o
+  // custom domain ainda não propagou — sem isso, um deploy verde com DNS
+  // pendente é indistinguível de um deploy quebrado.
+  "workers_dev": true,
+
+  // Logs do Worker no dashboard. Um beta sem observabilidade é um beta que
+  // ninguém consegue depurar remotamente.
+  "observability": { "enabled": true }
+}
