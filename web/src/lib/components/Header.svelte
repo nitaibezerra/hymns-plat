@@ -18,7 +18,7 @@
   export interface HeaderUser {
     id: string;
     username: string;
-    email: string;
+    email: string | null;
   }
 
   let { currentUser = null }: { currentUser?: HeaderUser | null } = $props();

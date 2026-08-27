@@ -15,7 +15,7 @@ import { LOGIN_MUTATION } from "$lib/graphql/operations";
 export interface LoginUser {
   id: string;
   username: string;
-  email: string;
+  email: string | null;
 }
 
 export type LoginResult =

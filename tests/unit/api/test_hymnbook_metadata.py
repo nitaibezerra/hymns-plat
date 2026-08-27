@@ -76,5 +76,7 @@ def test_hymnbook_cover_image_returns_url(client, hymn_book_factory, sample_imag
     assert "errors" not in data, data
     cover = data["data"]["hymnbook"]["coverImage"]
     assert cover is not None
-    assert cover == book.cover_image.url
+    # ABSOLUTA: o `<img src>` do shell resolve relativa contra a origem dele,
+    # não a do Django. Contrato em `test_gates_campos_cover_url.py`.
+    assert cover == f"http://testserver{book.cover_image.url}"
     assert "hymn_covers/" in cover

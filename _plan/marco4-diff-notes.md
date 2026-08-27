@@ -9,6 +9,11 @@
 > entregando as listas pra anônimo) e a **URL de mídia relativa** (item 9 dos
 > bloqueadores, onde a afirmação de que "em produção é pior" estava ERRADA e foi
 > corrigida com a medição real).
+>
+> Terceira atualização do mesmo dia: a seção final
+> **"Varredura completa dos gates de CAMPO em `apps/api/types.py`"** fecha o
+> ciclo dos vazamentos de leitura — campo por campo, o que foi apertado, o que a
+> auditoria DESCARTOU e por quê, e o que ficou reportado como decisão de produto.
 
 Este documento registra **o que foi testado**, **o que foi medido**, **o que
 ficou pendente e por quê** e **quais diferenças são intencionais/aceitas**
@@ -723,6 +728,178 @@ recém-semeado: **99 passaram, 1 skipped** (o `fixme`).
 também no cabeçalho da própria spec e no `dev-fullstack.sh`.
 
 ---
+
+## 2026-08-27 · Varredura completa dos gates de CAMPO em `apps/api/types.py`
+
+Contexto: em 2026-08-27 três vazamentos de leitura foram achados no mesmo dia,
+todos pela mesma causa — **o backend do Marco 5 foi escrito com cobertura de
+permissão nas MUTATIONS e o lado de LEITURA ficou sem essa disciplina.** Esta é
+a varredura de fundo que fecha o ciclo: **todo campo de todo tipo** de
+`apps/api/types.py` foi comparado com o que a view/template Django equivalente
+expõe a anônimo.
+
+**A régua é sempre o Django**, fonte de verdade de produto até o Marco 7: o que
+a view/template equivalente expõe a anônimo é público; o que ela protege
+(`@login_required`, `visible_to`, gate de editor) tem de estar protegido na API.
+Onde o Django é MAIS permissivo que a API, não se aperta — anota-se.
+
+### Consertado (4 apertos + 1 URL)
+
+| Campo | O que a API entregava a anônimo | Régua Django | Forma do conserto |
+|---|---|---|---|
+| `HymnBookType.coverImage` | `FileField.url` cru — RELATIVA no `FileSystemStorage` | (não é gate; é bug de URL) | `_absolute_media_url` + `optional_request_from_info`, os mesmos helpers do conserto de `HymnAudioType.url` |
+| `HymnType.revisions` | trilha inteira, com `fieldDiff` (texto anterior de cada edição), `previousStatus`/`newStatus` e `revisedBy` | `hymn_history_view`: `@login_required` + `can_edit_hymnbook`; o botão no `hymn_detail.html` está sob `{% if can_edit %}`; o drawer é o ÚNICO lugar do monolito que mostra `field_diff` | `GraphQLError` via `_require_editorial_access` (lista não-nulável não tem posição pra union) |
+| `HymnType.ocrText`, `inlineDiff`, `ocrLineConfidences` | texto CRU do OCR + o diff palavra por palavra + a confiança por linha | só em `editor_revise_hymn` (`@login_required` + `can_edit_hymnbook`); `hymn_detail.html` mostra `text` e nada de OCR | vazio (`""` / `None` / `[]`) fora do papel editorial |
+| `HymnAudioType.isMatch`, `qualityRating`, `qualityObservations`, `mismatchReason`, `reviewedBy`, `reviewedAt` | o parecer editorial sobre a gravação de alguém ("É outro hino", "Voz baixa", nota 1–5, nome do revisor) | só em `editor/_audio_review.html`, incluído por `editor_revise_hymn` e escrito por `editor_hymn_audio_review` — as duas `@login_required` + `can_edit_hymnbook` | fora do papel editorial **todo áudio parece não-revisado** (`None`/`[]`/`""`) |
+
+Duas formas de gate, e a escolha entre elas não é estética:
+
+- **erro** (`_require_editorial_access`) quando "vazio" seria resposta
+  ENGANOSA. É o caso de `revisions`: lista vazia significa "nunca foi revisado",
+  um fato real e diferente, e a porta equivalente no Django é um redirect duro.
+- **vazio** (`_viewer_is_editor` + valor neutro) quando o vazio é indistinguível
+  do estado real mais comum. `ocrText=""` é o estado de todo hino
+  `source=manual`; `isMatch=None` é o estado de todo áudio ainda na fila. Ganho
+  concreto: o SDL fica com as não-nulabilidades intactas (`ocrText: String!`,
+  `ocrLineConfidences: [Int!]!`, `qualityObservations: [String!]!`,
+  `mismatchReason: String!`), então **nenhuma query mista perde o objeto inteiro
+  por causa de um campo não-nulável** e a tipagem do frontend não muda.
+
+**Efeito no SDL: zero nulabilidade alterada.** Só reordenação de campos em
+`type HymnType` e `type HymnAudioType` — os campos que deixaram de ser
+`strawberry.auto` e viraram resolver descem para depois dos anotados.
+
+### `strawberry.auto`: o que a varredura descobriu sobre o mecanismo
+
+O vazamento de `UserType.email` deixou a impressão de que `strawberry.auto`
+"inclui tudo que o modelo tem". **Não é isso.** `auto` resolve o TIPO de UM
+campo declarado; ele não puxa os outros campos do modelo. Não há
+`all_fields=True` nem `fields="__all__"` em nenhum tipo (`grep` confirma).
+
+Consequência prática, medida campo por campo: o que o modelo tem e o tipo não
+declara **não sai** — `User.password`, `is_staff`, `is_superuser`, `last_login`,
+`date_joined`, `first_name`, `last_name`, `bio`, `avatar`; `HymnBook.owner_user`,
+`accent_color`, `updated_at`; `Hymn.text` (só via `body`), `ocr_avg_confidence`,
+`search_vector`; `HymnAudio.audio_file` (só via `url`), `duration` (só via
+`durationSeconds`), `updated_at`; `Notification.recipient`; `OCRTask.user`,
+`started_at`, `finished_at`. `HymnBookVersion` e `Favorite` não têm tipo GraphQL
+nenhum.
+
+O risco real do `auto` é outro, e menor: **declarar um campo sem pensar em quem
+o lê**. Foi o que aconteceu com `email` — alguém escreveu `email: auto` e o
+`String!` saiu de graça. A varredura não achou nenhum outro caso desse tipo além
+dos quatro consertados acima.
+
+### Já correto — o que a auditoria descarta (e por quê)
+
+- **`UserProfileType.activityHeatmap`** — público DE PROPÓSITO. O endpoint
+  equivalente `apps/users/api_views.py::api_user_heatmap` **não** tem
+  `@login_required`. Confirmado, não mexido.
+- **`UserProfileType.followersCount`/`followingCount`** — `profile_view` é
+  pública e mostra as contagens. As LISTAS já foram gateadas em #92.
+- **`UserProfileType.uploadedAudios`** — gateado em #92 (aprovação + `visible_to`).
+- **`UserProfileType.isFollowedByCurrentUser`** — self-read, `False` pra anônimo.
+- **`HymnType.lastReviewedBy`/`lastReviewedAt`** — o `hymn_detail.html` mostra
+  "Última revisão · `<username>` · `<data>`" a QUALQUER visitante, sem
+  `{% if can_edit %}`. Público por decisão do monolito.
+- **`HymnType.number`/`title`/`body`/`style`/`repetitions`/`extraInstructions`/`offeredTo`/`section`/`receivedAt`** —
+  todos renderizados no `hymn_detail.html` público.
+- **`HymnType.source`** — não renderizado, mas é rótulo de proveniência
+  (`manual`/`ocr`/`yaml`) sem conteúdo: não diz nada que o hino já não diga.
+- **`HymnType.isFavorited`** — self-read; anônimo recebe `False`.
+- **`HymnType.commonStyles`/`commonRepetitions`** — só aparecem na tela do
+  editor no Django, mas são agregação de `style`/`repetitions` dos hinos do
+  MESMO hinário, que o sumário público já lista um por um. Derivável de dado
+  público ⇒ nada a fechar.
+- **`HymnType.previousInBook`/`nextInBook`** — a navegação ←/→ do
+  `hymn_detail.html` público.
+- **`HymnType.siblingsWithSameNumber`** — já usa `visible_to(user)`.
+- **`HymnType.audios(approvedOnly:)`** — o gate de referência do projeto.
+- **`HymnType.hymnBook`** — o breadcrumb público.
+- **`HymnAudioType.title`/`credits`/`recordedAt`/`format`/`durationSeconds`/`waveformPeaks`/`url`/`uploadedBy`** —
+  todos no `_audio_player.html` público (`uploaded_by.username` inclusive:
+  "gravado por X").
+- **`HymnAudioType.isApproved`** — é a condição de render do próprio player
+  (`{% if audio and audio.is_approved %}`) e o badge "Aguardando aprovação" do
+  shell. Fica FORA do gate de propósito.
+- **`HymnAudioType.source`/`fileSize`/`allowDownload`** — metadado técnico de
+  arquivo, não avaliação de pessoa. `source` é irmão de `credits`, que é público.
+- **`HymnBookType.name`/`slug`/`introName`/`ownerName`/`description`/`isPublished`/`createdAt`** —
+  todos no card e no hero público.
+- **`HymnBookType.publishedAt`** — data de um ato público (a publicação).
+- **`HymnBookType.publishedBy`** — o `hymnbook_detail.html` não tem a linha, mas
+  o monolito JÁ publica "quem fez o ato editorial" sem gate no caso do hino
+  (`Última revisão · <username>`). Omissão de UI, não política.
+- **`HymnBookType.syncVersion`** — contador de cache do Marco 6; o cliente
+  offline anônimo precisa dele pra saber se re-sincroniza. Sem equivalente
+  Django porque o monolito não tem cliente offline.
+- **`HymnBookType.hymns`** — o sumário público.
+- **`NotificationType`** (todos os campos) — alcançável só por
+  `Query.notifications` (gate de sessão + filtro `recipient=user`) e por
+  `markNotificationRead` (que devolve `NotFoundError` pra notificação alheia,
+  sem vazar existência). Tipo inalcançável por outro caminho: **conferido**, não
+  aparece em `schema.py::types=[...]` nem em retorno de outra mutation.
+- **`OCRTaskType`** (todos os campos, `resultData` e `pdfFilename` inclusive) —
+  alcançável só por `Query.ocrTask`, que exige sessão e é gateada a
+  uploader-dono OU editor/admin. Nenhuma mutation devolve o tipo. Ver a ressalva
+  em "Reportado", abaixo.
+- **`UserType.username`** — público em toda parte do monolito.
+- **`UserType.isEditor`** — o `profile.html` público mostra o selo "EDITOR ·".
+- **`UserType.email`** — vazava, e o conserto está em `fix/email-privado`
+  (`adbe7ba`), fora desta frente. Não foi tocado aqui pra não colidir.
+- Tipos de valor puro sem dado do banco: `InlineDiff*`, `PublishReadiness*`,
+  `HeatmapBucketType`, `SearchResultsType`, `PublishResult`, `DeleteResult`,
+  `HymnBookStatsType`, `HymnBookReviewProgressType`, `EditorDashboardStatsType`
+  (esta última só é retornada por `Query.editorDashboardStats`, gateada).
+
+### Reportado, NÃO apertado — decisão de produto, não bug
+
+**Um cluster só, e é importante que seja lido como cluster:** `reviewStatus` e
+tudo que dele deriva.
+
+Campos: `HymnType.reviewStatus`, `HymnBookType.reviewProgress` (4 percentuais),
+`HymnBookType.stats.hymnsReviewed`, `HymnBookType.nextPendingHymn`,
+`HymnBookType.nextIncompleteHymn`.
+
+- **Argumento pra apertar:** o `hymn_detail.html` só mostra a linha "Status" sob
+  `{% if can_edit %}`; os percentuais de `review_progress` só aparecem no
+  dashboard `/editor/`, gateado; `editor_next_hymn`/`editor_next_incomplete` são
+  `@login_required` + editor. Pela régua estrita do Django, os cinco estão
+  abertos demais.
+- **Argumento pra NÃO apertar:** (1) **o shell SvelteKit já RENDERIZA
+  `hymnsReviewed` pra anônimo** — `HymnbookCard.svelte` tem a linha "Revisados:
+  N" com `data-testid="stat-hymns-reviewed"`, e `stats` está nas queries
+  públicas `HYMNBOOKS_QUERY` e `HOURLY_FEATURED_QUERY`. Ou seja: no produto do
+  Marco 7, isso é público por decisão, não por omissão. (2) Não é dado pessoal
+  nem conteúdo não publicado — é sinal de qualidade sobre conteúdo já público
+  ("este texto foi conferido"), que é plausivelmente informação boa de dar.
+  (3) Os cinco são o MESMO fato em granularidades diferentes: apertar
+  `nextPendingHymn` sem apertar `reviewStatus` não fecha nada, porque a fila é
+  derivável do status hino a hino. A decisão tem de valer pro cluster inteiro
+  ou pra nenhum.
+- **Custo de apertar:** `reviewStatus: ReviewStatus!` viraria nulável (mudança de
+  contrato), `busca/+page.ts` e `hinos/[pk]/+page.ts` precisariam de `| null`, e
+  a linha "Revisados" do card público sairia ou zeraria.
+
+Segundo item, menor e independente: **`HymnBookType.priority` e `isFeatured`.**
+No Django os dois só aparecem no painel "Curadoria editorial" do
+`hymnbook_detail.html`, que só entra no contexto quando
+`request.user.is_staff`. Na API saem pra anônimo. Argumento pra não apertar por
+conta própria: nenhum dos dois é dado pessoal ou conteúdo não publicado, o efeito
+de `is_featured` já é observável na home pública (a rotação "Em destaque"), e
+`priority: String!` / `isFeatured: Boolean!` são não-nuláveis — apertar exige
+mudar contrato e tocar o `editor-dashboard.ts`. Argumento pra apertar: `priority`
+é triagem interna e, diferente do cluster do `reviewStatus`, **não** é derivável
+de nada público. Fica pro coordenador.
+
+Terceiro, e é ressalva de OUTRA frente: **`Query.ocrTask` é MAIS permissiva que
+o Django.** `apps/users/views.py::_ocr_task_for_user` restringe a task ao PRÓPRIO
+uploader (`task.user_id != request.user.id` → 403), sem bypass de editor; a query
+GraphQL libera também pra `is_superuser` / `can_review_any_hymnbook`. Os CAMPOS
+de `OCRTaskType` estão certos (o tipo só é alcançável por essa query), então o
+aperto — se for feito — é no gate da QUERY, que é `apps/api/schema.py`, fora do
+escopo desta frente. Vale notar que OCR está fora de escopo do projeto (sub-marco
+5.F revertido), o que baixa a urgência.
 
 ## Varredura dos gates de QUERY — 2026-08-27, Frente B
 
