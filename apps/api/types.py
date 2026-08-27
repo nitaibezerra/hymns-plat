@@ -58,6 +58,35 @@ def _require_session(info: Info, action: str) -> None:
     require(user_from_info(info), is_authenticated, message=authentication_required(action))
 
 
+def _viewer_is_editor(info: Info) -> bool:
+    """True se quem está lendo tem papel editorial.
+
+    Régua única dos campos de workspace: no Django, TODA tela que mostra dado
+    editorial de hino/áudio passa por `can_edit_hymnbook`, que é
+    `_is_editor_or_admin` (`apps/hymns/permissions.py`) — não olha o objeto.
+    `permissions.is_editor_or_admin` é o mesmo predicado com nome público.
+    """
+    return is_editor_or_admin(user_from_info(info))
+
+
+def _require_editorial_access(info: Info, action: str) -> None:
+    """Levanta `GraphQLError` se quem lê não tem papel editorial.
+
+    Reproduz o par que as views do workspace usam: `@login_required` PRIMEIRO
+    (anônimo recebe `Autenticação necessária para <action>.`, o prefixo que o
+    shell classifica pra redirecionar ao login) e o gate de papel DEPOIS
+    (logado sem papel recebe a mensagem de permissão negada, que o shell trata
+    como 403 e não como sessão expirada).
+
+    É a forma para campo de retorno NÃO-nulável — lista, no caso de
+    `HymnType.revisions` —, que não tem posição no schema pra union de erro.
+    Campo nulável usa `_viewer_is_editor` e devolve vazio.
+    """
+    user = user_from_info(info)
+    require(user, is_authenticated, message=authentication_required(action))
+    require(user, is_editor_or_admin)
+
+
 @strawberry.input
 class HymnBookInput:
     """Payload de criação/edição de HymnBook — espelha `HymnBookForm.Meta.fields`.
@@ -459,8 +488,20 @@ class HymnType:
         return _compute_ocr_line_confidences(self.ocr_text or "", self.text or "")
 
     @strawberry.field
-    def revisions(self) -> list["HymnRevisionType"]:
-        """Histórico de revisões (mais recente primeiro)."""
+    def revisions(self, info: Info) -> list["HymnRevisionType"]:
+        """Histórico de revisões (mais recente primeiro). Só pra papel editorial.
+
+        No Django o histórico por hino tem UMA porta: `hymn_history_view`, que é
+        `@login_required` e redireciona quem não passa em `can_edit_hymnbook`; o
+        botão que a abre no `hymn_detail.html` vive sob `{% if can_edit %}`. O
+        drawer que ela renderiza é o único lugar do monolito que mostra
+        `field_diff` — o snapshot `{campo: {old, new}}` de cada edição, ou seja o
+        texto anterior de cada hino e quem o mudou.
+
+        Sem gate, isso saía inteiro pra anônimo. É também a única porta para
+        `HymnRevisionType` no schema, então o gate aqui fecha o tipo todo.
+        """
+        _require_editorial_access(info, "ver o histórico de revisões")
         return list(self.revisions.select_related("revised_by").order_by("-revised_at"))
 
     @strawberry.field
