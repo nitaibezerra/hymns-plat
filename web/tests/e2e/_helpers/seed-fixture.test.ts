@@ -17,6 +17,13 @@ import {
   DEFAULT_VIEWER_USERNAME,
   DRAFT_BOOK_SLUG,
   FULLY_REVIEWED_BOOK_SLUG,
+  PARITY_AUDIO_TITLE,
+  PARITY_BOOK_SLUG,
+  PARITY_FOLLOWERS_EXPECTED,
+  PARITY_FOLLOWING_EXPECTED,
+  PARITY_HYMN_COUNT,
+  PARITY_NOTIFICATIONS_EXPECTED,
+  PARITY_SEARCH_QUERY,
   PENDING_AUDIOS_EXPECTED,
   PENDING_AUDIO_TITLES,
   REVIEW_BOOK_SLUG,
@@ -34,7 +41,12 @@ const SLUGS = SEED_BOOKS.map((book) => book.slug);
 
 test.describe("contrato da fixture de seed (seed-fixture)", () => {
   test("os slugs citados por nome existem na lista de hinários", () => {
-    for (const slug of [REVIEW_BOOK_SLUG, FULLY_REVIEWED_BOOK_SLUG, DRAFT_BOOK_SLUG]) {
+    for (const slug of [
+      REVIEW_BOOK_SLUG,
+      FULLY_REVIEWED_BOOK_SLUG,
+      DRAFT_BOOK_SLUG,
+      PARITY_BOOK_SLUG,
+    ]) {
       expect(SLUGS).toContain(slug);
     }
   });
@@ -95,6 +107,36 @@ test.describe("contrato da fixture de seed (seed-fixture)", () => {
 
   test("seededOrder devolve vazio quando a fixture não está na tela", () => {
     expect(seededOrder(["o-cruzeiro", "viagem"])).toEqual([]);
+  });
+
+  test("o hinário de paridade é publicado e denso", () => {
+    // Rota pública: rascunho não é visível ao anônimo. E denso porque a suíte
+    // de paridade compara TELAS — tela quase vazia mede o fundo, não o design.
+    const book = SEED_BOOKS.find((item) => item.slug === PARITY_BOOK_SLUG);
+    expect(book, "o hinário de paridade saiu da lista").toBeDefined();
+    expect(book!.isPublished).toBe(true);
+    expect(book!.hymnsTotal).toBe(PARITY_HYMN_COUNT);
+    expect(PARITY_HYMN_COUNT).toBeGreaterThanOrEqual(24);
+  });
+
+  test("o áudio de paridade carrega o prefixo do seed", () => {
+    // Sem o prefixo, `--reset` não o apaga e o MEDIA_ROOT acumula WAV a cada
+    // corrida.
+    expect(PARITY_AUDIO_TITLE.startsWith(SEED_PREFIX)).toBe(true);
+  });
+
+  test("as contagens de rede social são maiores que zero", () => {
+    // Lista vazia nas rotas de perfil e de notificações é exatamente o que
+    // tornava `/seguidores/`, `/seguindo/` e `/notificacoes/` imedíveis: o
+    // diff comparava cabeçalho contra cabeçalho.
+    expect(PARITY_FOLLOWERS_EXPECTED).toBeGreaterThan(0);
+    expect(PARITY_FOLLOWING_EXPECTED).toBeGreaterThan(0);
+    expect(PARITY_NOTIFICATIONS_EXPECTED).toBeGreaterThan(0);
+    expect(PARITY_FOLLOWERS_EXPECTED).toBeGreaterThanOrEqual(PARITY_FOLLOWING_EXPECTED);
+  });
+
+  test("o termo de busca da paridade não é vazio", () => {
+    expect(PARITY_SEARCH_QUERY.trim().length).toBeGreaterThan(0);
   });
 
   test("credenciais caem nos defaults do comando quando o ambiente é omisso", () => {
