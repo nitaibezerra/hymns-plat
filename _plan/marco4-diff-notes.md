@@ -900,3 +900,189 @@ de `OCRTaskType` estão certos (o tipo só é alcançável por essa query), ent�
 aperto — se for feito — é no gate da QUERY, que é `apps/api/schema.py`, fora do
 escopo desta frente. Vale notar que OCR está fora de escopo do projeto (sub-marco
 5.F revertido), o que baixa a urgência.
+
+## Varredura dos gates de QUERY — 2026-08-27, Frente B
+
+Terceira leva de gates de leitura do mesmo dia. As duas anteriores acharam
+vazamento em CAMPO (`UserProfileType.followers`/`following`, `uploadedAudios`,
+`UserType.email`); esta varreu a outra metade: **os 14 campos de `type Query`**,
+resolver por resolver, perguntando de cada um "quem pode chamar, e o que a view
+Django equivalente exige?".
+
+**Resultado, e ele é a notícia boa: nenhum vazamento no nível de query.** Os 14
+já batiam com a régua Django. O que faltava era teste — `publishReadiness`
+expõe estado editorial de um hinário e tinha só o happy-path do editor, sem
+nenhum teste de gate; `currentUser` não tinha teste de anônimo. E faltava a
+defesa estrutural: nada impedia a 15ª query de nascer aberta, que é a causa
+raiz do padrão (`strawberry.auto` e resolver sem gate expõem por omissão).
+
+### A tabela (medida, não lida)
+
+Prova contra stack de verdade: `dev-fullstack.sh` com `DJANGO_REPO_ROOT` no
+worktree da frente, banco próprio (`hymnplat_frenteb`) e portas 9021/5194 —
+as três armadilhas do script. Fixture do `seed_e2e` mais um hinário em rascunho
+(`frenteb-rascunho`, hino "Segredo do Rascunho") e uma `OCRTask` de terceiro.
+Todo `POST /graphql/` abaixo é sem cookie.
+
+| Query | Régua Django | Anônimo (medido) | Veredito |
+|---|---|---|---|
+| `hymnbooks` | `HymnBookListView` pública + `visible_to` | 4 publicados; os 2 rascunhos fora | já-correto |
+| `hymnbook(slug)` | `HymnBookReadView` usa `visible_to` | `null` no rascunho | já-correto |
+| `hymn(pk)` | `HymnDetailView` **não** filtra | `null` no hino do rascunho | já-correto (API mais restrita) |
+| `search(q)` | `search_view` pública + `visible_to` | `{hymns: [], hymnbooks: []}` pra "segredo" | já-correto |
+| `hourlyFeatured` | `home_view` pública + `visible_to` | só publicados | já-correto |
+| `globalStats` | `api_global_stats` pública | 200 com as 4 contagens | já-correto |
+| `userProfile(username)` | `profile_view` pública | 200 (contagens públicas no Django também) | já-correto |
+| `currentUser` | self-read | `null` | já-correto |
+| `notifications` | `notifications_list` `@login_required` | erro "Autenticação necessária para listar notificações." | já-correto |
+| `editorHymnbooks` | `editor_hymnbook_list` + `_has_editor_access` | erro "Você não tem permissão…" | já-correto |
+| `editorDashboardStats` | stats inline da mesma tela | erro "Você não tem permissão…" | já-correto |
+| `pendingAudios` | `editor_pending_audios` + `_has_editor_access` | erro "Você não tem permissão…" | já-correto |
+| `publishReadiness(slug)` | `hymnbook_publish_check_view` → 403 | `null` | já-correto, **estava sem teste** |
+| `ocrTask(id)` | `_ocr_task_for_user`: dono APENAS | `null` | ver "reportado, não consertado" |
+
+**Contraprova, no mesmo banco** — sem ela "tudo recusou" também seria o
+resultado de um schema quebrado:
+
+- `e2e-viewer` (logado, sem papel): `notifications` → `[]` (as próprias),
+  `currentUser` → `e2e-viewer`, `editorHymnbooks` → recusa, `publishReadiness`
+  → `null`. Estar logado não basta.
+- `e2e-editor`: `editorHymnbooks` → **6** hinários (os 4 publicados mais
+  `e2e-rascunho-interno` e `frenteb-rascunho`), `pendingAudios` → 2,
+  `publishReadiness` → `{canPublish: false, checks: [...]}`,
+  `hymnbook("frenteb-rascunho")` → o rascunho. Os gates abrem para quem deve.
+
+### `/notificacoes` no shell — o classificador que nunca disparava
+
+O `isAuthError` local de `web/src/routes/notificacoes/+page.ts` casava a
+substring inglesa `authenticat`. A mensagem real do resolver é PT-BR e
+`autenticação` **não contém** `authenticat` — o `ç` quebra o casamento. O
+cabeçalho do próprio arquivo prometia o redirect desde o 4H.9 e ele nunca
+acontecia.
+
+Medido na stack, mesma URL, só trocando o arquivo:
+
+```
+# antes (código de origin/development)
+$ curl -si http://localhost:5194/notificacoes | head -1
+HTTP/1.1 200 OK
+   → renderiza "Falha ao carregar notificações: Autenticação necessária para
+     listar notificações."
+
+# depois
+$ curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://localhost:5194/notificacoes
+302 http://localhost:5194/login?next=/notificacoes
+```
+
+A cobertura anterior passava porque inventava mensagens em inglês que o
+resolver nunca emite ("User must be authenticated to view notifications").
+Lição que vale além desta rota: **teste de classificador de erro tem que usar a
+string que o backend emite de verdade**, não uma plausível.
+
+O conserto seguiu o precedente de `/perfil/<u>/seguidores/` e `/seguindo/` —
+reusa `_isEditorAccessError` e `_editorLoginRedirect` de
+`routes/editor/+layout.ts` — em vez de remendar a substring. Com um
+classificador só, mensagem nova do backend passa a ser reconhecida por todas as
+rotas de uma vez. `HTTP nnn` do `gqlFetch` continua fora do redirect (backend
+caído não é falta de sessão); medido com o Django derrubado, a rota dá 500 e
+**não** redireciona.
+
+E o lado do backend virou contrato testado: nenhum módulo de `apps/api/` fora
+de `errors.py` pode escrever "Autenticação necessária" na mão
+(`test_gates_queries_mensagem_de_auth.py`). `Query.notifications` era o último
+com a string crua — ou seja, mudar o prefixo em `errors.py` deixaria a
+mensagem para trás e o redirect sumiria de novo, sem nada ficar vermelho.
+
+### O inventário que barra a próxima query aberta
+
+`tests/unit/api/test_gates_queries_varredura.py` declara, por campo, o regime
+do anônimo e a view Django que o justifica, e compara a lista com o SDL do
+schema **vivo**. Query nova sem entrada = suíte vermelha, com a mensagem
+dizendo o que decidir. Verificado por mutação (renomeei uma chave e o teste
+apontou `globalStats` como "sem gate declarado").
+
+Três regimes, porque o schema oferece três posições:
+
+- **`publico`** — o anônimo é atendido; a visibilidade mora dentro do resolver
+  (`visible_to`).
+- **`nulo-para-anonimo`** — campo nullable, gate devolve `null`. É o regime
+  certo quando responder com erro de permissão vazaria a EXISTÊNCIA do recurso
+  (uma `OCRTask` alheia, um hinário que o visitante não pode publicar).
+- **`erro-para-anonimo`** — retorno lista/objeto não-nulável, sem posição pra
+  union de erro, então `GraphQLError` com uma das duas mensagens PT-BR
+  canônicas — as que o shell classifica.
+
+### Reportado, não consertado
+
+**1. `ocrTask` é mais largo que a régua Django.** `_ocr_task_for_user`
+(`apps/users/views.py`) libera **só o dono** — editor e superuser tomam 403. O
+resolver libera dono OU editor OU superuser, e a `OCRTask` carrega
+`resultData`, isto é, o conteúdo OCR do PDF de outra pessoa. Anônimo e terceiro
+sem papel já recebem `null` (medido).
+
+Não mexi por três razões somadas: a decisão é deliberada e está travada em
+`tests/unit/api/test_query_ocr_task.py::test_ocr_task_visible_to_editor`, com
+justificativa no docstring ("editor precisa acompanhar OCR de terceiros pra
+destravar importação"); esse arquivo está **fora** do escopo desta frente, e
+apertar o gate o deixaria vermelho; e OCR está fora do escopo do projeto
+(sub-marco 5.F revertido). **Decisão pro coordenador:** ou o editor perde o
+acesso (alinha com o Django) ou o docstring do Django ganha a mesma exceção.
+
+**2. Vazamentos de CAMPO alcançáveis a partir de query pública** — todos em
+`apps/api/types.py`, arquivo da outra frente, e nenhum deles no escopo dela
+(o brief dela fala de `UserProfileType`/`UserType`).
+
+Medido como anônimo, um request, partindo de `{ hymnbooks { … } }` sobre um
+hinário **publicado** (nada de rascunho envolvido — o gate de query fez o dele):
+
+```json
+{"hymnbooks": [{
+  "slug": "publicado", "priority": "P1", "isFeatured": true,
+  "reviewProgress": {"reviewPct": 0, "stylePct": 0},
+  "nextPendingHymn": {"title": "Lua Branca"},
+  "nextIncompleteHymn": {"title": "Lua Branca"},
+  "hymns": [{
+    "ocrText": "lua branea da luz serena",
+    "inlineDiff": {"changes": 1, "adds": 0, "dels": 0},
+    "ocrLineConfidences": [96],
+    "revisions": [{"changeSummary": "tirei o erro de OCR",
+                   "revisedBy": {"username": "dono"}}]
+  }]}]}
+```
+
+Ou seja: o texto OCR cru, o diff contra a revisão, a confiança por linha, o
+histórico editorial com autor e resumo, a prioridade da fila e o destaque de
+curadoria — tudo sem sessão. Item por item:
+
+- **`HymnType.revisions`** devolve o histórico editorial inteiro —
+  `changeSummary` e `revisedBy.username`. No Django, `hymn_history_view` e
+  `api_hymn_history` são `@login_required` **+** `can_edit_hymnbook`. É o mais
+  grave dos três: expõe quem revisou o quê, e quando.
+- **`HymnType.ocrText` / `inlineDiff` / `ocrLineConfidences`** expõem o texto
+  OCR e o diff contra a revisão. No Django isso é `api_hymn_diff`, também
+  `@login_required` + `can_edit_hymnbook`.
+- **`HymnBookType.reviewProgress` / `nextPendingHymn` / `nextIncompleteHymn` /
+  `priority` / `isFeatured`** expõem estado da fila editorial. `review_pct` e
+  `is_featured` só aparecem em `templates/hymns/editor/`; `priority` e
+  `is_featured` no `hymnbook_detail.html` vivem dentro de
+  `{% if editorial_form %}`, que a view só popula para `is_staff`.
+  `editor_next_hymn`/`editor_next_incomplete` são `@login_required` + gate de
+  editor.
+
+### Onde o Django é MAIS permissivo (anotado, não seguido)
+
+Regra da frente: quando o Django abre mais que a API, **não apertar**. Dois
+casos, os dois no monolito e os dois valendo uma decisão de produto separada:
+
+- **`HymnBookDetailView` não filtra visibilidade.** Não sobrescreve
+  `get_queryset`, então cai no manager default (`HymnBook.objects.all()`) e
+  serve hinário em RASCUNHO a anônimo por `GET /hinarios/<slug>/`. A irmã
+  `HymnBookReadView` (`/ler/`) usa `visible_to`. Sem teste cobrindo.
+- **`HymnDetailView` também não.** `Hymn.objects.select_related("hymn_book")`,
+  sem filtro — hino de rascunho é alcançável por `GET /hinos/<pk>/`. A API é
+  mais restrita de propósito nos dois casos, e ficou assim.
+
+Vale dizer o que isso significa pra régua: nesses dois pontos a régua Django
+está provavelmente **errada**, não permissiva de propósito — o `visible_to`
+existe e as views irmãs o usam. Consertar é no `apps/hymns/`, fora do escopo
+desta frente.

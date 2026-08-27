@@ -29,9 +29,10 @@ from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
 from apps.users import models as user_models
 
 from .context import user_from_info
+from .errors import authentication_required
 from .lookups import get_or_none
 from .mutations import Mutation
-from .permissions import require
+from .permissions import is_authenticated, require
 from .types import (
     EditorDashboardStatsType,
     HymnAudioType,
@@ -102,16 +103,20 @@ class Query:
     def notifications(self, info: Info, unread_only: bool = False) -> list[NotificationType]:
         """Feed de notificações do usuário autenticado.
 
-        Anônimo recebe erro de permissão (não há `notifications` global). É
-        uma queries com efeito de "self-read", então faz sentido como
-        exception (não union) — o cliente nunca vai querer renderizar feed
-        sem login.
+        Paridade com `apps/users/views_social.py::notifications_list`, que é
+        `@login_required`. Anônimo recebe erro de permissão (não há
+        `notifications` global). É uma query com efeito de "self-read", então
+        faz sentido como exception (não union) — o cliente nunca vai querer
+        renderizar feed sem login.
+
+        A recusa passa por `permissions.require` + `errors.authentication_required`
+        em vez de levantar `GraphQLError` com a string na mão: a mensagem é
+        contrato entre camadas (o shell classifica o texto PT-BR pra decidir o
+        redirect pro login) e uma cópia crua aqui sairia de sincronia com
+        `errors.py` sem nada reclamar. O texto no wire não muda.
         """
         user = user_from_info(info)
-        if not getattr(user, "is_authenticated", False):
-            from graphql import GraphQLError
-
-            raise GraphQLError("Autenticação necessária para listar notificações.")
+        require(user, is_authenticated, message=authentication_required("listar notificações"))
         qs = user_models.Notification.objects.filter(recipient=user)
         if unread_only:
             qs = qs.filter(is_read=False)
