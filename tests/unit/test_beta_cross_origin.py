@@ -144,3 +144,87 @@ class TestCsrfTrustedOriginsEmProducao:
     def test_lista_e_configuravel_por_env(self, producao):
         prod = producao(DJANGO_CSRF_TRUSTED_ORIGINS="https://outro.example")
         assert prod.CSRF_TRUSTED_ORIGINS == ["https://outro.example"]
+
+
+# ---------------------------------------------------------------------------
+# Cookies — o que atravessa (e o que NÃO atravessa) entre beta. e o apex
+# ---------------------------------------------------------------------------
+
+
+class TestCookiesCrossSubdominio:
+    """`beta.hinaria.com.br` e `hinaria.com.br` são **same-site**, **cross-origin**.
+
+    Same-site porque o domínio registrável (eTLD+1) é o mesmo, e é o domínio
+    registrável que o `SameSite` olha — não o host. Logo `SameSite=Lax` não
+    bloqueia nada aqui, nem em POST: Lax só gateia requisição *cross-site*.
+
+    Cross-origin porque o host difere, e é por isso que o `fetch` da SPA
+    precisa de `credentials: 'include'` (o default `same-origin` omitiria o
+    cookie) e que as listas de CORS/CSRF acima existem.
+
+    Consequência que **não** é óbvia: um cookie host-only de `hinaria.com.br`
+    É enviado numa requisição PARA `hinaria.com.br`, venha ela de onde vier —
+    o envio olha a URL de destino, não a origem da página. Ou seja, no caminho
+    puramente client-side (query do urql já hidratado), a sessão funciona sem
+    `Domain` nenhum.
+
+    Onde host-only quebra são os dois caminhos em que o **host do beta** é
+    quem precisa ver o cookie:
+
+    1. `document.cookie` — todas as mutations leem `csrftoken` de lá
+       (`web/src/lib/graphql/client.ts::getCsrfTokenFromCookie`, e também
+       `auth.ts`, `crud.ts`, a página de revisão). Cookie host-only do apex é
+       invisível numa página em `beta.`, então o header `X-CSRFToken` nunca é
+       montado e toda escrita — login incluído — leva 403.
+    2. SSR — o `handleFetch` de `web/src/hooks.server.ts` repassa
+       `event.request.headers.get("cookie")`, ou seja o que o navegador mandou
+       para `beta.hinaria.com.br`. Sem `Domain`, `sessionid` não está lá: o
+       shell renderiza "Entrar" e o guard de `/editor/**` responde 302 para
+       `/login` com um editor logado.
+
+    Por isso os dois `*_COOKIE_DOMAIN` existem — mas **desligados por
+    default**. Ligá-los alarga o escopo do cookie de sessão do site que já
+    está no ar, e isso é decisão de operação (uma variável no Railway), não
+    efeito colateral de um merge. Ver "SPA em beta" no CLAUDE.md.
+    """
+
+    def test_sessao_continua_host_only_por_default(self, producao):
+        prod = producao()
+        assert hasattr(prod, "SESSION_COOKIE_DOMAIN")
+        assert prod.SESSION_COOKIE_DOMAIN is None
+
+    def test_csrf_continua_host_only_por_default(self, producao):
+        prod = producao()
+        assert hasattr(prod, "CSRF_COOKIE_DOMAIN")
+        assert prod.CSRF_COOKIE_DOMAIN is None
+
+    def test_dominio_da_sessao_entra_por_env(self, producao):
+        prod = producao(SESSION_COOKIE_DOMAIN=".hinaria.com.br")
+        assert prod.SESSION_COOKIE_DOMAIN == ".hinaria.com.br"
+
+    def test_dominio_do_csrf_entra_por_env(self, producao):
+        prod = producao(CSRF_COOKIE_DOMAIN=".hinaria.com.br")
+        assert prod.CSRF_COOKIE_DOMAIN == ".hinaria.com.br"
+
+    def test_string_vazia_e_tratada_como_host_only(self, producao):
+        """Django espera `None`, não `""` — desligar pela env não pode virar bug."""
+        prod = producao(SESSION_COOKIE_DOMAIN="", CSRF_COOKIE_DOMAIN="")
+        assert prod.SESSION_COOKIE_DOMAIN is None
+        assert prod.CSRF_COOKIE_DOMAIN is None
+
+    def test_samesite_lax_continua_servindo(self, producao):
+        """`Lax` basta porque beta↔apex é same-site; não precisa virar `None`.
+
+        Trocar para `SameSite=None` exigiria `Secure` e abriria o cookie para
+        requisições genuinamente cross-site — surface a mais, sem ganho.
+        """
+        assert producao().SESSION_COOKIE_SAMESITE == "Lax"
+
+    def test_csrf_cookie_continua_legivel_por_javascript(self, producao):
+        """A SPA lê `csrftoken` de `document.cookie`; HttpOnly mataria as mutations."""
+        assert getattr(producao(), "CSRF_COOKIE_HTTPONLY", False) is False
+
+    def test_cookies_continuam_secure(self, producao):
+        prod = producao()
+        assert prod.SESSION_COOKIE_SECURE is True
+        assert prod.CSRF_COOKIE_SECURE is True

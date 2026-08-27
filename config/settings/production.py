@@ -78,7 +78,48 @@ SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
 SECURE_REDIRECT_EXEMPT = [r"^health/$"]
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+# `Lax` basta para a SPA em beta e NÃO precisa virar `None`: `SameSite` olha o
+# domínio registrável (eTLD+1), e `beta.hinaria.com.br` ↔ `hinaria.com.br`
+# compartilham `hinaria.com.br` — é same-site, então Lax não gateia nada, nem
+# em POST. (Cross-*origin* é outra coisa, e é o que CORS/CSRF acima resolvem.)
 SESSION_COOKIE_SAMESITE = "Lax"
+
+# --------------------------------------------------------------------------- #
+# Escopo dos cookies — só ligar quando a SPA estiver noutro host (beta)
+# --------------------------------------------------------------------------- #
+# Default `None` = host-only, que é o comportamento de hoje e o mais estreito:
+# o cookie só existe para `hinaria.com.br`.
+#
+# Host-only já cobre mais do que parece. Um cookie host-only do apex É enviado
+# numa requisição PARA o apex, venha ela da página que vier — o envio olha a
+# URL de **destino**, não a origem do documento. Ou seja, a SPA já hidratada
+# lendo dados via `fetch(..., { credentials: 'include' })` funciona sem Domain.
+#
+# Onde host-only quebra são os dois caminhos em que quem precisa enxergar o
+# cookie é o **host da SPA**:
+#
+#   1. `document.cookie` — toda mutation da SPA monta `X-CSRFToken` lendo
+#      `csrftoken` do documento (`web/src/lib/graphql/client.ts`). Numa página
+#      em `beta.` o cookie host-only do apex é invisível, o header não é
+#      montado, e toda escrita (login incluído) leva 403.
+#   2. SSR — o `handleFetch` do SvelteKit repassa o cookie que o navegador
+#      mandou para `beta.hinaria.com.br`. Sem Domain, `sessionid` não está
+#      lá: o shell renderiza "Entrar" e o guard de `/editor/**` responde 302
+#      para `/login` mesmo com editor logado.
+#
+# Então para o beta funcionar de verdade **é preciso** setar as duas com
+# `.hinaria.com.br`. Fica em env e desligado por default de propósito: alargar
+# o escopo do cookie de sessão do site que já está no ar é decisão de operação
+# (uma variável no Railway, reversível), não efeito colateral de um merge.
+#
+# No cutover, quando a SPA assumir o apex e o Django não tiver mais um host
+# irmão para atender, estas duas voltam a ficar vazias. Ver "SPA em beta" no
+# CLAUDE.md.
+#
+# `or None` normaliza `""` (variável presente e vazia) para o `None` que o
+# Django espera — `""` seria um Domain literalmente vazio no Set-Cookie.
+SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN", default="") or None
+CSRF_COOKIE_DOMAIN = env("CSRF_COOKIE_DOMAIN", default="") or None
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
