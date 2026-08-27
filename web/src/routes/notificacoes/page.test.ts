@@ -296,3 +296,57 @@ describe("notificacoes — marcar tudo como lido (5E.8)", () => {
     expect(screen.getByTestId("notification-item")).toHaveAttribute("data-is-read", "false");
   });
 });
+
+/**
+ * Frente B · Tarefa 1 — o classificador que nunca disparava.
+ *
+ * A mensagem REAL do resolver é PT-BR ("Autenticação necessária para listar
+ * notificações.") e o classificador local procurava a substring inglesa
+ * `authenticat`, que `autenticação` não contém (o `ç`). O anônimo via
+ * "Falha ao carregar notificações: …" em vez do login que o cabeçalho do
+ * próprio arquivo promete.
+ *
+ * A cobertura anterior passava porque inventava mensagens em inglês que o
+ * resolver nunca emite. Aqui a mensagem é a que sai de
+ * `apps/api/errors.py::authentication_required` — a mesma string travada no
+ * backend por `tests/unit/api/test_gates_queries_notifications.py`.
+ */
+const MENSAGEM_REAL_DO_RESOLVER = "Autenticação necessária para listar notificações.";
+
+function graphqlErrorFetch(message: string) {
+  return vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ data: { notifications: null }, errors: [{ message }] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+describe("notificacoes — classificador de erro em PT-BR (Frente B)", () => {
+  it("a mensagem PT-BR real do resolver redireciona pro login com o destino", async () => {
+    const fetchFn = graphqlErrorFetch(MENSAGEM_REAL_DO_RESOLVER);
+    await expect(
+      _loadNotifications({ fetch: fetchFn, url: new URL("http://x/notificacoes") }),
+    ).rejects.toMatchObject({ status: 302, location: "/login?next=/notificacoes" });
+  });
+
+  it("a mensagem PT-BR de permissão negada também redireciona", async () => {
+    const fetchFn = graphqlErrorFetch("Você não tem permissão para realizar essa ação.");
+    await expect(
+      _loadNotifications({ fetch: fetchFn, url: new URL("http://x/notificacoes") }),
+    ).rejects.toMatchObject({ status: 302, location: "/login?next=/notificacoes" });
+  });
+
+  it("HTTP 503 é backend caído, não falta de sessão — não redireciona", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(new Response("", { status: 503 }));
+    const result = await _loadNotifications({ fetch: fetchFn, url: makeUrl("") });
+    expect(result.error).toMatch(/HTTP 503/);
+    expect(result.notifications).toEqual([]);
+  });
+
+  it("erro genérico do backend fica em data.error, sem redirect", async () => {
+    const fetchFn = graphqlErrorFetch("Erro inesperado no banco de dados");
+    const result = await _loadNotifications({ fetch: fetchFn, url: makeUrl("") });
+    expect(result.error).toBe("Erro inesperado no banco de dados");
+  });
+});
