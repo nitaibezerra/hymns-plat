@@ -1,0 +1,158 @@
+name: Deploy Web (beta)
+
+# Publica a SPA SvelteKit em https://beta.hinaria.com.br, num Cloudflare
+# Worker chamado `hinaria-beta` (config declarativa em `web/wrangler.jsonc`).
+#
+# ## Por que dispara em `development` e NÃO em `main`
+#
+# É a diferença entre os dois deploys que este repo tem:
+#
+#   `deploy.yml`     push em `main`        → Railway → https://hinaria.com.br
+#   `deploy-web.yml` push em `development` → Workers → https://beta.hinaria.com.br
+#
+# O beta existe pra **ver antes de promover**. Um beta que reflete `main` só
+# mostra o que já está em produção — chega tarde demais pra mudar de ideia, e
+# `hinaria.com.br` já é esse espelho. Apontando pra `development`, cada PR
+# mergeada na branch de integração aparece no beta em minutos, e o degrau
+# `development → main` passa a ser uma decisão tomada olhando pra coisa
+# rodando, que é o que o Marco 7 do plano pede antes do cutover.
+#
+# Consequência aceita: `development` pode conter trabalho de várias frentes em
+# estados diferentes. É o ponto — beta é onde isso deve aparecer, não em
+# produção.
+#
+# ## Por que este workflow NÃO roda a suíte
+#
+# `ci-web.yml` já é required check em `development` (Web Test & Build + Web
+# E2E), então nada chega nessa branch sem ter passado por `svelte-check`,
+# Vitest, `pnpm build` e Playwright. Rodar de novo aqui atrasaria o deploy sem
+# proteger nada — é o mesmo raciocínio que o `deploy.yml` documenta pra `main`.
+# Este workflow só builda e publica.
+#
+# Se um dia os checks de `ci-web.yml` deixarem de ser required em
+# `development`, esse raciocínio cai junto e o deploy passa a publicar sem
+# rede. É a dependência a lembrar antes de mexer na branch protection.
+#
+# ## Secrets exigidos
+#
+#   CLOUDFLARE_API_TOKEN   — token com Workers Scripts:Edit e Zone DNS:Edit
+#                            (o custom domain do beta cria registro na zona).
+#                            O token desta conta NÃO tem permissão de Pages —
+#                            é justamente por isso que o alvo é Workers.
+#   CLOUDFLARE_ACCOUNT_ID  — 30e42ee3dd44243e67f0824fb1477351
+
+on:
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+# Deploy antigo em vôo é cancelado pelo novo: o beta deve mostrar o HEAD de
+# `development`, e duas publicações concorrentes decidiriam isso por ordem de
+# chegada.
+concurrency:
+  group: deploy-web-beta
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy SPA to Cloudflare Workers (beta)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+
+    env:
+      # A SPA fala com o Django que JÁ está em produção. Esta variável é lida
+      # em tempo de build (`web/src/lib/config.ts`) e fica embutida no bundle:
+      # errar aqui não quebra o build, quebra o visitante — e o sintoma que
+      # aparece no console dele é CORS, que aponta pro lugar errado. O
+      # `pnpm build:deploy` existe pra transformar isso em falha barulhenta.
+      VITE_GRAPHQL_URL: https://hinaria.com.br/graphql/
+      URL_BETA: https://beta.hinaria.com.br/
+      # Sem telemetria interativa no runner.
+      WRANGLER_SEND_METRICS: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Falha cedo e com o nome do secret na tela. Sem isto, um secret ausente
+      # só aparece lá na frente como erro de autenticação da Cloudflare, que
+      # se parece com token revogado ou permissão faltando.
+      - name: Conferir que os secrets existem
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          faltando=""
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || faltando="$faltando CLOUDFLARE_API_TOKEN"
+          [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || faltando="$faltando CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$faltando" ]; then
+            echo "::error::Secrets ausentes no repositório:$faltando"
+            exit 1
+          fi
+          echo "Secrets presentes."
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "23"
+          cache: "pnpm"
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # `build:deploy` = guard de VITE_GRAPHQL_URL + `vite build`. O guard
+      # reprova se a variável estiver vazia OU apontando pra localhost.
+      - name: Build da SPA (adapter-cloudflare → Worker + assets)
+        run: pnpm build:deploy
+
+      # O guard acima confere a ENTRADA; este passo confere a SAÍDA. São coisas
+      # diferentes: se `config.ts` um dia parar de ler `import.meta.env`, ou se
+      # o Vite mudar como inlina env, o guard continuaria verde e o bundle sairia
+      # com o fallback. Aqui o artefato é que responde.
+      - name: Provar que a URL do GraphQL foi embutida no bundle
+        run: |
+          set -euo pipefail
+          alvos=$(grep -rl "$VITE_GRAPHQL_URL" .svelte-kit/cloudflare/_app .svelte-kit/output/server || true)
+          if [ -z "$alvos" ]; then
+            echo "::error::$VITE_GRAPHQL_URL não aparece no bundle gerado. O artefato provavelmente saiu com o fallback de localhost — publicar isto quebraria o beta com erro de CORS."
+            exit 1
+          fi
+          echo "URL embutida em:"
+          echo "$alvos" | sed 's|^|  |'
+
+      # `wrangler deploy` lê `web/wrangler.jsonc`: sobe o `_worker.js` como
+      # entrypoint, os estáticos pelo binding ASSETS, e garante o custom domain
+      # `beta.hinaria.com.br` de forma idempotente.
+      - name: Publicar no Cloudflare Workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy
+
+      # Probe externo até responder 200, com teto explícito: 60 tentativas ×
+      # 5s = 300s. Nada de `sleep` fixo — ele é curto demais quando o custom
+      # domain acabou de ser criado (certificado ainda emitindo) e longo demais
+      # em todo redeploy normal, que fica no ar em segundos.
+      #
+      # `--retry-all-errors` cobre os três estados transitórios que aparecem
+      # aqui: conexão recusada, erro de TLS enquanto o certificado não saiu, e
+      # 5xx do edge antes da versão nova propagar. `-f` faz status >= 400
+      # contar como erro, senão o curl sairia 0 num 502.
+      - name: Smoke test do beta
+        run: |
+          set -euo pipefail
+          if curl -fsS --retry 60 --retry-delay 5 --retry-connrefused --retry-all-errors \
+               -o /dev/null -w "beta -> HTTP %{http_code} em %{time_total}s\n" "$URL_BETA"; then
+            echo "Beta no ar: $URL_BETA"
+            echo "Beta no ar: $URL_BETA" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          codigo=$(curl -s -o /dev/null -w "%{http_code}" "$URL_BETA" || echo "sem resposta")
+          echo "::error::$URL_BETA não respondeu 200 em 300s (último status: $codigo). O deploy do Worker pode ter dado certo e o custom domain não: confira https://hinaria-beta.<subdomínio>.workers.dev, que o wrangler.jsonc mantém no ar justamente pra distinguir os dois casos."
+          exit 1
