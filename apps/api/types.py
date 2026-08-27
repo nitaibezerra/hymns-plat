@@ -615,12 +615,12 @@ class HymnAudioType:
     format: strawberry.auto
     file_size: strawberry.auto
     allow_download: strawberry.auto
+    # `is_approved` NÃO é gateado de propósito: é a condição de render do
+    # próprio player público (`{% if audio and audio.is_approved %}` em
+    # `_audio_player.html`) e o que o `HymnAudioList` do shell usa pro badge
+    # "Aguardando aprovação". O VEREDITO da revisão é que é interno — ver o
+    # bloco de resolvers gateados abaixo.
     is_approved: strawberry.auto
-    is_match: strawberry.auto
-    quality_rating: strawberry.auto
-    quality_observations: list[str]
-    mismatch_reason: strawberry.auto
-    reviewed_at: strawberry.auto
     created_at: strawberry.auto
 
     @strawberry.field
@@ -631,11 +631,54 @@ class HymnAudioType:
         pendentes recebia uma lista sem forma de identificar cada gravação."""
         return self.hymn
 
+    # ----------------------------------------------------------------- #
+    # Veredito de revisão — só pra papel editorial.
+    #
+    # Os seis campos abaixo são a avaliação editorial da gravação de alguém:
+    # "É outro hino", "Áudio inaudível", "Voz baixa", nota de 1 a 5, e o nome
+    # de quem assinou o parecer. No Django eles aparecem numa tela só —
+    # `templates/hymns/editor/_audio_review.html`, incluída por
+    # `editor_revise_hymn` e escrita por `editor_hymn_audio_review`, as duas
+    # `@login_required` + `can_edit_hymnbook`. O player PÚBLICO mostra título,
+    # duração, `uploaded_by.username`, créditos, data e waveform — e nada do
+    # parecer; nem o perfil do uploader o mostra.
+    #
+    # Fora do papel editorial, todo áudio parece NÃO-REVISADO
+    # (`None`/`[]`/`""`), que é o estado real de todo áudio ainda na fila.
+    # Escolha deliberada em vez de erro: mantém `qualityObservations:
+    # [String!]!` e `mismatchReason: String!` não-nuláveis no SDL, então o
+    # player público não perde o áudio inteiro numa query mista.
+    # ----------------------------------------------------------------- #
+
     @strawberry.field
-    def reviewed_by(self) -> "UserType | None":
-        """Quem revisou o áudio (`None` se ainda não revisado, ou se o usuário
-        foi removido — a FK é SET_NULL)."""
-        return self.reviewed_by
+    def is_match(self, info: Info) -> bool | None:
+        """A gravação confere com o hino? Parecer do revisor."""
+        return self.is_match if _viewer_is_editor(info) else None
+
+    @strawberry.field
+    def quality_rating(self, info: Info) -> int | None:
+        """Nota de qualidade 1–5 dada na revisão."""
+        return self.quality_rating if _viewer_is_editor(info) else None
+
+    @strawberry.field
+    def quality_observations(self, info: Info) -> list[str]:
+        """Observações de qualidade ("Voz baixa", "Ruído de fundo"…)."""
+        return list(self.quality_observations or []) if _viewer_is_editor(info) else []
+
+    @strawberry.field
+    def mismatch_reason(self, info: Info) -> str:
+        """Motivo de recusa por mismatch ("É outro hino", "Áudio inaudível"…)."""
+        return self.mismatch_reason if _viewer_is_editor(info) else ""
+
+    @strawberry.field
+    def reviewed_at(self, info: Info) -> datetime.datetime | None:
+        """Quando o parecer foi dado."""
+        return self.reviewed_at if _viewer_is_editor(info) else None
+
+    @strawberry.field
+    def reviewed_by(self, info: Info) -> "UserType | None":
+        """Quem assinou o parecer (a FK é SET_NULL, então pode ser `None`)."""
+        return self.reviewed_by if _viewer_is_editor(info) else None
 
     @strawberry.field
     def url(self, info: Info) -> str:
