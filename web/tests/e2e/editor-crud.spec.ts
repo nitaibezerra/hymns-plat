@@ -1,11 +1,15 @@
 /**
  * Sub-marco 5.D — Ciclo 5D.17 · jornada de CRUD do workspace editorial.
+ * Frente 1 (fiação) — os 5 `test.fixme` viraram jornada de verdade.
  *
- * A jornada pedida é: criar hinário → adicionar hino → subir áudio → aprovar
- * na fila de pendentes → publicar o hinário pelo modal de checklist. Ela está
- * escrita **até onde a UI permite hoje**, e o resto está em `test.fixme` com o
- * motivo exato de cada corte. Nada aqui é fiação nova: os pontos de embutir
- * pertencem a outras frentes.
+ * A jornada é: criar hinário → adicionar hino → subir áudio → aprovar na fila
+ * de pendentes → publicar pelo modal de checklist. Quando esta spec foi
+ * escrita, nada disso rodava: as mutations do browser tomavam 403 de CSRF
+ * (`config/settings/local.py` não definia `CSRF_TRUSTED_ORIGINS`), e nem
+ * `AudioUploadDrawer` nem `PublishHymnBookModal` estavam embutidos em rota
+ * nenhuma — nem havia link de entrada pras rotas de CRUD. Os três bloqueios
+ * caíram: o CSRF no PR #82, os modais e os links nesta frente. Cada fixme foi
+ * rodado antes de sair; nenhum foi removido no escuro.
  *
  * **Como rodar** (do diretório `web/`):
  *
@@ -16,36 +20,24 @@
  * ./scripts/dev-fullstack.sh down
  * ```
  *
- * Se um dia esta spec passar a criar hinários de verdade, o nome deles TEM
- * que começar com `E2E ` — é o prefixo que `seed_e2e --reset` limpa, e sem
- * isso o banco de dev acumula lixo a cada corrida.
+ * **Esta spec MUTA o banco** — cria hinário, cria hino, sobe áudio, aprova
+ * gravação e publica. Antes de repetir a corrida, re-semeie com `--reset`:
  *
- * ---
+ * ```bash
+ * SEED_E2E_ARGS=--reset ./scripts/dev-fullstack.sh seed
+ * ```
  *
- * ## O que está em fixme, e por quê
+ * Tudo que a jornada cria começa com `E2E ` (`SEED_PREFIX`), que é exatamente
+ * o filtro do `_reset` do comando — sem esse prefixo o banco de dev acumula
+ * lixo a cada corrida.
  *
- * **(a) Mutations do browser tomam 403 de CSRF em dev.** `createHymnBook`,
- * `createHymn` e `approveAudio` saem do browser em `:5173` para o Django em
- * `:9000`; o `CsrfViewMiddleware` recusa com `Origin checking failed -
- * http://localhost:5173 does not match any trusted origins`, porque
- * `config/settings/local.py` não define `CSRF_TRUSTED_ORIGINS` (só
- * `production.py` define). Medido nesta base, com curl e no browser. É
- * configuração, não UI, e o conserto é uma linha em `config/` — fora do
- * escopo desta frente.
- *
- * **(b) Dois componentes do 5.D existem mas não estão embutidos em tela
- * nenhuma.** `AudioUploadDrawer.svelte` e `PublishHymnBookModal.svelte` são
- * standalone e testados em unidade; nenhuma rota sob `src/routes/editor/` os
- * importa (conferido por grep nesta base). Sem ponto de entrada na UI, não há
- * jornada a percorrer — só haveria um teste que monta o componente à mão, e
- * isso é teste de unidade, que já existe.
- *
- * **(c) Nenhuma rota de CRUD tem link de entrada.** `/editor/hinarios/novo/`,
- * `/editor/hinarios/<slug>/hinos/novo/`, `/editor/hinos/<pk>/editar/` e
- * `/editor/audios/pendentes/` só são alcançáveis digitando a URL — o
- * dashboard e o detalhe de hinário não apontam pra elas. As specs abaixo
- * navegam por URL direta, o que é legítimo em E2E, mas a jornada "um editor
- * consegue chegar lá clicando" não existe pra ser testada.
+ * **Por que a jornada mira o hinário que ela mesma cria** e não um do seed:
+ * `publish_readiness` exige dono identificado e trilha de auditoria, e
+ * `seed_e2e` não define `owner_user` em hinário nenhum — os quatro semeados
+ * têm `canPublish: false` (medido). O hinário criado pelo form nasce com
+ * `owner_user` (`apps/api/mutations.py`), então marcar o único hino como
+ * revisado fecha os quatro checks. Encostar no `e2e-fila-urgente` também
+ * quebraria `revise-hymn.spec.ts`, que afirma "01 de 4" no indicador de fila.
  */
 
 import { expect, test } from "@playwright/test";
@@ -72,6 +64,19 @@ async function pageComoEditor(browser: Browser): Promise<Page> {
   expect(session, describeSessionFailure(editorUsername())).not.toBeNull();
   const context = await browser.newContext({ storageState: session!.state, baseURL: SVELTE_BASE });
   return context.newPage();
+}
+
+/**
+ * Espera o JS assumir antes de clicar num `<button>`.
+ *
+ * Um clique em botão no HTML do SSR é no-op SILENCIOSO: nada acontece, nada
+ * falha, e a asserção seguinte morre por timeout num estado que parece bug de
+ * produto. Medido nesta suíte — "aprovar a gravação" reprovou assim, com a
+ * fila intacta e `queue-error` vazio. Links (`<a href>`) não precisam disto:
+ * o clique pré-hidratação vira navegação completa.
+ */
+async function esperarHidratacao(page: Page): Promise<void> {
+  await page.waitForLoadState("networkidle");
 }
 
 test.describe("CRUD editorial — formulários (5D.17)", () => {
@@ -208,58 +213,125 @@ test.describe("CRUD editorial — fila de áudios pendentes (5D.17)", () => {
   });
 });
 
-test.describe("CRUD editorial — jornada completa (5D.17, pendente de fiação)", () => {
+/**
+ * Nomes da jornada. Todos sob `SEED_PREFIX` pra `seed_e2e --reset` limpar.
+ *
+ * O slug é derivado do nome pelo `slugify` do Django. Afirmamos com regex
+ * parcial: se uma corrida anterior não foi limpa, o Django desambigua o slug
+ * com sufixo e a asserção continua verdadeira sem virar falso vermelho.
+ */
+const JORNADA_BOOK_NAME = `${SEED_PREFIX}Hinário da Jornada`;
+const JORNADA_BOOK_SLUG = "e2e-hinario-da-jornada";
+const JORNADA_HYMN_TITLE = `${SEED_PREFIX}Hino da Jornada`;
+const JORNADA_AUDIO_TITLE = `${SEED_PREFIX}Gravação da Jornada`;
+
+/**
+ * MP3 de mentira — os mesmos bytes que `seed_e2e._AUDIO_BYTES` usa: cabeçalho
+ * ID3 e zeros. `HymnAudioUploadForm` não inspeciona o conteúdo, e a fila de
+ * pendentes usa `preload="none"`, então o browser nunca busca o arquivo.
+ * Embutir um MP3 real só engordaria o repo.
+ */
+const FAKE_MP3 = Buffer.concat([
+  Buffer.from("ID3\x03\x00\x00\x00\x00\x00\x00", "binary"),
+  Buffer.alloc(512),
+]);
+
+test.describe("CRUD editorial — jornada completa (5D.17)", () => {
   test.skip(
     !process.env.HINARIA_E2E_PLAYWRIGHT_READY,
     "Precisa dos dois servidores no ar e do banco semeado. " +
       "Rode `./scripts/dev-fullstack.sh` e exporte HINARIA_E2E_PLAYWRIGHT_READY=1.",
   );
 
-  test.fixme("criar hinário pelo form leva ao detalhe do hinário criado", async ({ browser }) => {
-    // BLOQUEIO (a): `createHymnBook` é mutation do browser → 403 de CSRF por
-    // Origin em dev. Ver o cabeçalho do arquivo.
+  test("criar hinário pelo form leva ao detalhe do hinário criado", async ({ browser }) => {
     const page = await pageComoEditor(browser);
 
-    await page.goto("/editor/hinarios/novo/");
-    await page.getByTestId("field-name").fill(`${SEED_PREFIX}Hinário da Jornada`);
+    // Pelo dashboard, clicando — é a fiação do ciclo 1.1 que está sendo
+    // exercitada aqui, não só o form.
+    await page.goto("/editor/");
+    await expect(page.getByTestId("editor-dashboard")).toBeVisible();
+    await page.getByTestId("new-hymnbook-link").click();
+
+    await expect(page.getByTestId("hymnbook-novo")).toBeVisible();
+    await esperarHidratacao(page);
+    await page.getByTestId("field-name").fill(JORNADA_BOOK_NAME);
     await page.getByTestId("field-owner-name").fill("Suíte E2E");
+    // A descrição não é enfeite: `publish_readiness` a exige no check
+    // "Capa e descrição preenchidas", e o passo final da jornada publica.
+    await page.getByTestId("field-description").fill("Hinário criado pela suíte E2E.");
     await page.getByTestId("submit").click();
 
-    await expect(page).toHaveURL(/\/editor\/hinarios\/e2e-hinario-da-jornada/);
+    await expect(page).toHaveURL(new RegExp(`/editor/hinarios/${JORNADA_BOOK_SLUG}`));
     await expect(page.getByTestId("editor-hymnbook-detail")).toBeVisible();
+    await expect(page.getByTestId("detail-draft-badge")).toBeVisible();
   });
 
-  test.fixme("adicionar hino ao hinário recém-criado", async ({ browser }) => {
-    // BLOQUEIO (a): `createHymn` é mutation do browser → 403 de CSRF.
-    // Depende, além disso, do hinário criado no passo anterior.
+  test("adicionar hino ao hinário recém-criado", async ({ browser }) => {
     const page = await pageComoEditor(browser);
 
-    await page.goto(`/editor/hinarios/${REVIEW_BOOK_SLUG}/hinos/novo/`);
-    await page.getByTestId("field-number").fill("99");
-    await page.getByTestId("field-title").fill(`${SEED_PREFIX}Hino da Jornada`);
+    await page.goto(`/editor/hinarios/${JORNADA_BOOK_SLUG}/`);
+    await expect(page.getByTestId("editor-hymnbook-detail")).toBeVisible();
+    // Ciclo 1.2: o caminho clicável até o form de novo hino.
+    await page.getByTestId("new-hymn-link").click();
+
+    await expect(page.getByTestId("hymn-novo")).toBeVisible();
+    await esperarHidratacao(page);
+    await page.getByTestId("field-number").fill("1");
+    await page.getByTestId("field-title").fill(JORNADA_HYMN_TITLE);
     await page.getByTestId("field-text").fill("Letra de teste\nSegunda linha");
     await page.getByTestId("submit").click();
 
-    await expect(page).toHaveURL(new RegExp(`/editor/hinarios/${REVIEW_BOOK_SLUG}`));
-    await expect(page.getByText(`${SEED_PREFIX}Hino da Jornada`)).toBeVisible();
+    // Destino em paridade com `hymn_create_view`, que redireciona pro detalhe
+    // do HINO (não do hinário).
+    await expect(page).toHaveURL(/\/hinos\/[0-9a-f-]+/);
+
+    // E o hino aparece na lista do hinário.
+    await page.goto(`/editor/hinarios/${JORNADA_BOOK_SLUG}/`);
+    await expect(page.getByText(JORNADA_HYMN_TITLE).first()).toBeVisible();
   });
 
-  test.fixme("subir áudio pelo drawer de upload", async () => {
-    // BLOQUEIO (b): `AudioUploadDrawer.svelte` está pronto e testado em
-    // unidade, mas nenhuma rota o importa — não existe botão "enviar
-    // gravação" em tela nenhuma. Falta a fiação em
-    // `src/routes/editor/hinos/[pk]/` (ou no detalhe do hinário), que
-    // pertence a outra frente. Sem ponto de entrada, não há jornada.
-  });
-
-  test.fixme("aprovar a gravação na fila de pendentes tira ela da lista", async ({ browser }) => {
-    // BLOQUEIO (a): `approveAudio` é mutation do browser → 403 de CSRF.
-    // A tela em si está fiada (o botão existe e chama a mutation); o que
-    // falha é a chamada.
+  test("subir áudio pelo drawer de upload", async ({ browser }) => {
     const page = await pageComoEditor(browser);
 
-    await page.goto("/editor/audios/pendentes/");
+    // O drawer vive na tela de revisão do hino (fiação do ciclo 1.3).
+    await page.goto(`/editor/hinarios/${JORNADA_BOOK_SLUG}/`);
+    const href = await page.locator("[data-testid^='hymn-revise-']").first().getAttribute("href");
+    await page.goto(href!);
+    await expect(page.getByTestId("revise-hymn")).toBeVisible();
+    await esperarHidratacao(page);
+
+    await page.getByTestId("open-audio-upload").click();
+    await expect(page.getByTestId("audio-upload-drawer")).toBeVisible();
+
+    await page.getByTestId("field-file").setInputFiles({
+      name: "e2e-gravacao.mp3",
+      mimeType: "audio/mpeg",
+      buffer: FAKE_MP3,
+    });
+    // `field-title` está DENTRO do drawer — a tela de revisão usa
+    // `input.input-title` pro título do hino, então não há ambiguidade.
+    await page.getByTestId("audio-upload-drawer").getByTestId("field-title").fill(
+      JORNADA_AUDIO_TITLE,
+    );
+    await page.getByTestId("submit-upload").click();
+
+    // `onuploaded` fecha o drawer e recarrega a rota; a gravação nova nasce
+    // pendente, então o que aparece na tela é o botão de revisão dela.
+    await expect(page.getByTestId("audio-upload-drawer")).toHaveCount(0);
+    await expect(page.getByTestId("open-audio-review")).toContainText(JORNADA_AUDIO_TITLE);
+  });
+
+  test("aprovar a gravação na fila de pendentes tira ela da lista", async ({ browser }) => {
+    const page = await pageComoEditor(browser);
+
+    // Ciclo 1.1: o aviso do dashboard virou link — a fila se alcança clicando.
+    await page.goto("/editor/");
+    await page.getByTestId("pending-audios-badge").click();
+    await expect(page.getByTestId("pending-audios")).toBeVisible();
+    await esperarHidratacao(page);
+
     const antes = await page.getByTestId("pending-audio-item").count();
+    expect(antes, describeSeedMissing()).toBeGreaterThanOrEqual(PENDING_AUDIOS_EXPECTED);
     await page.locator("[data-testid^='approve-']").first().click();
 
     await expect(page.getByTestId("queue-error")).toHaveCount(0);
@@ -267,15 +339,39 @@ test.describe("CRUD editorial — jornada completa (5D.17, pendente de fiação)
     await expect(page.getByTestId("pending-count")).toHaveText(new RegExp(`^${antes - 1} `));
   });
 
-  test.fixme("publicar o hinário pelo modal de checklist", async () => {
-    // BLOQUEIO (b): `PublishHymnBookModal.svelte` está pronto e testado em
-    // unidade (inclusive o `publishReadiness`), mas nenhuma rota o importa —
-    // não existe botão "Publicar" no detalhe do hinário. Falta a fiação em
-    // `src/routes/editor/hinarios/[slug]/+page.svelte`, que pertence a outra
-    // frente.
-    //
-    // Quando ela existir, o alvo natural é o rascunho da fixture
-    // (`e2e-rascunho-interno`), que já nasce não publicado justamente pra
-    // isso — e `seed_e2e` o devolve a rascunho na corrida seguinte.
+  test("publicar o hinário pelo modal de checklist", async ({ browser }) => {
+    const page = await pageComoEditor(browser);
+
+    // 1. Fechar a revisão do único hino — é o que faltava pro checklist. A
+    //    mutation `setReviewStatus` grava `last_reviewed_by`, e o signal
+    //    editorial deriva dele o `revised_by` da `HymnRevision`: com isso os
+    //    checks "revisados" e "auditoria" passam de uma vez.
+    await page.goto(`/editor/hinarios/${JORNADA_BOOK_SLUG}/`);
+    const href = await page.locator("[data-testid^='hymn-revise-']").first().getAttribute("href");
+    await page.goto(href!);
+    await expect(page.getByTestId("revise-hymn")).toBeVisible();
+    await esperarHidratacao(page);
+    await page.getByTestId("save-and-advance").click();
+
+    // Sem próximo pendente, "avançar" devolve ao hinário.
+    await expect(page).toHaveURL(new RegExp(`/editor/hinarios/${JORNADA_BOOK_SLUG}`));
+    await expect(page.getByTestId("all-reviewed")).toBeVisible();
+
+    // 2. Publicar pelo modal (fiação do ciclo 1.2).
+    await page.getByTestId("publish-hymnbook").click();
+    const modal = page.getByTestId("publish-hymnbook-modal");
+    await expect(modal).toBeVisible();
+    await expect(page.getByTestId("readiness-error")).toHaveCount(0);
+
+    // Os 4 checks do `publish_readiness`, todos cumpridos.
+    await expect(page.getByTestId("readiness-check")).toHaveCount(4);
+    await expect(page.locator("[data-testid='readiness-check'][data-ok='false']")).toHaveCount(0);
+
+    await page.getByTestId("confirm-publish").click();
+
+    // 3. Publicado: o modal fecha, a rota recarrega e o rascunho some.
+    await expect(modal).toHaveCount(0);
+    await expect(page.getByTestId("detail-draft-badge")).toHaveCount(0);
+    await expect(page.getByTestId("publish-hymnbook")).toHaveText("Despublicar");
   });
 });
