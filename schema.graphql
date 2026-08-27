@@ -62,13 +62,13 @@ type HymnAudioType {
   fileSize: Int
   allowDownload: Boolean!
   isApproved: Boolean!
+  createdAt: DateTime!
+  hymn: HymnType!
   isMatch: Boolean
   qualityRating: Int
   qualityObservations: [String!]!
   mismatchReason: String!
   reviewedAt: DateTime
-  createdAt: DateTime!
-  hymn: HymnType!
   reviewedBy: UserType
   url: String!
   durationSeconds: Float
@@ -149,13 +149,13 @@ type HymnType {
   offeredTo: String!
   section: String!
   source: String!
-  ocrText: String!
   receivedAt: Date
   lastReviewedAt: DateTime
   reviewStatus: ReviewStatus!
   lastReviewedBy: UserType
   hymnBook: HymnBookType!
   isFavorited: Boolean!
+  ocrText: String!
   inlineDiff: InlineDiffType
   ocrLineConfidences: [Int!]!
   revisions: [HymnRevisionType!]!

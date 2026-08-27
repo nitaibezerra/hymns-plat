@@ -58,6 +58,35 @@ def _require_session(info: Info, action: str) -> None:
     require(user_from_info(info), is_authenticated, message=authentication_required(action))
 
 
+def _viewer_is_editor(info: Info) -> bool:
+    """True se quem está lendo tem papel editorial.
+
+    Régua única dos campos de workspace: no Django, TODA tela que mostra dado
+    editorial de hino/áudio passa por `can_edit_hymnbook`, que é
+    `_is_editor_or_admin` (`apps/hymns/permissions.py`) — não olha o objeto.
+    `permissions.is_editor_or_admin` é o mesmo predicado com nome público.
+    """
+    return is_editor_or_admin(user_from_info(info))
+
+
+def _require_editorial_access(info: Info, action: str) -> None:
+    """Levanta `GraphQLError` se quem lê não tem papel editorial.
+
+    Reproduz o par que as views do workspace usam: `@login_required` PRIMEIRO
+    (anônimo recebe `Autenticação necessária para <action>.`, o prefixo que o
+    shell classifica pra redirecionar ao login) e o gate de papel DEPOIS
+    (logado sem papel recebe a mensagem de permissão negada, que o shell trata
+    como 403 e não como sessão expirada).
+
+    É a forma para campo de retorno NÃO-nulável — lista, no caso de
+    `HymnType.revisions` —, que não tem posição no schema pra union de erro.
+    Campo nulável usa `_viewer_is_editor` e devolve vazio.
+    """
+    user = user_from_info(info)
+    require(user, is_authenticated, message=authentication_required(action))
+    require(user, is_editor_or_admin)
+
+
 @strawberry.input
 class HymnBookInput:
     """Payload de criação/edição de HymnBook — espelha `HymnBookForm.Meta.fields`.
@@ -279,12 +308,25 @@ class HymnBookType:
     sync_version: strawberry.auto
 
     @strawberry.field
-    def cover_image(self) -> str | None:
-        """URL da capa no storage ativo (`None` quando o hinário não tem capa).
+    def cover_image(self, info: Info) -> str | None:
+        """URL ABSOLUTA da capa (`None` quando o hinário não tem capa).
 
         Devolve URL em vez do path porque em produção o storage é R2 e o
-        cliente precisa do domínio de mídia."""
-        return self.cover_image.url if self.cover_image else None
+        cliente precisa do domínio de mídia — e devolve ABSOLUTA pelo mesmo
+        motivo que `HymnAudioType.url`: quem consome é o `<img src>` do shell
+        SvelteKit, servido por OUTRA origem (`:5173` em dev, domínio próprio
+        via `adapter-cloudflare` em produção), e URL relativa resolve contra a
+        origem do SHELL, não do Django.
+
+        Em produção já saía absoluta, mas por acidente de config:
+        `S3Boto3Storage` + `AWS_S3_CUSTOM_DOMAIN` fazem `MEDIA_URL` absoluta,
+        então `FileField.url` sai absoluta de graça. Trocar o storage quebraria
+        as capas sem aviso. URL já absoluta passa intacta; ver
+        `_absolute_media_url`.
+        """
+        if not self.cover_image:
+            return None
+        return _absolute_media_url(optional_request_from_info(info), self.cover_image.url)
 
     @strawberry.field
     def published_by(self) -> "UserType | None":
@@ -385,7 +427,6 @@ class HymnType:
     offered_to: strawberry.auto
     section: strawberry.auto
     source: strawberry.auto
-    ocr_text: strawberry.auto
     received_at: strawberry.auto
     last_reviewed_at: strawberry.auto
     review_status: ReviewStatus
@@ -417,8 +458,29 @@ class HymnType:
         return hymn_models.Favorite.objects.filter(user=user, hymn=self).exists()
 
     @strawberry.field
-    def inline_diff(self) -> InlineDiffType | None:
-        """Diff visual OCR×revisão. Vazio quando não há `ocr_text`."""
+    def ocr_text(self, info: Info) -> str:
+        """Texto CRU do OCR, antes da revisão editorial. Só pra papel editorial.
+
+        No Django ele aparece numa tela só — `editor_revise_hymn`
+        (`@login_required` + `can_edit_hymnbook`), no diff lado a lado. O
+        template público do hino mostra `text` e nada de OCR.
+
+        Fora do papel editorial devolve `""`, que é exatamente o que o público
+        já vê em todo hino `source=manual` — não é resposta inventada, é o
+        estado da maioria. Ver `_viewer_is_editor`.
+        """
+        return self.ocr_text if _viewer_is_editor(info) else ""
+
+    @strawberry.field
+    def inline_diff(self, info: Info) -> InlineDiffType | None:
+        """Diff visual OCR×revisão. `None` sem `ocr_text` — e sem papel editorial.
+
+        É a leitura do material de OCR: mostrar o diff a quem não pode ver
+        `ocrText` devolveria o texto cru palavra por palavra pelo caminho de
+        trás (os tokens `sub`/`del` carregam o lado do OCR).
+        """
+        if not _viewer_is_editor(info):
+            return None
         from apps.hymns.editor_views import _compute_inline_diff
 
         raw = _compute_inline_diff(self.ocr_text or "", self.text or "")
@@ -439,15 +501,35 @@ class HymnType:
         return InlineDiffType(lines=lines, changes=raw["changes"], adds=raw["adds"], dels=raw["dels"])
 
     @strawberry.field
-    def ocr_line_confidences(self) -> list[int]:
-        """Confiança por linha do OCR — heurística baseada em similaridade."""
+    def ocr_line_confidences(self, info: Info) -> list[int]:
+        """Confiança por linha do OCR — heurística baseada em similaridade.
+
+        Mesmo gate de `ocrText`/`inlineDiff`: no Django só a tela
+        `editor_revise_hymn` monta `ocr_line_confidences` no contexto. Fora do
+        papel editorial devolve `[]`, que é o que `_compute_ocr_line_confidences`
+        já devolve pra hino sem OCR.
+        """
+        if not _viewer_is_editor(info):
+            return []
         from apps.hymns.editor_views import _compute_ocr_line_confidences
 
         return _compute_ocr_line_confidences(self.ocr_text or "", self.text or "")
 
     @strawberry.field
-    def revisions(self) -> list["HymnRevisionType"]:
-        """Histórico de revisões (mais recente primeiro)."""
+    def revisions(self, info: Info) -> list["HymnRevisionType"]:
+        """Histórico de revisões (mais recente primeiro). Só pra papel editorial.
+
+        No Django o histórico por hino tem UMA porta: `hymn_history_view`, que é
+        `@login_required` e redireciona quem não passa em `can_edit_hymnbook`; o
+        botão que a abre no `hymn_detail.html` vive sob `{% if can_edit %}`. O
+        drawer que ela renderiza é o único lugar do monolito que mostra
+        `field_diff` — o snapshot `{campo: {old, new}}` de cada edição, ou seja o
+        texto anterior de cada hino e quem o mudou.
+
+        Sem gate, isso saía inteiro pra anônimo. É também a única porta para
+        `HymnRevisionType` no schema, então o gate aqui fecha o tipo todo.
+        """
+        _require_editorial_access(info, "ver o histórico de revisões")
         return list(self.revisions.select_related("revised_by").order_by("-revised_at"))
 
     @strawberry.field
@@ -533,12 +615,12 @@ class HymnAudioType:
     format: strawberry.auto
     file_size: strawberry.auto
     allow_download: strawberry.auto
+    # `is_approved` NÃO é gateado de propósito: é a condição de render do
+    # próprio player público (`{% if audio and audio.is_approved %}` em
+    # `_audio_player.html`) e o que o `HymnAudioList` do shell usa pro badge
+    # "Aguardando aprovação". O VEREDITO da revisão é que é interno — ver o
+    # bloco de resolvers gateados abaixo.
     is_approved: strawberry.auto
-    is_match: strawberry.auto
-    quality_rating: strawberry.auto
-    quality_observations: list[str]
-    mismatch_reason: strawberry.auto
-    reviewed_at: strawberry.auto
     created_at: strawberry.auto
 
     @strawberry.field
@@ -549,11 +631,54 @@ class HymnAudioType:
         pendentes recebia uma lista sem forma de identificar cada gravação."""
         return self.hymn
 
+    # ----------------------------------------------------------------- #
+    # Veredito de revisão — só pra papel editorial.
+    #
+    # Os seis campos abaixo são a avaliação editorial da gravação de alguém:
+    # "É outro hino", "Áudio inaudível", "Voz baixa", nota de 1 a 5, e o nome
+    # de quem assinou o parecer. No Django eles aparecem numa tela só —
+    # `templates/hymns/editor/_audio_review.html`, incluída por
+    # `editor_revise_hymn` e escrita por `editor_hymn_audio_review`, as duas
+    # `@login_required` + `can_edit_hymnbook`. O player PÚBLICO mostra título,
+    # duração, `uploaded_by.username`, créditos, data e waveform — e nada do
+    # parecer; nem o perfil do uploader o mostra.
+    #
+    # Fora do papel editorial, todo áudio parece NÃO-REVISADO
+    # (`None`/`[]`/`""`), que é o estado real de todo áudio ainda na fila.
+    # Escolha deliberada em vez de erro: mantém `qualityObservations:
+    # [String!]!` e `mismatchReason: String!` não-nuláveis no SDL, então o
+    # player público não perde o áudio inteiro numa query mista.
+    # ----------------------------------------------------------------- #
+
     @strawberry.field
-    def reviewed_by(self) -> "UserType | None":
-        """Quem revisou o áudio (`None` se ainda não revisado, ou se o usuário
-        foi removido — a FK é SET_NULL)."""
-        return self.reviewed_by
+    def is_match(self, info: Info) -> bool | None:
+        """A gravação confere com o hino? Parecer do revisor."""
+        return self.is_match if _viewer_is_editor(info) else None
+
+    @strawberry.field
+    def quality_rating(self, info: Info) -> int | None:
+        """Nota de qualidade 1–5 dada na revisão."""
+        return self.quality_rating if _viewer_is_editor(info) else None
+
+    @strawberry.field
+    def quality_observations(self, info: Info) -> list[str]:
+        """Observações de qualidade ("Voz baixa", "Ruído de fundo"…)."""
+        return list(self.quality_observations or []) if _viewer_is_editor(info) else []
+
+    @strawberry.field
+    def mismatch_reason(self, info: Info) -> str:
+        """Motivo de recusa por mismatch ("É outro hino", "Áudio inaudível"…)."""
+        return self.mismatch_reason if _viewer_is_editor(info) else ""
+
+    @strawberry.field
+    def reviewed_at(self, info: Info) -> datetime.datetime | None:
+        """Quando o parecer foi dado."""
+        return self.reviewed_at if _viewer_is_editor(info) else None
+
+    @strawberry.field
+    def reviewed_by(self, info: Info) -> "UserType | None":
+        """Quem assinou o parecer (a FK é SET_NULL, então pode ser `None`)."""
+        return self.reviewed_by if _viewer_is_editor(info) else None
 
     @strawberry.field
     def url(self, info: Info) -> str:
