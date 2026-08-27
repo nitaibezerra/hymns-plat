@@ -1,0 +1,297 @@
+name: CI Web
+
+on:
+  pull_request:
+    branches: [main, development]
+    # Sem `paths`. O filtro que existia aqui (`web/**`, `schema.graphql`,
+    # este arquivo) fazia sentido quando o workflow só tinha o job de Vitest,
+    # mas passou a ser errado com o job de Playwright ao lado:
+    #
+    # 1. **O E2E depende do backend.** Ele roda `migrate` + `seed_e2e` e sobe o
+    #    Django de verdade. Uma mudança em `apps/**`, `config/**` ou nas
+    #    migrations quebra a fixture ou a jornada sem tocar em `web/**` — e com
+    #    o filtro antigo o job simplesmente NÃO rodava, ou seja, a regressão
+    #    passava sem ninguém ver.
+    # 2. **Filtro de path + required check = PR travada pra sempre.** É a
+    #    mesma armadilha que o `paths-ignore` do `ci.yml` causou duas vezes
+    #    (ver o comentário lá e a seção de CI do CLAUDE.md): o workflow não
+    #    dispara, o contexto nunca reporta, e a PR fica `BLOCKED` sem nada
+    #    pra re-rodar. Deixar o filtro aqui seria plantar a armadilha pro dia
+    #    em que alguém promover estes jobs a required.
+    #
+    # Custo aceito: uma PR que só mexe em `_plan/` paga ~2 min de Vitest e o
+    # tempo do E2E. É o mesmo trade-off que o `ci.yml` já assumiu, e é mais
+    # barato que uma PR travada ou um E2E cego pro backend.
+  workflow_dispatch:
+
+# Cancela a corrida anterior da MESMA PR. Com várias frentes empurrando commits
+# em sequência, sem isto a fila de runners enche de corridas obsoletas e o
+# feedback da última demora.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Web Test & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "23"
+          cache: "pnpm"
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Type-check (svelte-check)
+        run: pnpm check
+
+      - name: Unit tests (vitest)
+        run: pnpm test
+
+      - name: Build (SvelteKit)
+        run: pnpm build
+
+  e2e:
+    name: Web E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Mesma imagem/versão do Postgres que o `ci.yml` usa nos jobs de unit e
+    # E2E. O Redis vem junto pelo mesmo motivo que lá: `REDIS_URL` é o broker
+    # do Celery e o default aponta pra :6379 — sem o serviço, qualquer caminho
+    # que despache task morre com "Connection refused" no meio de uma jornada.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: hymnplat
+          POSTGRES_USER: hymnplat
+          POSTGRES_PASSWORD: hymnplat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://hymnplat:hymnplat@localhost:5432/hymnplat
+      REDIS_URL: redis://localhost:6379/0
+      DJANGO_SECRET_KEY: ci-e2e-secret-key-sem-valor-em-producao
+      # `local` e não `test`: é o settings que o `dev-fullstack.sh` usa, o que
+      # o `seed_e2e` aceita no gate de ambiente, e o único que define
+      # CSRF_TRUSTED_ORIGINS pras portas do dev server (sem isso toda mutation
+      # vinda da SPA toma 403 — foi o bug do #82).
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      # O `dev-fullstack.sh` tem o caminho do worktree do autor como default.
+      DJANGO_REPO_ROOT: ${{ github.workspace }}
+      DJANGO_PORT: "9000"
+      SVELTE_PORT: "5173"
+      # Explícito de propósito: as origens confiáveis do CSRF são derivadas das
+      # duas portas acima. Mudou a porta aqui, muda aqui também — o default do
+      # `config/settings/local.py` só cobre 5173/9000.
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:9000,http://127.0.0.1:9000
+      # SEM ISTO O JOB É INÚTIL: as specs vivem sob
+      # `test.skip(!process.env.HINARIA_E2E_PLAYWRIGHT_READY, ...)` e um job
+      # que termina verde sem executar spec nenhuma é pior que não ter job.
+      # O passo "Provar que as specs rodaram mesmo" mais abaixo é o alarme.
+      HINARIA_E2E_PLAYWRIGHT_READY: "1"
+      HINARIA_DJANGO_BASE_URL: http://localhost:9000
+      HINARIA_SVELTE_BASE_URL: http://localhost:5173
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- backend -------------------------------------------------------- #
+      # Sem ffmpeg de propósito: o `seed_e2e` semeia waveform e duração
+      # prontas justamente pra não acordar o signal que chama ffmpeg
+      # (ver o comentário no comando), e `apps/hymns/services/audio.py`
+      # degrada pra `logger.warning` quando o binário falta. Instalar aqui
+      # custaria um `apt-get update` por corrida sem cobrir nada a mais.
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Instalar dependências do Django
+        run: uv sync --frozen --group dev
+
+      # --- frontend ------------------------------------------------------- #
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "23"
+          cache: "pnpm"
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Instalar dependências do web
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache dos browsers do Playwright
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+
+      # Só chromium. `playwright.config.ts` declara chromium e firefox, e
+      # instalar os dois (mais webkit, se viesse) tripliza o tempo de setup
+      # pra cobrir a mesma jornada. O `--project=chromium` no passo de execução
+      # é o outro lado deste par: instalar um e rodar os dois daria "browser
+      # not installed" no meio da suíte.
+      - name: Instalar o Chromium do Playwright
+        working-directory: web
+        run: pnpm exec playwright install --with-deps chromium
+
+      # --- banco + fixture ------------------------------------------------ #
+      - name: Migrar o banco
+        run: uv run python manage.py migrate --noinput
+
+      # `lsof` é o que o `dev-fullstack.sh` usa pra saber se uma porta já está
+      # ocupada e pra esperar os servidores subirem. Vem na imagem do runner,
+      # mas o script morre com `command not found` se um dia não vier — e o
+      # erro apareceria como "porta livre" em vez de "falta lsof".
+      - name: Garantir lsof (usado pelo dev-fullstack.sh)
+        run: command -v lsof >/dev/null || sudo apt-get install -y --no-install-recommends lsof
+
+      # Reusa o orquestrador do repo em vez de reescrever seed + startup no
+      # YAML: ele semeia (`seed_e2e`), sobe o Django e o SvelteKit, aponta
+      # VITE_GRAPHQL_URL pro Django que ele mesmo subiu, e aborta se algum dos
+      # dois morrer ao subir. Um único lugar pra manter — e é o mesmo comando
+      # que a documentação manda rodar na máquina.
+      - name: Semear o banco e subir Django + SvelteKit
+        working-directory: web
+        run: ./scripts/dev-fullstack.sh
+
+      # O script espera a porta ABRIR; isto espera os dois RESPONDEREM HTTP.
+      # `--retry-connrefused` cobre o intervalo entre bind e accept, e
+      # `--retry-all-errors` cobre o 500 que o Vite devolve enquanto ainda está
+      # compilando. Teto explícito: 60 tentativas × 2s = 120s por servidor.
+      # Nada de `sleep` fixo — ele é curto demais no runner lento e longo
+      # demais no rápido.
+      - name: Esperar Django e SvelteKit responderem
+        run: |
+          set -euo pipefail
+          esperar() {
+            curl -fsS --retry 60 --retry-delay 2 --retry-connrefused --retry-all-errors \
+              -o /dev/null -w "$1 -> HTTP %{http_code} (%{time_total}s)\n" "$2"
+          }
+          esperar "Django" "http://localhost:${DJANGO_PORT}/"
+          esperar "SvelteKit" "http://localhost:${SVELTE_PORT}/"
+
+      # --- specs ---------------------------------------------------------- #
+      # A seleção mora em `web/package.json` (`test:e2e:ci`), não aqui: assim a
+      # frente que mexe nas specs adiciona uma spec sem abrir o YAML, e quem
+      # roda na máquina roda EXATAMENTE o que o CI roda. A lista lá é explícita
+      # e as ausências são deliberadas:
+      #   - `visual-parity.spec.ts` e `player-persists.spec.ts` dependem de
+      #     dados do banco de dev (`o-justiceiro`, o usuário `nitaibezerra`)
+      #     que o `seed_e2e` não cria. Num banco de CI recém-semeado eles
+      #     falhariam por ausência de dado, não por regressão.
+      #   - `tests/e2e/_helpers` entra porque são testes de contrato que não
+      #     precisam de servidor nenhum e HOJE não rodam em CI (o
+      #     `vite.config.ts` exclui `tests/e2e/**` do Vitest, então o Playwright
+      #     é o único que os executa).
+      # O `--reporter` do script sobrescreve o do config pra somar o JSON, que
+      # é o insumo do passo seguinte; `html` continua saindo pro artifact.
+      - name: Rodar as specs (Playwright, chromium)
+        working-directory: web
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-resultados.json
+        run: pnpm test:e2e:ci
+
+      # Playwright sai 0 quando TODOS os testes são skipados. Se
+      # HINARIA_E2E_PLAYWRIGHT_READY sumir do env, o job fica verde tendo
+      # verificado zero coisas — exatamente o resultado que não pode acontecer.
+      # Duas afirmações, ambas medidas no JSON:
+      #   1. algum teste realmente executou (`stats.expected > 0`);
+      #   2. nenhum teste foi pulado pelo gate de ambiente (anotação `skip`).
+      # `fixme` NÃO reprova: é pendência declarada no código, não ambiente
+      # faltando.
+      - name: Provar que as specs rodaram mesmo
+        working-directory: web
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const r = JSON.parse(readFileSync("test-results/e2e-resultados.json", "utf8"));
+            const { expected = 0, unexpected = 0, skipped = 0, flaky = 0 } = r.stats ?? {};
+            const pulados = [];
+            const visitar = (s) => {
+              (s.suites ?? []).forEach(visitar);
+              (s.specs ?? []).forEach((spec) =>
+                (spec.tests ?? []).forEach((t) =>
+                  (t.annotations ?? []).forEach((a) => {
+                    if (a.type === "skip") pulados.push(`${spec.title} — ${a.description ?? "sem motivo"}`);
+                  }),
+                ),
+              );
+            };
+            (r.suites ?? []).forEach(visitar);
+            console.log(`executados=${expected} falharam=${unexpected} flaky=${flaky} pulados=${skipped}`);
+            const erros = [];
+            if (expected === 0) {
+              erros.push("Nenhum teste executou. Job verde que não verifica nada é pior que job ausente.");
+            }
+            if (pulados.length > 0) {
+              erros.push(
+                "Testes pulados pelo gate de ambiente (HINARIA_E2E_PLAYWRIGHT_READY " +
+                  "ou servidores fora do ar):\n  - " + pulados.join("\n  - "),
+              );
+            }
+            if (erros.length > 0) {
+              console.error("\nERRO — a suíte E2E não verificou o que deveria:\n" + erros.join("\n"));
+              process.exit(1);
+            }
+            console.log("OK — a suíte E2E executou de verdade.");
+          '
+
+      # --- diagnóstico ---------------------------------------------------- #
+      # Sem isto, depurar falha de E2E em CI é adivinhação: o relatório traz
+      # o passo a passo, os screenshots e os traces (`trace: on-first-retry`,
+      # `video: retain-on-failure` no `playwright.config.ts`), e os logs dos
+      # servidores dizem se o culpado foi o Django, o Vite ou a spec.
+      - name: Coletar logs dos servidores
+        if: failure()
+        run: |
+          mkdir -p web/e2e-diagnostico
+          cp -f "/tmp/hinaria-django-${DJANGO_PORT}.log" web/e2e-diagnostico/django.log || true
+          cp -f "/tmp/hinaria-svelte-${SVELTE_PORT}.log" web/e2e-diagnostico/svelte.log || true
+
+      - name: Subir relatório, traces e logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-web-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            web/playwright-report/
+            web/test-results/
+            web/e2e-diagnostico/
+          retention-days: 7
+          if-no-files-found: warn

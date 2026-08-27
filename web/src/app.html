@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Ícones: monograma tipográfico gerado por `scripts/gerar-icones.mjs`
+         a partir do design system (o glifo `h` da Cormorant Garamond 600).
+         Raciocínio e geometrias em `_plan/marco6-decisoes.md`, seção 6. -->
+    <link rel="icon" href="%sveltekit.assets%/favicon.png" />
+    <!-- O iOS acha `/apple-touch-icon.png` por convenção e ignora os ícones
+         do manifest; a tag deixa a dependência explícita. -->
+    <link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+    <!-- Dois theme-color: a UI do navegador acompanha claro/escuro. Valores
+         espelham `--color-bg` de `static/css/design-tokens.css` (paleta "Luz do
+         Firmamento"): papel claro #F6EFE2 / noite #0E1320. -->
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: light)"
+      content="#F6EFE2"
+    />
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: dark)"
+      content="#0E1320"
+    />
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>

@@ -37,23 +37,92 @@ uv run pytest tests/e2e/ -v         # E2E (requires a live server on :9000)
 uv run python tests/e2e/validate_fase2.py     # screenshot-driven Phase 2 visual validation
 ```
 
-CI on every PR runs three jobs (`.github/workflows/ci.yml`):
-1. **Lint** — `black --check`, `isort --check-only`, `ruff check`.
-2. **Unit tests** — needs `ffmpeg` installed at runtime (already added to the workflow).
-3. **E2E tests** — Playwright. Seed needs `is_published=True` on the sample HymnBook or anonymous lists render empty.
+**E2E full-stack (SvelteKit + Django), o mesmo que o CI roda:**
 
-Before pushing, always run lint + unit suite locally; otherwise CI catches it. **Never skip git hooks** (`--no-verify` etc.) — see `.gitignore`/CI config.
+```bash
+cd web
+./scripts/dev-fullstack.sh              # semeia (seed_e2e) e sobe Django :9000 + SvelteKit :5173
+HINARIA_E2E_PLAYWRIGHT_READY=1 pnpm test:e2e:ci
+./scripts/dev-fullstack.sh down
+```
 
-### Branch protection on `main`
+`pnpm test:e2e:ci` é a **mesma** seleção de specs do job "Web E2E (Playwright)" — mudou a lista lá, mudou nos dois. Sem `HINARIA_E2E_PLAYWRIGHT_READY=1` as specs ficam em skip e o Playwright sai 0 sem ter verificado nada; o job de CI tem um passo que reprova exatamente esse caso. `./scripts/dev-fullstack.sh env` mostra a config resolvida (portas, usuários da fixture); `... seed` re-semeia entre corridas, o que é necessário porque `revise-hymn.spec.ts` muta o banco.
 
-`main` is protected (configured via `gh api /repos/.../branches/main/protection`):
-- **Required status checks**: `Lint & Format Check`, `Unit Tests`, `E2E Tests` — must all pass before merge.
-- **strict: true** — branch must be up to date with `main` before merging (rebase/update if behind).
-- **enforce_admins: true** — even the repo owner cannot push directly to `main` or merge a failing PR. Always go through PR.
-- **No PR review required** (solo maintainer).
+### CI jobs (o que existe e o que cada um cobre)
+
+Cinco jobs, em dois workflows. Ambos disparam em `pull_request` para `main` e `development`, e nenhum dos dois tem filtro de `paths`.
+
+`.github/workflows/ci.yml` — backend:
+
+| Job | Cobre | Required check? |
+|---|---|---|
+| **Lint & Format Check** | `black --check`, `isort --check-only`, `ruff check` | **Sim** |
+| **Unit Tests** | `pytest tests/unit/` + coverage. Precisa de `ffmpeg` no runner | **Sim** |
+| **E2E Tests** | Playwright pelo lado do Python (`pytest tests/e2e/`), contra o Django em `:9000`. Seed precisa de `is_published=True` no HymnBook de amostra, senão listagem anônima renderiza vazia | **Sim** |
+
+`.github/workflows/ci-web.yml` — `web/` (SvelteKit):
+
+| Job | Cobre | Required check? |
+|---|---|---|
+| **Web Test & Build** | `svelte-check` + Vitest + `pnpm build` | **Sim** (desde 2026-08-27) |
+| **Web E2E (Playwright)** | Stack completa: Postgres + Redis como services, `migrate`, `seed_e2e`, Django em `:9000` e SvelteKit em `:5173`, e as specs do workspace editorial em Chromium | **Sim** (desde 2026-08-27) |
+
+**Os cinco jobs são required em `main` e em `development` desde 2026-08-27.** Um `web/` vermelho passou a bloquear merge — antes não bloqueava, e foi exatamente assim que uma regressão de `pnpm build` chegou em `development` e ficou dois meses sem ninguém ver.
+
+Duas consequências práticas de ter o E2E como required:
+- **PR de documentação também espera a stack subir.** É o preço de não ter `paths` no workflow (ver a armadilha abaixo). Se isso incomodar, a saída NÃO é reintroduzir `paths` — é discutir tirar o E2E da lista de required.
+- **Um job que passa sem executar spec nenhuma seria pior que job ausente**, agora que ele bloqueia merge. Daí o passo "Provar que as specs rodaram mesmo", que reprova se nada executou ou se algum teste está pulado pelo gate de ambiente.
+
+Mexer em branch protection é **decisão humana**: **nenhum agente deve tocar em branch protection**, nem pela UI nem via `gh api`.
+
+#### Sobre o job "Web E2E (Playwright)"
+
+Ele foi proposto e recusado duas vezes, sempre pela mesma razão boa: sem fixture determinística e sem usuário de teste, o job media o banco que estivesse por perto, e job flaky é pior que job ausente. A razão deixou de existir com o `seed_e2e` (comando idempotente, com gate de ambiente) e com o `web/scripts/dev-fullstack.sh`, que semeia e sobe os dois servidores. O job **reusa o script** em vez de reescrever seed + startup no YAML.
+
+Detalhes que não são óbvios lendo o YAML de relance:
+
+- **`DJANGO_SETTINGS_MODULE=config.settings.local`**, não `.test`: é o único settings que define `CSRF_TRUSTED_ORIGINS` para as portas do dev server, e é o que o gate do `seed_e2e` aceita.
+- **Só Chromium.** `playwright.config.ts` declara chromium e firefox; instalar os dois triplicaria o setup pela mesma jornada. Por isso o `--project=chromium` — instalar um e rodar os dois daria "browser not installed" no meio da suíte.
+- **Que specs rodam** está em `web/package.json` (`pnpm test:e2e:ci`), não no YAML, para que a lista possa crescer sem abrir o workflow e para que a máquina rode exatamente o que o CI roda. `visual-parity.spec.ts` e `player-persists.spec.ts` ficam **de fora**: dependem de dados do banco de dev (`o-justiceiro`, o usuário `nitaibezerra`) que o `seed_e2e` não cria, e falhariam por ausência de dado, não por regressão.
+- **Sem ffmpeg de propósito.** O `seed_e2e` semeia waveform e duração prontas justamente para não acordar o signal que chama ffmpeg, e `apps/hymns/services/audio.py` degrada para `logger.warning` quando o binário falta.
+- **O passo "Provar que as specs rodaram mesmo" não é enfeite.** As specs vivem sob `test.skip(!process.env.HINARIA_E2E_PLAYWRIGHT_READY, ...)` e o Playwright **sai 0 quando tudo é skipado** — um check verde que não verificou nada, que é o pior resultado possível. O passo lê o relatório JSON e reprova se nenhum teste executou **ou** se algum teste foi pulado pelo gate de ambiente. Medido: sem a env, o Playwright sai 0 e o guard sai 1. `fixme` não reprova (é pendência declarada no código, não ambiente faltando).
+- **Em caso de falha**, o job sobe relatório HTML, traces, vídeos e os logs do Django e do Vite como artifact (7 dias). Sem isso, depurar E2E em CI é adivinhação.
+
+Para rodar a mesma coisa na máquina, ver "E2E full-stack" em Tests, acima.
+
+Três armadilhas de CI já corrigidas; não reintroduza nenhuma:
+- `ci-web.yml` filtrava `branches: [main, develop]` enquanto a branch de integração é `development`. O job nunca rodou em PR de feature, e foi assim que uma regressão de merge que quebrava `pnpm build` chegou em `development` sem ninguém ver.
+- `ci.yml` tinha `paths-ignore: ['_design/**', '_plan/**']`. Combinado com required status checks, uma PR só de documentação nunca dispara o workflow, os contextos nunca reportam, e a PR fica `BLOCKED` para sempre sem nada para re-rodar. (Contorno usado na época: commit de whitespace para forçar o trigger.) **Não coloque `paths-ignore` nem `paths` em workflow cujos jobs são — ou podem virar — required checks.** Foi por isso que o `paths: ['web/**', ...]` saiu do `ci-web.yml` junto com a entrada do job de E2E: além da armadilha, o E2E depende de `apps/**` e `config/**`, e com o filtro antigo uma quebra no backend não disparava o job.
+- `ffmpeg` vem do `apt` do runner, não do `FedericoCarboni/setup-ffmpeg@v3` — essa action baixa release de terceiro e falhou com `TypeError: fetch failed` em 6 de 40 runs, matando o job antes do pytest rodar (e fazendo o codecov reclamar de `coverage.xml` ausente, o que esconde a causa real no log).
+
+Antes de empurrar, sempre rode lint + suíte unitária localmente; senão o CI pega. **Nunca pule os git hooks** (`--no-verify` etc.) — ver `.gitignore`/config de CI.
+
+### Branch workflow (two-stage: `development` → `main`)
+
+Since `main` auto-deploys to Railway on every merge, we use a staging buffer:
+
+```
+feature/* ─PR─▶ development ─PR─▶ main ─auto-deploy─▶ Railway
+```
+
+- **`development`** is the integration target. All feature PRs merge here first. CI runs but **no deploy** is triggered.
+- **`main`** is production. The only PRs that target `main` are `development → main` promotion PRs, opened deliberately when ready to deploy. Merging to `main` triggers `deploy.yml`.
+- Never open a PR targeting `main` from a feature branch — always go through `development`.
+- To promote: `gh pr create --base main --head development --title "release: <date or summary>"`. Squash-merge.
+
+#### Protection on `main`
+- **Required status checks** (5, desde 2026-08-27): `Lint & Format Check`, `Unit Tests`, `E2E Tests`, `Web Test & Build`, `Web E2E (Playwright)`.
+- **strict: true** — branch must be up to date.
+- **enforce_admins: true** — even the repo owner cannot push directly to `main` or bypass.
 - `allow_force_pushes: false`, `allow_deletions: false`.
 
-Implication: do NOT `git push origin main`. Workflow is always: feature branch → PR → CI green → squash merge.
+#### Protection on `development`
+- Same required status checks as `main` (os mesmos 5).
+- **strict: false** (changed 2026-08-26) — a PR branch does **not** need to be up to date before merging. It used to be `true`, but with several PRs queued behind auto-merge, every merge left the others `BEHIND` and GitHub's auto-merge does **not** press "Update branch" — the queue stalled after each merge and needed a manual nudge per PR. Trade-off accepted: a PR tested against an older base can merge, so semantic conflicts (green PR + green base = broken merge) are possible. `main` keeps `strict: true`, since that is the branch that deploys.
+- **enforce_admins: false** — admin can push directly if needed for emergency fixes, though normal flow is still feature → PR → squash.
+- `allow_force_pushes: false`, `allow_deletions: false`.
+
+Implication: do NOT `git push origin main` or `git push origin development` from a feature branch. Workflow is always: feature branch → PR to `development` → CI green → squash merge; then periodically `development → main` PR for deploy.
 
 ## Architecture (the parts that span files)
 

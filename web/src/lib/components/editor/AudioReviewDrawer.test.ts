@@ -1,0 +1,328 @@
+/**
+ * Sub-marco 5.C — Ciclos 5C.13, 5C.14 e 5C.15.
+ *
+ * `AudioReviewDrawer` porta o bloco `templates/hymns/editor/_audio_review.html`
+ * para o headless. Contrato:
+ *
+ *   - player (reusa `PlayButton` + player global do shell);
+ *   - pergunta de correspondência (`isMatch`) com "Confere" / "Não confere";
+ *   - rating 1-5 e chips de observação (`HymnAudio.QUALITY_OBSERVATIONS`);
+ *   - motivo de divergência (`HymnAudio.MismatchReason`) quando não confere;
+ *   - submit chama `reviewAudio` e fecha (5C.15).
+ *
+ * Nota do backend, deliberada e pinada por teste lá: `reviewAudio` **não**
+ * seta `is_approved=True`. A UI não promete aprovação.
+ */
+
+import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import AudioReviewDrawer, {
+  MISMATCH_REASONS,
+  QUALITY_OBSERVATIONS,
+} from "./AudioReviewDrawer.svelte";
+import { audioPlayer } from "$lib/stores/audio";
+
+const AUDIO = {
+  id: "a-1",
+  url: "https://media.example.com/a1.mp3",
+  title: "Gravação 1997",
+  waveformPeaks: [1, 2, 3],
+  durationSeconds: 125,
+  isApproved: false,
+  isMatch: null as boolean | null,
+  qualityRating: null as number | null,
+  qualityObservations: [] as string[],
+  mismatchReason: "",
+  reviewedAt: null as string | null,
+  reviewedBy: null,
+};
+
+describe("AudioReviewDrawer — 5C.13", () => {
+  beforeEach(() => {
+    audioPlayer.reset();
+  });
+
+  it("espelha as constantes do Django", () => {
+    expect(QUALITY_OBSERVATIONS).toEqual([
+      "Ruído de fundo",
+      "Voz baixa",
+      "Cortes",
+      "Excelente captação",
+      "Mestre de cerimônias",
+    ]);
+    expect(MISMATCH_REASONS).toEqual([
+      { value: "other_hymn", label: "É outro hino" },
+      { value: "incomplete", label: "Áudio cortado/incompleto" },
+      { value: "wrong_lyrics", label: "Letra diferente" },
+      { value: "inaudible", label: "Áudio inaudível" },
+      { value: "other", label: "Outro" },
+    ]);
+  });
+
+  it("fechado, não renderiza o drawer", () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: false } });
+    expect(screen.queryByTestId("audio-review-drawer")).toBeNull();
+  });
+
+  it("aberto, mostra arquivo, duração e o player", () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    expect(screen.getByTestId("audio-review-drawer")).toBeInTheDocument();
+    expect(screen.getByTestId("audio-file-label")).toHaveTextContent("Gravação 1997");
+    expect(screen.getByTestId("audio-file-label")).toHaveTextContent("2:05");
+    expect(screen.getByTestId("play-button")).toBeInTheDocument();
+  });
+
+  it("pergunta se a gravação corresponde ao hino", () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    expect(screen.getByTestId("match-question")).toHaveTextContent(
+      'É mesmo a gravação de "Estrela"?',
+    );
+    expect(screen.getByTestId("audio-match-yes")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("audio-match-no")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("clicar em Confere marca a resposta", async () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    expect(screen.getByTestId("audio-match-yes")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("audio-match-no")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("rating vai de 1 a 5", async () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    const stars = screen.getAllByTestId("quality-star");
+    expect(stars.map((el) => el.textContent?.trim())).toEqual(["1", "2", "3", "4", "5"]);
+
+    await fireEvent.click(stars[3]);
+    expect(stars.map((el) => el.dataset.active)).toEqual(["true", "true", "true", "true", "false"]);
+  });
+
+  it("chips de observação alternam seleção", async () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    const chip = screen.getByRole("button", { name: "Cortes" });
+    await fireEvent.click(chip);
+    expect(chip.dataset.active).toBe("true");
+    await fireEvent.click(chip);
+    expect(chip.dataset.active).toBe("false");
+  });
+
+  it("pré-preenche a partir da revisão anterior do áudio", () => {
+    render(AudioReviewDrawer, {
+      props: {
+        hymnTitle: "Estrela",
+        open: true,
+        audio: {
+          ...AUDIO,
+          isMatch: true,
+          qualityRating: 3,
+          qualityObservations: ["Voz baixa"],
+        },
+      },
+    });
+    expect(screen.getByTestId("audio-match-yes")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByTestId("quality-star").map((el) => el.dataset.active)).toEqual([
+      "true",
+      "true",
+      "true",
+      "false",
+      "false",
+    ]);
+    expect(screen.getByRole("button", { name: "Voz baixa" }).dataset.active).toBe("true");
+  });
+
+  it("não promete aprovação (reviewAudio não aprova)", () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    expect(screen.getByTestId("audio-review-note")).toHaveTextContent(
+      "Registrar a revisão não aprova o áudio",
+    );
+  });
+
+  it("sem gravação, mostra o estado vazio", () => {
+    render(AudioReviewDrawer, { props: { audio: null, hymnTitle: "Estrela", open: true } });
+    expect(screen.getByTestId("audio-review-empty")).toHaveTextContent(
+      "Sem gravação para este hino.",
+    );
+  });
+});
+
+describe("AudioReviewDrawer — 5C.14 (divergência)", () => {
+  beforeEach(() => {
+    audioPlayer.reset();
+  });
+
+  it("sem resposta ainda: motivo escondido, rating habilitado", () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    expect(screen.queryByTestId("mismatch-block")).toBeNull();
+    expect((screen.getAllByTestId("quality-star")[0] as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("`Confere` mantém o motivo escondido e o rating habilitado", async () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    expect(screen.queryByTestId("mismatch-block")).toBeNull();
+    expect((screen.getAllByTestId("quality-star")[0] as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("`Não confere` exibe o selector de motivo e desabilita o rating", async () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    await fireEvent.click(screen.getByTestId("audio-match-no"));
+
+    expect(screen.getByTestId("mismatch-block")).toBeInTheDocument();
+    expect(screen.getAllByTestId("mismatch-chip")).toHaveLength(5);
+    for (const star of screen.getAllByTestId("quality-star")) {
+      expect((star as HTMLButtonElement).disabled).toBe(true);
+    }
+    for (const chip of screen.getAllByTestId("observation-chip")) {
+      expect((chip as HTMLButtonElement).disabled).toBe(true);
+    }
+  });
+
+  it("escolher o motivo marca o chip", async () => {
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    await fireEvent.click(screen.getByTestId("audio-match-no"));
+
+    const chip = screen.getByRole("button", { name: "Letra diferente" });
+    await fireEvent.click(chip);
+    expect(chip.dataset.active).toBe("true");
+  });
+
+  it("voltar para `Confere` esconde o motivo de novo", async () => {
+    render(AudioReviewDrawer, {
+      props: { audio: { ...AUDIO, isMatch: false, mismatchReason: "other" }, hymnTitle: "E", open: true },
+    });
+    expect(screen.getByTestId("mismatch-block")).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    expect(screen.queryByTestId("mismatch-block")).toBeNull();
+  });
+});
+
+describe("AudioReviewDrawer — 5C.15 (submit)", () => {
+  function stubFetch(payload: unknown, status = 200) {
+    const fn = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fn);
+    return fn;
+  }
+
+  const OK = {
+    data: {
+      reviewAudio: {
+        __typename: "HymnAudioType",
+        id: "a-1",
+        isMatch: true,
+        qualityRating: 4,
+        qualityObservations: ["Cortes"],
+        mismatchReason: "",
+        isApproved: false,
+      },
+    },
+  };
+
+  beforeEach(() => {
+    audioPlayer.reset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("submit fica desabilitado até responder se confere", async () => {
+    stubFetch(OK);
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+    const submit = screen.getByTestId("audio-review-submit") as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    expect(submit.disabled).toBe(false);
+  });
+
+  it("envia reviewAudio com rating e observações, depois fecha", async () => {
+    const fetchFn = stubFetch(OK);
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    await fireEvent.click(screen.getAllByTestId("quality-star")[3]);
+    await fireEvent.click(screen.getByRole("button", { name: "Cortes" }));
+    await fireEvent.click(screen.getByTestId("audio-review-submit"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.query).toContain("reviewAudio");
+    expect(body.variables).toEqual({
+      pk: "a-1",
+      input: {
+        isMatch: true,
+        qualityRating: 4,
+        qualityObservations: ["Cortes"],
+        mismatchReason: "",
+      },
+    });
+    await waitFor(() => expect(screen.queryByTestId("audio-review-drawer")).toBeNull());
+  });
+
+  it("divergência envia motivo e zera a qualidade", async () => {
+    const fetchFn = stubFetch({
+      data: {
+        reviewAudio: {
+          __typename: "HymnAudioType",
+          id: "a-1",
+          isMatch: false,
+          qualityRating: null,
+          qualityObservations: [],
+          mismatchReason: "wrong_lyrics",
+          isApproved: false,
+        },
+      },
+    });
+    render(AudioReviewDrawer, {
+      props: { audio: { ...AUDIO, qualityRating: 5 }, hymnTitle: "Estrela", open: true },
+    });
+
+    await fireEvent.click(screen.getByTestId("audio-match-no"));
+    await fireEvent.click(screen.getByRole("button", { name: "Letra diferente" }));
+    await fireEvent.click(screen.getByTestId("audio-review-submit"));
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetchFn.mock.calls[0][1].body as string).variables.input).toEqual({
+      isMatch: false,
+      qualityRating: null,
+      qualityObservations: [],
+      mismatchReason: "wrong_lyrics",
+    });
+  });
+
+  it("avisa o chamador com o áudio atualizado", async () => {
+    stubFetch(OK);
+    const onreviewed = vi.fn();
+    render(AudioReviewDrawer, {
+      props: { audio: AUDIO, hymnTitle: "Estrela", open: true, onreviewed },
+    });
+
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    await fireEvent.click(screen.getByTestId("audio-review-submit"));
+
+    await waitFor(() => expect(onreviewed).toHaveBeenCalledTimes(1));
+    expect(onreviewed.mock.calls[0][0]).toMatchObject({ id: "a-1", isMatch: true });
+  });
+
+  it("erro mantém o drawer aberto e mostra a mensagem", async () => {
+    stubFetch({
+      data: { reviewAudio: { __typename: "PermissionDeniedError", message: "Sem permissão." } },
+    });
+    render(AudioReviewDrawer, { props: { audio: AUDIO, hymnTitle: "Estrela", open: true } });
+
+    await fireEvent.click(screen.getByTestId("audio-match-yes"));
+    await fireEvent.click(screen.getByTestId("audio-review-submit"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("audio-review-error")).toHaveTextContent("Sem permissão."),
+    );
+    expect(screen.getByTestId("audio-review-drawer")).toBeInTheDocument();
+  });
+});

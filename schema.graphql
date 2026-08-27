@@ -1,0 +1,383 @@
+union ApproveAudioResult = HymnAudioType | PermissionDeniedError | NotFoundError
+
+input AudioReviewInput {
+  isMatch: Boolean!
+  qualityRating: Int
+  qualityObservations: [String!]
+  mismatchReason: String
+}
+
+union CreateHymnBookResult = HymnBookType | PermissionDeniedError | ValidationError
+
+union CreateHymnResult = HymnType | PermissionDeniedError | NotFoundError | ValidationError
+
+"""Date (isoformat)"""
+scalar Date
+
+"""Date with time (isoformat)"""
+scalar DateTime
+
+union DeleteAudioResult = DeleteResult | PermissionDeniedError | NotFoundError
+
+union DeleteHymnBookResult = DeleteResult | PermissionDeniedError | NotFoundError
+
+union DeleteHymnResult = DeleteResult | PermissionDeniedError | NotFoundError
+
+type DeleteResult {
+  ok: Boolean!
+  deletedId: ID
+}
+
+type EditorDashboardStatsType {
+  totalHinarios: Int!
+  pendingHymns: Int!
+  recentReviewed7d: Int!
+  p1Count: Int!
+  pendingAudiosCount: Int!
+  resumeHymn: HymnType
+}
+
+union FollowUserResult = UserProfileType | PermissionDeniedError | NotFoundError
+
+type GlobalStats {
+  hymnbooks: Int!
+  hymns: Int!
+  audios: Int!
+  activeReviewers: Int!
+}
+
+type HeatmapBucketType {
+  date: Date!
+  count: Int!
+}
+
+type HymnAudioType {
+  id: UUID!
+  waveformPeaks: [Float!]!
+  title: String!
+  source: String!
+  credits: String!
+  recordedAt: Date
+  format: String!
+  fileSize: Int
+  allowDownload: Boolean!
+  isApproved: Boolean!
+  isMatch: Boolean
+  qualityRating: Int
+  qualityObservations: [String!]!
+  mismatchReason: String!
+  reviewedAt: DateTime
+  createdAt: DateTime!
+  hymn: HymnType!
+  reviewedBy: UserType
+  url: String!
+  durationSeconds: Float
+  uploadedBy: UserType
+}
+
+input HymnBookInput {
+  name: String!
+  ownerName: String!
+  introName: String
+  description: String
+  coverImage: Upload
+}
+
+type HymnBookReviewProgressType {
+  reviewPct: Int!
+  stylePct: Int!
+  repsPct: Int!
+  audioPct: Int!
+}
+
+type HymnBookStatsType {
+  hymnsTotal: Int!
+  hymnsReviewed: Int!
+  audiosApproved: Int!
+}
+
+type HymnBookType {
+  id: UUID!
+  name: String!
+  slug: String!
+  introName: String!
+  ownerName: String!
+  description: String!
+  isPublished: Boolean!
+  publishedAt: DateTime
+  priority: String!
+  isFeatured: Boolean!
+  createdAt: DateTime!
+  syncVersion: Int!
+  coverImage: String
+  publishedBy: UserType
+  reviewProgress: HymnBookReviewProgressType!
+  stats: HymnBookStatsType!
+  hymns: [HymnType!]!
+  nextPendingHymn(currentPk: ID = null): HymnType
+  nextIncompleteHymn: HymnType
+}
+
+input HymnInput {
+  number: Int!
+  title: String!
+  text: String!
+  style: String
+  repetitions: String
+  extraInstructions: String
+  offeredTo: String
+  section: String
+}
+
+type HymnRevisionType {
+  id: UUID!
+  previousStatus: String!
+  newStatus: String!
+  changeSummary: String!
+  fieldDiff: JSON!
+  revisedAt: DateTime!
+  revisedBy: UserType
+}
+
+type HymnType {
+  id: UUID!
+  number: Int!
+  title: String!
+  style: String!
+  repetitions: String!
+  extraInstructions: String!
+  offeredTo: String!
+  section: String!
+  source: String!
+  ocrText: String!
+  receivedAt: Date
+  lastReviewedAt: DateTime
+  reviewStatus: ReviewStatus!
+  lastReviewedBy: UserType
+  hymnBook: HymnBookType!
+  isFavorited: Boolean!
+  inlineDiff: InlineDiffType
+  ocrLineConfidences: [Int!]!
+  revisions: [HymnRevisionType!]!
+  commonStyles(top: Int! = 5): [String!]!
+  commonRepetitions(top: Int! = 5): [String!]!
+  body: String!
+  previousInBook: HymnType
+  nextInBook: HymnType
+  siblingsWithSameNumber: [HymnType!]!
+  audios(approvedOnly: Boolean! = true): [HymnAudioType!]!
+}
+
+input HymnUpdateInput {
+  title: String
+  text: String
+  number: Int
+  section: String
+  style: String
+  repetitions: String
+  extraInstructions: String
+  offeredTo: String
+}
+
+type InlineDiffLineType {
+  kind: String!
+  tokens: [InlineDiffTokenType!]!
+}
+
+type InlineDiffTokenType {
+  kind: String!
+  text: String
+  sub: String
+  add: String
+}
+
+type InlineDiffType {
+  lines: [InlineDiffLineType!]!
+  changes: Int!
+  adds: Int!
+  dels: Int!
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
+"""
+scalar JSON @specifiedBy(url: "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf")
+
+type LoginError {
+  message: String!
+}
+
+union LoginResult = LoginSuccess | LoginError
+
+type LoginSuccess {
+  user: UserType!
+}
+
+union MarkNotificationReadResult = NotificationType | PermissionDeniedError | NotFoundError
+
+type Mutation {
+  login(username: String!, password: String!): LoginResult!
+  logout: Boolean!
+  setReviewStatus(pk: ID!, status: ReviewStatus!): SetReviewStatusResult!
+  updateHymn(pk: ID!, input: HymnUpdateInput!): UpdateHymnResult!
+  createHymnBook(input: HymnBookInput!): CreateHymnBookResult!
+  updateHymnBook(slug: String!, input: HymnBookInput!): UpdateHymnBookResult!
+  publishHymnBook(slug: String!): PublishHymnBookResult!
+  unpublishHymnBook(slug: String!): UnpublishHymnBookResult!
+  deleteHymnBook(slug: String!): DeleteHymnBookResult!
+  updateHymnBookEditorial(slug: String!, priority: String, isFeatured: Boolean): UpdateHymnBookEditorialResult!
+  createHymn(hymnbookSlug: String!, input: HymnInput!): CreateHymnResult!
+  deleteHymn(pk: ID!): DeleteHymnResult!
+  quickReviewHymn(pk: ID!, style: String!, repetitions: String!): QuickReviewHymnResult!
+  uploadAudio(hymnPk: ID!, file: Upload!, title: String, source: String, credits: String, allowDownload: Boolean): UploadAudioResult!
+  approveAudio(pk: ID!): ApproveAudioResult!
+  rejectAudio(pk: ID!): RejectAudioResult!
+  reviewAudio(pk: ID!, input: AudioReviewInput!): ReviewAudioResult!
+  deleteAudio(pk: ID!): DeleteAudioResult!
+  followUser(username: String!): FollowUserResult!
+  unfollowUser(username: String!): UnfollowUserResult!
+  markNotificationRead(pk: ID!): MarkNotificationReadResult!
+  markAllNotificationsRead: Int!
+  toggleFavorite(hymnPk: ID!): ToggleFavoriteResult!
+}
+
+type NotFoundError {
+  message: String!
+}
+
+type NotificationType {
+  id: UUID!
+  notificationType: String!
+  title: String!
+  message: String!
+  link: String!
+  isRead: Boolean!
+  createdAt: DateTime!
+  sender: UserType
+}
+
+type OCRTaskType {
+  id: UUID!
+  status: String!
+  currentPage: Int!
+  totalPages: Int!
+  errorMessage: String!
+  pdfFilename: String!
+  resultData: JSON
+  progressPct: Int!
+}
+
+type PermissionDeniedError {
+  message: String!
+}
+
+union PublishHymnBookResult = PublishResult | PermissionDeniedError | NotFoundError
+
+type PublishReadinessCheckType {
+  key: String!
+  label: String!
+  ok: Boolean!
+}
+
+type PublishReadinessType {
+  canPublish: Boolean!
+  checks: [PublishReadinessCheckType!]!
+}
+
+type PublishResult {
+  ok: Boolean!
+  failedChecks: [String!]!
+}
+
+type Query {
+  hymnbooks: [HymnBookType!]!
+  hymnbook(slug: String!): HymnBookType
+  hymn(pk: ID!): HymnType
+  currentUser: UserType
+  userProfile(username: String!): UserProfileType
+  notifications(unreadOnly: Boolean! = false): [NotificationType!]!
+  hourlyFeatured: [HymnBookType!]!
+  search(q: String!, kind: SearchKind! = ALL): SearchResultsType!
+  editorHymnbooks(sort: [SortInput!] = null, priority: String! = "all"): [HymnBookType!]!
+  editorDashboardStats: EditorDashboardStatsType!
+  pendingAudios: [HymnAudioType!]!
+  publishReadiness(slug: String!): PublishReadinessType
+  ocrTask(id: ID!): OCRTaskType
+  globalStats: GlobalStats!
+}
+
+union QuickReviewHymnResult = HymnType | PermissionDeniedError | NotFoundError | ValidationError
+
+union RejectAudioResult = DeleteResult | PermissionDeniedError | NotFoundError
+
+union ReviewAudioResult = HymnAudioType | PermissionDeniedError | NotFoundError
+
+enum ReviewStatus {
+  NOT_REVIEWED
+  IN_REVIEW
+  REVIEWED
+}
+
+enum SearchKind {
+  ALL
+  HYMN
+  HYMNBOOK
+}
+
+type SearchResultsType {
+  hymns: [HymnType!]!
+  hymnbooks: [HymnBookType!]!
+}
+
+union SetReviewStatusResult = HymnType | PermissionDeniedError | NotFoundError
+
+input SortInput {
+  column: String!
+  direction: String!
+}
+
+union ToggleFavoriteResult = ToggleFavoriteSuccess | PermissionDeniedError | NotFoundError
+
+type ToggleFavoriteSuccess {
+  favorited: Boolean!
+}
+
+scalar UUID
+
+union UnfollowUserResult = UserProfileType | PermissionDeniedError | NotFoundError
+
+union UnpublishHymnBookResult = HymnBookType | PermissionDeniedError | NotFoundError
+
+union UpdateHymnBookEditorialResult = HymnBookType | PermissionDeniedError | NotFoundError
+
+union UpdateHymnBookResult = HymnBookType | PermissionDeniedError | NotFoundError | ValidationError
+
+union UpdateHymnResult = HymnType | PermissionDeniedError | NotFoundError | ValidationError
+
+"""Represents a file upload."""
+scalar Upload
+
+union UploadAudioResult = HymnAudioType | PermissionDeniedError | NotFoundError | ValidationError
+
+type UserProfileType {
+  user: UserType!
+  followersCount: Int!
+  followingCount: Int!
+  uploadedAudios: [HymnAudioType!]!
+  followers(first: Int! = 20, offset: Int! = 0): [UserType!]!
+  following(first: Int! = 20, offset: Int! = 0): [UserType!]!
+  isFollowedByCurrentUser: Boolean!
+  activityHeatmap(days: Int! = 365): [HeatmapBucketType!]!
+}
+
+type UserType {
+  id: ID!
+  username: String!
+  email: String!
+  isEditor: Boolean!
+}
+
+type ValidationError {
+  message: String!
+  field: String
+}

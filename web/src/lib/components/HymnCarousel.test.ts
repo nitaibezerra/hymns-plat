@@ -1,0 +1,158 @@
+/**
+ * Marco 4.D — Ciclos 4D.5 a 4D.9.
+ *
+ * HymnCarousel — "Reader Focus": 1 slide por viewport, hero+toggle escondidos
+ * (responsabilidade do +page.svelte), chrome fixa: progress bar topo + counter
+ * + prev/next arrows + dot pagination bottom. Comportamento teclado:
+ *   ← →  navega entre slides
+ *   Esc  volta pra ?mode=indice (via SvelteKit goto)
+ * Respeita `prefers-reduced-motion`.
+ */
+
+import { fireEvent, render, screen } from "@testing-library/svelte";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import HymnCarousel from "./HymnCarousel.svelte";
+
+const hymns = [
+  { id: "h-1", number: 1, title: "Abertura", body: "Verso 1\nVerso 2" },
+  { id: "h-2", number: 2, title: "Saudação", body: "Linha A\nLinha B" },
+  { id: "h-3", number: 3, title: "Estrela do Norte", body: "Brilha o sol" },
+];
+
+const gotoMock = vi.fn();
+vi.mock("$app/navigation", () => ({
+  goto: (...args: unknown[]) => gotoMock(...args),
+}));
+
+function setMatchMedia(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+}
+
+beforeEach(() => {
+  gotoMock.mockReset();
+  setMatchMedia(false);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("HymnCarousel", () => {
+  describe("layout (4D.5)", () => {
+    it("renderiza um slide por hino com largura de viewport", () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const slides = screen.getAllByTestId("carousel-slide");
+      expect(slides).toHaveLength(3);
+      for (const slide of slides) {
+        expect(slide.className).toMatch(/carousel-slide/);
+      }
+    });
+
+    it("counter mostra '1 / N' no slide atual", () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const counter = screen.getByTestId("carousel-counter");
+      expect(counter.textContent ?? "").toMatch(/1\s*\/\s*3/);
+    });
+  });
+
+  describe("teclado (4D.6)", () => {
+    it("ArrowRight avança o slide e atualiza o counter", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const counter = screen.getByTestId("carousel-counter");
+      expect(counter.textContent ?? "").toMatch(/1\s*\/\s*3/);
+      await fireEvent.keyDown(window, { key: "ArrowRight" });
+      expect(counter.textContent ?? "").toMatch(/2\s*\/\s*3/);
+    });
+
+    it("ArrowLeft volta um slide (sem ir abaixo de 1)", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      await fireEvent.keyDown(window, { key: "ArrowRight" });
+      await fireEvent.keyDown(window, { key: "ArrowRight" });
+      await fireEvent.keyDown(window, { key: "ArrowLeft" });
+      const counter = screen.getByTestId("carousel-counter");
+      expect(counter.textContent ?? "").toMatch(/2\s*\/\s*3/);
+      await fireEvent.keyDown(window, { key: "ArrowLeft" });
+      await fireEvent.keyDown(window, { key: "ArrowLeft" });
+      await fireEvent.keyDown(window, { key: "ArrowLeft" });
+      expect(counter.textContent ?? "").toMatch(/1\s*\/\s*3/);
+    });
+
+    it("Esc dispara goto('?mode=indice')", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      await fireEvent.keyDown(window, { key: "Escape" });
+      expect(gotoMock).toHaveBeenCalledWith("?mode=indice");
+    });
+  });
+
+  describe("dot pagination (4D.7)", () => {
+    it("renderiza um <button> por hino", () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const dots = screen.getAllByTestId("carousel-dot");
+      expect(dots).toHaveLength(3);
+      expect(dots[0].tagName).toBe("BUTTON");
+    });
+
+    it("dot do slide atual tem aria-current='true'", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const dots = screen.getAllByTestId("carousel-dot");
+      expect(dots[0].getAttribute("aria-current")).toBe("true");
+      expect(dots[1].getAttribute("aria-current")).toBe("false");
+    });
+
+    it("click no dot navega pro slide correspondente", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const dots = screen.getAllByTestId("carousel-dot");
+      await fireEvent.click(dots[2]);
+      const counter = screen.getByTestId("carousel-counter");
+      expect(counter.textContent ?? "").toMatch(/3\s*\/\s*3/);
+      const dotsAfter = screen.getAllByTestId("carousel-dot");
+      expect(dotsAfter[2].getAttribute("aria-current")).toBe("true");
+      expect(dotsAfter[0].getAttribute("aria-current")).toBe("false");
+    });
+  });
+
+  describe("prefers-reduced-motion (4D.8)", () => {
+    it("marca data-reduced-motion='true' quando o usuário pediu menos movimento", () => {
+      setMatchMedia(true);
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const track = screen.getByTestId("carousel-track");
+      expect(track.getAttribute("data-reduced-motion")).toBe("true");
+    });
+
+    it("marca data-reduced-motion='false' por padrão", () => {
+      setMatchMedia(false);
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const track = screen.getByTestId("carousel-track");
+      expect(track.getAttribute("data-reduced-motion")).toBe("false");
+    });
+  });
+
+  describe("top progress bar (4D.9)", () => {
+    it("largura reflete (idx+1) / N * 100%", async () => {
+      render(HymnCarousel, { props: { hymns, hymnbookSlug: "justiceiro" } });
+      const bar = screen.getByTestId("carousel-progress");
+      // 1/3 ~= 33.3%
+      expect(bar.getAttribute("style") ?? "").toMatch(/width:\s*33\.3/);
+      await fireEvent.keyDown(window, { key: "ArrowRight" });
+      // 2/3 ~= 66.6%
+      expect(bar.getAttribute("style") ?? "").toMatch(/width:\s*66\.6/);
+      await fireEvent.keyDown(window, { key: "ArrowRight" });
+      // 3/3 = 100%
+      expect(bar.getAttribute("style") ?? "").toMatch(/width:\s*100/);
+    });
+  });
+});

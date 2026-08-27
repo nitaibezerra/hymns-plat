@@ -13,9 +13,6 @@
       <a href="{{ home_url }}" class="hover:text-ink dark:hover:text-cream {% if request.path == home_url %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Início</a>
       <a href="{{ books_url }}" class="hover:text-ink dark:hover:text-cream {% if books_url in request.path %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Hinários</a>
       <a href="{{ search_url }}" class="hover:text-ink dark:hover:text-cream {% if search_url in request.path %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Buscar</a>
-      {% if user.is_authenticated %}
-        <a href="{% url 'users:upload' %}" class="hover:text-ink dark:hover:text-cream {% if '/contribuir/' in request.path %}text-firmament dark:text-firmament border-b border-gold pb-1{% endif %}">Contribuir</a>
-      {% endif %}
     </nav>
 
     <form action="{% url 'hymns:search' %}" method="get" class="ml-auto hidden md:block relative">
@@ -98,7 +95,6 @@
           Fila de revisão{% if editor_pending_count %} <span class="editor-cta-count align-middle ml-1">{{ editor_pending_count }}</span>{% endif %}
         </a>
       {% endif %}
-      <a href="{% url 'users:upload' %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5 {% if '/contribuir/' in request.path %}text-firmament dark:text-firmament{% endif %}">Contribuir</a>
       <hr class="border-ink/10 dark:border-cream/10 my-2">
       <a href="{% url 'users:profile' user.username %}" class="block px-5 py-3 hover:bg-ink/5 dark:hover:bg-white/5">Meu perfil</a>
     {% else %}
