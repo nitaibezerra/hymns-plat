@@ -427,7 +427,6 @@ class HymnType:
     offered_to: strawberry.auto
     section: strawberry.auto
     source: strawberry.auto
-    ocr_text: strawberry.auto
     received_at: strawberry.auto
     last_reviewed_at: strawberry.auto
     review_status: ReviewStatus
@@ -459,8 +458,29 @@ class HymnType:
         return hymn_models.Favorite.objects.filter(user=user, hymn=self).exists()
 
     @strawberry.field
-    def inline_diff(self) -> InlineDiffType | None:
-        """Diff visual OCR×revisão. Vazio quando não há `ocr_text`."""
+    def ocr_text(self, info: Info) -> str:
+        """Texto CRU do OCR, antes da revisão editorial. Só pra papel editorial.
+
+        No Django ele aparece numa tela só — `editor_revise_hymn`
+        (`@login_required` + `can_edit_hymnbook`), no diff lado a lado. O
+        template público do hino mostra `text` e nada de OCR.
+
+        Fora do papel editorial devolve `""`, que é exatamente o que o público
+        já vê em todo hino `source=manual` — não é resposta inventada, é o
+        estado da maioria. Ver `_viewer_is_editor`.
+        """
+        return self.ocr_text if _viewer_is_editor(info) else ""
+
+    @strawberry.field
+    def inline_diff(self, info: Info) -> InlineDiffType | None:
+        """Diff visual OCR×revisão. `None` sem `ocr_text` — e sem papel editorial.
+
+        É a leitura do material de OCR: mostrar o diff a quem não pode ver
+        `ocrText` devolveria o texto cru palavra por palavra pelo caminho de
+        trás (os tokens `sub`/`del` carregam o lado do OCR).
+        """
+        if not _viewer_is_editor(info):
+            return None
         from apps.hymns.editor_views import _compute_inline_diff
 
         raw = _compute_inline_diff(self.ocr_text or "", self.text or "")
@@ -481,8 +501,16 @@ class HymnType:
         return InlineDiffType(lines=lines, changes=raw["changes"], adds=raw["adds"], dels=raw["dels"])
 
     @strawberry.field
-    def ocr_line_confidences(self) -> list[int]:
-        """Confiança por linha do OCR — heurística baseada em similaridade."""
+    def ocr_line_confidences(self, info: Info) -> list[int]:
+        """Confiança por linha do OCR — heurística baseada em similaridade.
+
+        Mesmo gate de `ocrText`/`inlineDiff`: no Django só a tela
+        `editor_revise_hymn` monta `ocr_line_confidences` no contexto. Fora do
+        papel editorial devolve `[]`, que é o que `_compute_ocr_line_confidences`
+        já devolve pra hino sem OCR.
+        """
+        if not _viewer_is_editor(info):
+            return []
         from apps.hymns.editor_views import _compute_ocr_line_confidences
 
         return _compute_ocr_line_confidences(self.ocr_text or "", self.text or "")
