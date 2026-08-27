@@ -22,7 +22,21 @@ from apps.hymns import models as hymn_models
 from apps.users import models as user_models
 
 from .context import user_from_info
-from .permissions import is_editor_or_admin
+from .errors import authentication_required
+from .permissions import is_authenticated, is_editor_or_admin, require
+
+
+def _require_session(info: Info, action: str) -> None:
+    """Levanta `GraphQLError` em PT-BR se não houver usuário logado.
+
+    Mesma tradução que as queries do workspace editorial usam
+    (`permissions.require`): campos que devolvem lista não-nulável não têm
+    posição no schema pra um union de erro, então o caminho é `GraphQLError` —
+    é o precedente de `Query.notifications` e de `Query.editorHymnbooks`.
+    A mensagem sai de `errors.authentication_required` pra ficar dentro do
+    prefixo que o shell classifica.
+    """
+    require(user_from_info(info), is_authenticated, message=authentication_required(action))
 
 
 @strawberry.input
@@ -621,8 +635,13 @@ class UserProfileType:
         return list(hymn_models.HymnAudio.objects.filter(uploaded_by=self.user).order_by("-created_at"))
 
     @strawberry.field
-    def followers(self, first: int = 20, offset: int = 0) -> list[UserType]:
-        """Página de seguidores (mais recentes primeiro). `first` é capado em 100."""
+    def followers(self, info: Info, first: int = 20, offset: int = 0) -> list[UserType]:
+        """Página de seguidores (mais recentes primeiro). `first` é capado em 100.
+
+        Exige sessão: a LISTA é `@login_required` no Django
+        (`views_social.followers_list`), diferente de `followersCount`. Ver
+        `_require_session` acima."""
+        _require_session(info, "listar seguidores")
         first = max(0, min(first, 100))
         offset = max(0, offset)
         rows = (
@@ -633,8 +652,12 @@ class UserProfileType:
         return [row.follower for row in rows]
 
     @strawberry.field
-    def following(self, first: int = 20, offset: int = 0) -> list[UserType]:
-        """Página de quem o usuário segue (mais recentes primeiro). `first` é capado em 100."""
+    def following(self, info: Info, first: int = 20, offset: int = 0) -> list[UserType]:
+        """Página de quem o usuário segue (mais recentes primeiro). `first` é capado em 100.
+
+        Exige sessão, igual a `followers` — `views_social.following_list`
+        também é `@login_required`."""
+        _require_session(info, "listar quem o usuário segue")
         first = max(0, min(first, 100))
         offset = max(0, offset)
         rows = (
