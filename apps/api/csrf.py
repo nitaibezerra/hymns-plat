@@ -24,6 +24,7 @@ HTTP: ele olha o **tipo da operação que vai executar**. Daí o desenho:
 
 from __future__ import annotations
 
+from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from django.middleware.csrf import CsrfViewMiddleware
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -116,9 +117,27 @@ class GraphQLCsrfView(GraphQLView):
             # `x-csrftoken` e o cliente web lê ele antes da primeira mutation.
             # `ensure_csrf_cookie` traz o próprio `process_response`, então o
             # cookie sai mesmo com o endpoint fora do middleware de CSRF.
-            return ensure_csrf_cookie(super().dispatch)(request, *args, **kwargs)
+            #
+            # Fora de DEBUG o GraphiQL não é servido: ele não é usado por nada
+            # (a SPA fala JSON direto) e deixar ligado só anuncia a superfície
+            # da API. Não é falha de segurança — query respeita `visible_to` e
+            # mutation exige sessão + CSRF + permissão — é exposição
+            # desnecessária, e desligar depois de público custa mais.
+            #
+            # O que NÃO pode mudar é o contrato do GET: 200 **com** o cookie.
+            # É daqui que a SPA tira o `csrftoken` antes da primeira mutation,
+            # então devolver 404 quebraria toda escrita em produção.
+            handler = super().dispatch if settings.DEBUG else self._seed_csrf_only
+            return ensure_csrf_cookie(handler)(request, *args, **kwargs)
 
         rejection = self.csrf_rejection(request)
         if rejection is not None:
             return rejection
         return super().dispatch(request, *args, **kwargs)
+
+    def _seed_csrf_only(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """Resposta mínima do GET fora de DEBUG: 200, sem IDE, com o cookie."""
+        return HttpResponse(
+            "Endpoint GraphQL. Use POST com uma query.",
+            content_type="text/plain; charset=utf-8",
+        )
