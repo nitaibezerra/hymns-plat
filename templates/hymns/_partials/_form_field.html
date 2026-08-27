@@ -1,0 +1,21 @@
+{% comment %}
+Renderiza um campo de form com label-eyebrow + help/erro.
+
+Uso:
+  {% include 'hymns/_partials/_form_field.html' with field=form.name %}
+  {% include 'hymns/_partials/_form_field.html' with field=form.name eyebrow="Nome do hinário" %}
+
+Espera que o widget do field tenha as classes Tailwind base já aplicadas via
+`forms.py` (`INPUT_BASE`, `SERIF_TEXTAREA`, etc.).
+{% endcomment %}
+<label class="block" for="{{ field.id_for_label }}">
+  <span class="eyebrow flex items-center gap-1.5 mb-1.5">
+    {{ eyebrow|default:field.label }}{% if field.field.required %}<span class="text-rust" aria-hidden="true">*</span>{% endif %}
+  </span>
+  {{ field }}
+  {% if field.errors %}
+    <p class="font-mono text-[11.5px] text-rust mt-1.5 tracking-wide" id="{{ field.id_for_label }}-err">{{ field.errors.0 }}</p>
+  {% elif field.help_text %}
+    <p class="font-serif text-[12.5px] text-ink-mute mt-1.5 leading-snug" id="{{ field.id_for_label }}-help">{{ field.help_text }}</p>
+  {% endif %}
+</label>

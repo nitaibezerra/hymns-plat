@@ -1,0 +1,46 @@
+{% comment %}
+Cards-radio para HymnBook.priority (P1/P2/P3).
+
+Uso:
+  {% include 'hymns/_partials/_priority_radio.html' with field=form.priority %}
+{% endcomment %}
+{% with current=field.value %}
+<div class="flex flex-col gap-2" data-priority-cards>
+  {% for key, label in field.field.choices %}
+    {% if key == "P1" %}
+      {% with color_var="--color-rust" sub="sobe à frente da fila e ganha destaque visual" %}
+      <label class="flex gap-2.5 items-start px-3.5 py-3 rounded-lg cursor-pointer transition-colors {% if current == key %}border-[1.5px] border-rust bg-rust/[0.08]{% else %}border-[1.5px] border-rule bg-cream{% endif %}">
+        <input type="radio" name="{{ field.html_name }}" value="{{ key }}" {% if current == key %}checked{% endif %} class="mt-1 accent-rust">
+        <span class="flex-1">
+          <span class="font-display text-[14px] font-semibold block leading-tight {% if current == key %}text-rust{% else %}text-ink{% endif %}">{{ label }}</span>
+          <span class="font-serif text-[12px] text-ink-mute leading-snug">{{ sub }}</span>
+        </span>
+      </label>
+      {% endwith %}
+    {% elif key == "P2" %}
+      {% with sub="trabalho ativo, sem urgência imediata" %}
+      <label class="flex gap-2.5 items-start px-3.5 py-3 rounded-lg cursor-pointer transition-colors {% if current == key %}border-[1.5px] border-gold bg-gold/[0.08]{% else %}border-[1.5px] border-rule bg-cream{% endif %}">
+        <input type="radio" name="{{ field.html_name }}" value="{{ key }}" {% if current == key %}checked{% endif %} class="mt-1 accent-gold">
+        <span class="flex-1">
+          <span class="font-display text-[14px] font-semibold block leading-tight {% if current == key %}text-gold{% else %}text-ink{% endif %}">{{ label }}</span>
+          <span class="font-serif text-[12px] text-ink-mute leading-snug">{{ sub }}</span>
+        </span>
+      </label>
+      {% endwith %}
+    {% else %}
+      {% with sub="estado padrão — entra na fila por ordem natural" %}
+      <label class="flex gap-2.5 items-start px-3.5 py-3 rounded-lg cursor-pointer transition-colors {% if current == key %}border-[1.5px] border-ink-mute bg-ink-mute/[0.08]{% else %}border-[1.5px] border-rule bg-cream{% endif %}">
+        <input type="radio" name="{{ field.html_name }}" value="{{ key }}" {% if current == key %}checked{% endif %} class="mt-1 accent-ink-mute">
+        <span class="flex-1">
+          <span class="font-display text-[14px] font-semibold block leading-tight {% if current == key %}text-ink-mute{% else %}text-ink{% endif %}">{{ label }}</span>
+          <span class="font-serif text-[12px] text-ink-mute leading-snug">{{ sub }}</span>
+        </span>
+      </label>
+      {% endwith %}
+    {% endif %}
+  {% endfor %}
+</div>
+{% endwith %}
+{% if field.errors %}
+  <p class="font-mono text-[11.5px] text-rust mt-1.5 tracking-wide">{{ field.errors.0 }}</p>
+{% endif %}

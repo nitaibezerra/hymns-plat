@@ -3,61 +3,112 @@
 {% block title %}{{ title }} - {{ block.super }}{% endblock %}
 
 {% block content %}
-<div style="max-width: 700px; margin: 0 auto;">
-    <div class="card">
-        <h1 style="margin: 0 0 20px 0; color: #2c5282; font-size: 28px;">{{ title }}</h1>
+<div class="bg-cream-soft min-h-[calc(100vh-12rem)]">
+  {# Header sticky: ← volta | título centro | eyebrow direita #}
+  <section class="sticky top-0 z-10 bg-cream border-b border-rule">
+    <div class="max-w-5xl mx-auto px-6 md:px-10 py-3.5 grid grid-cols-3 items-center gap-4">
+      <a href="{% if hymnbook %}{% url 'hymns:hymnbook_detail' hymnbook.slug %}{% else %}{% url 'hymns:hymnbook_list' %}{% endif %}"
+         class="font-serif text-sm text-ink-mute justify-self-start no-underline hover:text-gold">
+        ← {% if hymnbook %}Hinário · {{ hymnbook.name }}{% else %}Hinários{% endif %}
+      </a>
+      <div class="text-center">
+        <div class="font-display text-lg leading-none">{{ title }}</div>
+      </div>
+      <span class="eyebrow justify-self-end">{% if hymnbook %}EDITAR HINÁRIO{% else %}NOVO HINÁRIO{% endif %}</span>
+    </div>
+  </section>
 
-        {% if form.errors %}
-        <div style="background: #fee; border-left: 4px solid #c33; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-            <p style="margin: 0; color: #c33; font-weight: bold;">Corrija os erros abaixo:</p>
+  <form method="post" enctype="multipart/form-data" class="max-w-5xl mx-auto px-6 md:px-10 py-10 pb-14">
+    {% csrf_token %}
+
+    {# ErrorBanner consolidado quando há non_field_errors ou múltiplos field errors. #}
+    {% if form.non_field_errors or form.errors %}
+      <div class="border-l-4 border-rust bg-rust/[0.06] rounded-r-lg px-4 py-3 mb-7" role="alert">
+        <div class="eyebrow text-rust mb-1">Corrija antes de salvar</div>
+        <div class="font-serif text-[13.5px] text-ink-soft leading-snug">
+          {% for e in form.non_field_errors %}{{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}
+          {% if form.non_field_errors and form.errors %}<br>{% endif %}
+          {% if form.errors and not form.non_field_errors %}Há campos com problema abaixo — confira os destaques em vermelho.{% endif %}
         </div>
+      </div>
+    {% endif %}
+
+    {# Grid: capa | identidade #}
+    <div class="grid md:grid-cols-[200px_1fr] gap-10 items-start">
+      {# Coluna capa #}
+      <div>
+        {% if hymnbook.cover_image %}
+          <div class="aspect-[3/4] rounded-lg overflow-hidden border border-rule">
+            <img src="{{ hymnbook.cover_image.url }}" alt="Capa de {{ hymnbook.name }}" class="w-full h-full object-cover">
+          </div>
+        {% else %}
+          <div class="aspect-[3/4] rounded-lg overflow-hidden relative grid place-items-center border border-white/10 shadow-soft"
+               style="background: linear-gradient(140deg, {{ hymnbook.display_accent|default:'#1d3b6a' }} 0%, color-mix(in srgb, {{ hymnbook.display_accent|default:'#1d3b6a' }} 60%, black) 100%);">
+            <span class="font-display text-[108px] text-cream/45 leading-none">{{ hymnbook.name|slice:":1"|upper|default:"?" }}</span>
+            <span class="absolute bottom-3 inset-x-0 text-center label-mono text-cream/50">
+              {% if hymnbook %}SEM CAPA{% else %}NOVA CAPA{% endif %}
+            </span>
+          </div>
         {% endif %}
 
-        <form method="post" enctype="multipart/form-data">
-            {% csrf_token %}
+        {# Input file escondido + label clicável #}
+        <div class="mt-3">
+          <label for="{{ form.cover_image.id_for_label }}"
+                 class="btn-outline-firmament text-xs w-full flex justify-center cursor-pointer">
+            {% if hymnbook.cover_image %}Trocar capa{% else %}Adicionar capa{% endif %}
+          </label>
+          {{ form.cover_image }}
+        </div>
+        {% if form.cover_image.errors %}
+          <p class="font-mono text-[11.5px] text-rust mt-1.5">{{ form.cover_image.errors.0 }}</p>
+        {% endif %}
+        <p class="font-serif text-[11.5px] text-ink-mute mt-2.5 leading-snug">
+          PNG, JPG ou WebP. Pelo menos 600×800px. Aparece nos cards do workspace e no detalhe.
+        </p>
+      </div>
 
-            {% for field in form %}
-            <div style="margin-bottom: 20px;">
-                <label for="{{ field.id_for_label }}" style="display: block; margin-bottom: 5px; color: #2c5282; font-weight: 500;">
-                    {{ field.label }}{% if field.field.required %} *{% endif %}
-                </label>
-                {{ field }}
-                {% if field.help_text %}
-                <p style="color: #666; font-size: 13px; margin: 5px 0 0 0;">{{ field.help_text }}</p>
-                {% endif %}
-                {% if field.errors %}
-                <p style="color: #c33; font-size: 14px; margin: 5px 0 0 0;">{{ field.errors.0 }}</p>
-                {% endif %}
-            </div>
-            {% endfor %}
-
-            <div style="display: flex; gap: 10px; margin-top: 30px;">
-                <button type="submit" class="btn" style="flex: 1;">{{ submit_label }}</button>
-                {% if hymnbook %}
-                <a href="{% url 'hymns:hymnbook_detail' hymnbook.slug %}"
-                   class="btn btn-secondary"
-                   style="flex: 1; text-align: center; line-height: 2.5;">Cancelar</a>
-                {% else %}
-                <a href="{% url 'hymns:hymnbook_list' %}"
-                   class="btn btn-secondary"
-                   style="flex: 1; text-align: center; line-height: 2.5;">Cancelar</a>
-                {% endif %}
-            </div>
-        </form>
+      {# Coluna identidade #}
+      <div class="flex flex-col gap-5">
+        {% include 'hymns/_partials/_form_field.html' with field=form.name %}
+        {% include 'hymns/_partials/_form_field.html' with field=form.intro_name %}
+        {% include 'hymns/_partials/_form_field.html' with field=form.owner_name %}
+      </div>
     </div>
-</div>
 
-<style>
-    .form-control {
-        width: 100%;
-        padding: 12px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 16px;
-        box-sizing: border-box;
-        font-family: inherit;
-    }
-    .form-control:focus { outline: none; border-color: #2c5282; }
-    textarea.form-control { resize: vertical; min-height: 100px; }
-</style>
+    {# Descrição full-width #}
+    <div class="mt-10">
+      {% include 'hymns/_partials/_form_field.html' with field=form.description %}
+    </div>
+
+    {# Curadoria editorial — só staff #}
+    {% if request.user.is_staff and form.priority %}
+      <div class="mt-9 p-6 rounded-[10px] border border-rule bg-cream">
+        <div class="flex items-center gap-2.5 mb-5">
+          <span class="grid place-items-center w-[22px] h-[22px] rounded-[5px] bg-ink text-cream font-mono text-[10px] font-semibold">S</span>
+          <span class="eyebrow">CURADORIA EDITORIAL · visível apenas para staff</span>
+        </div>
+        <div class="grid md:grid-cols-2 gap-8 items-start">
+          {# Prioridade #}
+          <div>
+            <span class="eyebrow block mb-2.5">PRIORIDADE NA FILA DE REVISÃO</span>
+            {% include 'hymns/_partials/_priority_radio.html' with field=form.priority %}
+          </div>
+          {# Visibilidade #}
+          <div class="flex flex-col gap-3">
+            <span class="eyebrow block">VISIBILIDADE</span>
+            {% include 'hymns/_partials/_visibility_card.html' with field=form.is_published variant="published" %}
+            {% include 'hymns/_partials/_visibility_card.html' with field=form.is_featured variant="featured" %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {# ActionBar #}
+    <div class="mt-9 pt-6 border-t border-rule flex items-center gap-4 justify-end">
+      <a href="{% if hymnbook %}{% url 'hymns:hymnbook_detail' hymnbook.slug %}{% else %}{% url 'hymns:hymnbook_list' %}{% endif %}"
+         class="btn-outline-firmament">Cancelar</a>
+      <button type="submit" class="btn-primary-firmament">{{ submit_label }} →</button>
+    </div>
+  </form>
+</div>
 {% endblock %}

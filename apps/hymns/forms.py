@@ -3,36 +3,107 @@ Forms for hymns app.
 """
 
 from django import forms
+from django.utils import timezone
 
 from .models import Hymn, HymnBook, HymnBookVersion
+from .permissions import can_publish_hymnbook
+
+INPUT_BASE = (
+    "w-full px-3.5 py-2.5 rounded-lg border border-rule bg-cream-soft "
+    "text-ink outline-none focus:border-gold focus:ring-[3px] focus:ring-gold/35"
+)
+TEXTAREA_BASE = INPUT_BASE + " leading-relaxed resize-y"
+DISPLAY_INPUT = INPUT_BASE + " font-display text-[22px]"
+SERIF_TEXTAREA = TEXTAREA_BASE + " font-serif text-base"
+LETRA_TEXTAREA = SERIF_TEXTAREA + " min-h-[560px] px-7 py-6"
+NUMBER_INPUT = INPUT_BASE + " font-display text-[22px] text-center px-2"
 
 
 class HymnBookForm(forms.ModelForm):
-    """Form para criar/editar HymnBook via web."""
+    """Form para criar/editar HymnBook via web.
+
+    Usuários staff veem campos extras de curadoria editorial (`priority`,
+    `is_featured`, `is_published`). Para non-staff, esses campos são removidos
+    no `__init__` para evitar payload smuggling.
+    """
 
     class Meta:
         model = HymnBook
-        fields = ["name", "intro_name", "owner_name", "description", "cover_image"]
+        fields = [
+            "name",
+            "intro_name",
+            "owner_name",
+            "description",
+            "cover_image",
+            "priority",
+            "is_featured",
+            "is_published",
+        ]
         widgets = {
-            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: O Cruzeiro"}),
-            "intro_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Nome curto (opcional)"}),
-            "owner_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: Mestre Irineu"}),
+            "name": forms.TextInput(attrs={"class": DISPLAY_INPUT, "placeholder": "Ex: O Cruzeiro"}),
+            "intro_name": forms.TextInput(attrs={"class": INPUT_BASE, "placeholder": "Ex: Cruzeiro"}),
+            "owner_name": forms.TextInput(attrs={"class": INPUT_BASE, "placeholder": "Ex: Mestre Irineu"}),
             "description": forms.Textarea(
                 attrs={
-                    "class": "form-control",
-                    "placeholder": "Descrição do hinário (opcional)",
-                    "rows": 4,
+                    "class": SERIF_TEXTAREA,
+                    "placeholder": "História, contexto ou notas sobre o hinário (opcional).",
+                    "rows": 5,
                 }
             ),
-            "cover_image": forms.FileInput(attrs={"class": "form-control", "accept": "image/*"}),
+            "cover_image": forms.FileInput(attrs={"class": "sr-only", "accept": "image/*"}),
+            "priority": forms.RadioSelect(),
+            "is_featured": forms.CheckboxInput(),
+            "is_published": forms.CheckboxInput(),
         }
         labels = {
-            "name": "Nome do Hinário",
-            "intro_name": "Nome Curto",
+            "name": "Nome do hinário",
+            "intro_name": "Nome curto",
             "owner_name": "Dono / Autor",
             "description": "Descrição",
-            "cover_image": "Imagem de Capa",
+            "cover_image": "Imagem de capa",
+            "priority": "Prioridade",
+            "is_featured": "Em destaque",
+            "is_published": "Publicado",
         }
+        help_texts = {
+            "name": "Como aparece nos cards e na capa.",
+            "intro_name": "Nome de exibição curto (opcional).",
+            "owner_name": "Pessoa que recebeu o hinário (texto livre).",
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        if user is None or not user.is_staff:
+            for f in ("priority", "is_featured", "is_published"):
+                self.fields.pop(f, None)
+
+    def clean(self):
+        cleaned = super().clean()
+        wants_publish = cleaned.get("is_published") is True
+        was_published = bool(self.instance.pk and self.instance.is_published)
+
+        if wants_publish and not was_published:
+            if self.user is None or not can_publish_hymnbook(self.user, self.instance):
+                raise forms.ValidationError("Você não tem permissão para publicar este hinário.")
+            from .services.review import publish_readiness
+
+            report = publish_readiness(self.instance)
+            if not report["can_publish"]:
+                failed = [c["label"] for c in report["checks"] if not c["ok"]]
+                raise forms.ValidationError("Hinário ainda não pode ser publicado. Pendências: " + "; ".join(failed))
+        return cleaned
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        wants_publish = self.cleaned_data.get("is_published") is True
+        if wants_publish and not instance.published_at:
+            instance.published_at = timezone.now()
+            instance.published_by = self.user
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class HymnForm(forms.ModelForm):
@@ -52,18 +123,20 @@ class HymnForm(forms.ModelForm):
             "repetitions",
         ]
         widgets = {
-            "number": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
-            "title": forms.TextInput(attrs={"class": "form-control"}),
-            "text": forms.Textarea(attrs={"class": "form-control", "rows": 12, "placeholder": "Letra do hino"}),
-            "received_at": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "offered_to": forms.TextInput(attrs={"class": "form-control"}),
-            "section": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: Offered to Sônia Palhares"}),
-            "style": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: Valsa, Marcha"}),
-            "extra_instructions": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
-            "repetitions": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: 1-4, 5-8"}),
+            "number": forms.NumberInput(attrs={"class": NUMBER_INPUT, "min": 1}),
+            "title": forms.TextInput(attrs={"class": DISPLAY_INPUT}),
+            "text": forms.Textarea(attrs={"class": LETRA_TEXTAREA, "rows": 22, "placeholder": "Letra do hino"}),
+            "received_at": forms.DateInput(attrs={"type": "date", "class": INPUT_BASE}),
+            "offered_to": forms.TextInput(attrs={"class": INPUT_BASE, "placeholder": "Pessoa dedicatária"}),
+            "section": forms.TextInput(attrs={"class": INPUT_BASE, "placeholder": "Ex: Oferecido a Sônia Palhares"}),
+            "style": forms.TextInput(attrs={"class": INPUT_BASE, "placeholder": "Ex: Valsa, Marcha"}),
+            "extra_instructions": forms.Textarea(
+                attrs={"class": TEXTAREA_BASE, "rows": 2, "placeholder": "Instruções especiais de canto (opcional)."}
+            ),
+            "repetitions": forms.TextInput(attrs={"class": INPUT_BASE, "placeholder": "1-4, 5-8"}),
         }
         labels = {
-            "number": "Número",
+            "number": "Nº",
             "title": "Título",
             "text": "Letra",
             "received_at": "Recebido em",
@@ -72,6 +145,10 @@ class HymnForm(forms.ModelForm):
             "style": "Estilo",
             "extra_instructions": "Instruções",
             "repetitions": "Repetições",
+        }
+        help_texts = {
+            "section": "Subgrupo dentro do hinário (opcional).",
+            "repetitions": "Formato livre, ex: 1-4, 5-8.",
         }
 
     def __init__(self, *args, hymn_book=None, **kwargs):

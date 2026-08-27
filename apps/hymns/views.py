@@ -14,6 +14,14 @@ from .forms import HymnBookEditorialForm, HymnBookForm, HymnForm
 from .models import Hymn, HymnAudio, HymnBook
 from .permissions import can_create_hymnbook, can_edit_hymnbook, can_publish_hymnbook
 
+REPETITION_SUGGESTIONS = ["todos 2×", "1-4, 5-8", "sem repetição"]
+
+
+def _style_suggestions(limit: int = 8) -> list[str]:
+    """Top-N estilos mais comuns no banco, decrescente por frequência."""
+    rows = Hymn.objects.exclude(style="").values("style").annotate(c=Count("style")).order_by("-c", "style")[:limit]
+    return [row["style"] for row in rows]
+
 
 def _annotate_card_counts(queryset):
     """Anota `n_hymns_anno` e `n_audios_anno` em cada HymnBook do queryset.
@@ -337,7 +345,7 @@ def hymnbook_create_view(request):
         return redirect("hymns:hymnbook_list")
 
     if request.method == "POST":
-        form = HymnBookForm(request.POST, request.FILES)
+        form = HymnBookForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             hymnbook = form.save(commit=False)
             hymnbook.owner_user = request.user
@@ -345,11 +353,11 @@ def hymnbook_create_view(request):
             messages.success(request, f"Hinário '{hymnbook.name}' criado com sucesso.")
             return redirect("hymns:hymnbook_detail", slug=hymnbook.slug)
     else:
-        form = HymnBookForm()
+        form = HymnBookForm(user=request.user)
     return render(
         request,
         "hymns/hymnbook_form.html",
-        {"form": form, "title": "Novo Hinário", "submit_label": "Criar"},
+        {"form": form, "title": "Criar hinário", "submit_label": "Criar hinário"},
     )
 
 
@@ -362,20 +370,20 @@ def hymnbook_edit_view(request, slug):
         return redirect("hymns:hymnbook_detail", slug=slug)
 
     if request.method == "POST":
-        form = HymnBookForm(request.POST, request.FILES, instance=hymnbook)
+        form = HymnBookForm(request.POST, request.FILES, instance=hymnbook, user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, "Hinário atualizado.")
             return redirect("hymns:hymnbook_detail", slug=hymnbook.slug)
     else:
-        form = HymnBookForm(instance=hymnbook)
+        form = HymnBookForm(instance=hymnbook, user=request.user)
     return render(
         request,
         "hymns/hymnbook_form.html",
         {
             "form": form,
-            "title": f"Editar: {hymnbook.name}",
-            "submit_label": "Salvar",
+            "title": "Editar hinário",
+            "submit_label": "Salvar alterações",
             "hymnbook": hymnbook,
         },
     )
@@ -517,8 +525,10 @@ def hymn_create_view(request, slug):
         {
             "form": form,
             "hymnbook": hymnbook,
-            "title": f"Novo Hino em {hymnbook.name}",
-            "submit_label": "Criar",
+            "title": "Adicionar hino",
+            "submit_label": "Criar hino",
+            "style_suggestions": _style_suggestions(),
+            "repetition_suggestions": REPETITION_SUGGESTIONS,
         },
     )
 
@@ -546,8 +556,10 @@ def hymn_edit_view(request, pk):
             "form": form,
             "hymnbook": hymn.hymn_book,
             "hymn": hymn,
-            "title": f"Editar Hino #{hymn.number}",
-            "submit_label": "Salvar",
+            "title": "Editar hino",
+            "submit_label": "Salvar alterações",
+            "style_suggestions": _style_suggestions(),
+            "repetition_suggestions": REPETITION_SUGGESTIONS,
         },
     )
 

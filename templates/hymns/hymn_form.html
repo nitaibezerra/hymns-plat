@@ -1,66 +1,156 @@
 {% extends "base.html" %}
 
-{% block title %}{{ title }} - {{ block.super }}{% endblock %}
+{% block title %}{{ title }} · {{ hymnbook.name }} - {{ block.super }}{% endblock %}
 
 {% block content %}
-<div style="max-width: 800px; margin: 0 auto;">
-    <div class="card">
-        <p style="margin: 0 0 5px 0; color: #666; font-size: 14px;">
-            <a href="{% url 'hymns:hymnbook_detail' hymnbook.slug %}" style="color: #2c5282;">{{ hymnbook.name }}</a>
-        </p>
-        <h1 style="margin: 0 0 20px 0; color: #2c5282; font-size: 26px;">{{ title }}</h1>
-
-        {% if form.errors %}
-        <div style="background: #fee; border-left: 4px solid #c33; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-            <p style="margin: 0; color: #c33; font-weight: bold;">Corrija os erros abaixo:</p>
-        </div>
-        {% endif %}
-
-        <form method="post">
-            {% csrf_token %}
-
-            {% for field in form %}
-            <div style="margin-bottom: 20px;">
-                <label for="{{ field.id_for_label }}" style="display: block; margin-bottom: 5px; color: #2c5282; font-weight: 500;">
-                    {{ field.label }}{% if field.field.required %} *{% endif %}
-                </label>
-                {{ field }}
-                {% if field.help_text %}
-                <p style="color: #666; font-size: 13px; margin: 5px 0 0 0;">{{ field.help_text }}</p>
-                {% endif %}
-                {% if field.errors %}
-                <p style="color: #c33; font-size: 14px; margin: 5px 0 0 0;">{{ field.errors.0 }}</p>
-                {% endif %}
-            </div>
-            {% endfor %}
-
-            <div style="display: flex; gap: 10px; margin-top: 30px;">
-                <button type="submit" class="btn" style="flex: 1;">{{ submit_label }}</button>
-                {% if hymn %}
-                <a href="{% url 'hymns:hymn_detail' hymn.pk %}"
-                   class="btn btn-secondary"
-                   style="flex: 1; text-align: center; line-height: 2.5;">Cancelar</a>
-                {% else %}
-                <a href="{% url 'hymns:hymnbook_detail' hymnbook.slug %}"
-                   class="btn btn-secondary"
-                   style="flex: 1; text-align: center; line-height: 2.5;">Cancelar</a>
-                {% endif %}
-            </div>
-        </form>
+<div class="bg-cream-soft min-h-[calc(100vh-12rem)]">
+  {# Header sticky: ← volta | título + sub-mono | eyebrow direita #}
+  <section class="sticky top-0 z-10 bg-cream border-b border-rule">
+    <div class="max-w-6xl mx-auto px-6 md:px-10 py-3 grid grid-cols-3 items-center gap-4">
+      <a href="{% url 'hymns:hymnbook_detail' hymnbook.slug %}"
+         class="font-serif text-sm text-ink-mute justify-self-start no-underline hover:text-gold">
+        ← {{ hymnbook.name }}
+      </a>
+      <div class="text-center">
+        <div class="font-display text-lg leading-none">{{ title }}</div>
+        <div class="label-mono mt-0.5 text-[10px]">{{ hymnbook.name|upper }}</div>
+      </div>
+      <span class="eyebrow justify-self-end">
+        {% if hymn %}EDITAR HINO #{{ hymn.number }}{% else %}NOVO HINO{% endif %}
+      </span>
     </div>
+  </section>
+
+  <form method="post" class="max-w-6xl mx-auto px-6 md:px-10 py-9 pb-14">
+    {% csrf_token %}
+
+    {% if form.non_field_errors or form.errors %}
+      <div class="border-l-4 border-rust bg-rust/[0.06] rounded-r-lg px-4 py-3 mb-7" role="alert">
+        <div class="eyebrow text-rust mb-1">Corrija antes de salvar</div>
+        <div class="font-serif text-[13.5px] text-ink-soft leading-snug">
+          {% for e in form.non_field_errors %}{{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}
+          {% if form.non_field_errors and form.errors %}<br>{% endif %}
+          {% if form.errors and not form.non_field_errors %}Há campos com problema abaixo — confira os destaques em vermelho.{% endif %}
+        </div>
+      </div>
+    {% endif %}
+
+    {# Grid: metadados (esquerda) | LETRA (direita, produto) #}
+    <div class="grid lg:grid-cols-[minmax(0,380px)_1fr] gap-10 items-start">
+      {# COLUNA ESQUERDA — metadados #}
+      <div>
+        <div class="eyebrow mb-4">METADADOS</div>
+
+        {# Nº + título lado a lado #}
+        <div class="grid grid-cols-[88px_1fr] gap-3 mb-5">
+          {% include 'hymns/_partials/_form_field.html' with field=form.number %}
+          {% include 'hymns/_partials/_form_field.html' with field=form.title %}
+        </div>
+
+        {# received_at + offered_to #}
+        <div class="grid grid-cols-2 gap-3 mb-5">
+          {% include 'hymns/_partials/_form_field.html' with field=form.received_at %}
+          {% include 'hymns/_partials/_form_field.html' with field=form.offered_to %}
+        </div>
+
+        <div class="mb-6">
+          {% include 'hymns/_partials/_form_field.html' with field=form.section %}
+        </div>
+
+        <hr class="hairline">
+
+        {# Estilo + chips #}
+        <div class="mt-5 mb-5">
+          {% include 'hymns/_partials/_form_field.html' with field=form.style %}
+          {% if style_suggestions %}
+            <div class="suggestion-chips mt-2" data-target="{{ form.style.id_for_label }}">
+              {% for s in style_suggestions %}
+                <button type="button" class="shortcut-pill" data-value="{{ s }}">{{ s }}</button>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+
+        {# Repetições + chips #}
+        <div class="mb-5">
+          {% include 'hymns/_partials/_form_field.html' with field=form.repetitions %}
+          {% if repetition_suggestions %}
+            <div class="suggestion-chips mt-2" data-target="{{ form.repetitions.id_for_label }}">
+              {% for r in repetition_suggestions %}
+                <button type="button" class="shortcut-pill" data-value="{{ r }}">{{ r }}</button>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+
+        {% include 'hymns/_partials/_form_field.html' with field=form.extra_instructions %}
+      </div>
+
+      {# COLUNA DIREITA — a LETRA #}
+      <div>
+        <div class="eyebrow mb-4">LETRA</div>
+        {{ form.text }}
+        <div class="font-mono text-[11px] text-ink-mute tracking-[.04em] mt-2 flex gap-4">
+          <span><span data-line-count>0</span> linha<span data-line-plural>s</span></span>
+          <span><span data-char-count>0</span> caractere<span data-char-plural>s</span></span>
+        </div>
+        {% if form.text.errors %}
+          <p class="font-mono text-[11.5px] text-rust mt-1.5">{{ form.text.errors.0 }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ActionBar #}
+    <div class="mt-9 pt-6 border-t border-rule flex items-center gap-4 justify-end">
+      <a href="{% if hymn %}{% url 'hymns:hymn_detail' hymn.pk %}{% else %}{% url 'hymns:hymnbook_detail' hymnbook.slug %}{% endif %}"
+         class="btn-outline-firmament">Cancelar</a>
+      <button type="submit" class="btn-primary-firmament">{{ submit_label }} →</button>
+    </div>
+  </form>
 </div>
 
-<style>
-    .form-control {
-        width: 100%;
-        padding: 12px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 16px;
-        box-sizing: border-box;
-        font-family: inherit;
-    }
-    .form-control:focus { outline: none; border-color: #2c5282; }
-    textarea.form-control { resize: vertical; min-height: 200px; font-family: Georgia, serif; }
-</style>
+<script>
+(function () {
+  // Chips: clicar escreve no input; input emite event → marca chip ativo.
+  document.querySelectorAll('.suggestion-chips[data-target]').forEach(function (group) {
+    var input = document.getElementById(group.dataset.target);
+    if (!input) return;
+    var sync = function () {
+      var v = (input.value || '').trim().toLowerCase();
+      group.querySelectorAll('.shortcut-pill').forEach(function (b) {
+        b.classList.toggle('is-active', (b.dataset.value || '').toLowerCase() === v);
+      });
+    };
+    group.addEventListener('click', function (e) {
+      var b = e.target.closest('.shortcut-pill');
+      if (!b) return;
+      e.preventDefault();
+      input.value = b.dataset.value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      sync();
+    });
+    input.addEventListener('input', sync);
+    sync();
+  });
+
+  // Contador de linhas e caracteres da LETRA.
+  var text = document.querySelector('textarea[name="text"]');
+  var lineEl = document.querySelector('[data-line-count]');
+  var charEl = document.querySelector('[data-char-count]');
+  var linePl = document.querySelector('[data-line-plural]');
+  var charPl = document.querySelector('[data-char-plural]');
+  if (text && lineEl && charEl) {
+    var upd = function () {
+      var lines = text.value ? (text.value.match(/\n/g) || []).length + 1 : 0;
+      var chars = text.value.length;
+      lineEl.textContent = lines;
+      charEl.textContent = chars;
+      if (linePl) linePl.textContent = lines === 1 ? '' : 's';
+      if (charPl) charPl.textContent = chars === 1 ? '' : 's';
+    };
+    text.addEventListener('input', upd);
+    upd();
+  }
+})();
+</script>
 {% endblock %}
