@@ -219,6 +219,21 @@ async function submit() {
   await fireEvent.click(screen.getByTestId("quick-review-submit"));
 }
 
+/**
+ * Espera o `submit` terminar o voo INTEIRO antes de o teste acabar.
+ *
+ * O handler faz duas chamadas em sequência: `quickReviewHymn` e, só depois,
+ * `fetchNextIncompleteHymn`. Um teste que assere só a primeira e retorne deixa
+ * a segunda pendente — e o `afterEach` devolve o `fetch` REAL justamente pra
+ * essa continuação, que então tenta a rede (`localhost:8000`, o default de
+ * `config.ts`). Os arquivos passam, e o vitest sai 1 com um `TypeError: fetch
+ * failed` sem dono aparente. Foi o que reprovou o job "Web Test & Build" na
+ * PR #62 enquanto passava na máquina de quem tinha um runserver na :8000.
+ */
+async function aguardarFimDoVoo(fetchFn: ReturnType<typeof vi.fn>) {
+  await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(2));
+}
+
 describe("/editor/hinarios/[slug]/revisao-agil — submit (5E.3)", () => {
   it("chama quickReviewHymn com o pk do hino e os dois campos", async () => {
     const fetchFn = stubSequence(savedPayload(), nextIncompletePayload(null));
@@ -230,6 +245,7 @@ describe("/editor/hinarios/[slug]/revisao-agil — submit (5E.3)", () => {
     await waitFor(() => expect(fetchFn).toHaveBeenCalled());
     const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
     expect(body.query).toContain("quickReviewHymn");
+    await aguardarFimDoVoo(fetchFn);
     expect(body.variables).toEqual({ pk: "h2", style: "Mazurca", repetitions: "1-4" });
   });
 
@@ -291,12 +307,18 @@ describe("/editor/hinarios/[slug]/revisao-agil — submit (5E.3)", () => {
 
   it("desabilita o botão enquanto salva (evita duplo submit)", async () => {
     let release: (value: Response) => void = () => {};
-    const fn = vi.fn().mockReturnValueOnce(new Promise<Response>((r) => (release = r)));
+    const fn = vi
+      .fn()
+      .mockReturnValueOnce(new Promise<Response>((r) => (release = r)))
+      // A segunda chamada (`fetchNextIncompleteHymn`) precisa de resposta: sem
+      // ela o voo não termina e o teste vaza trabalho pendente pro `afterEach`.
+      .mockResolvedValueOnce(jsonResponse(nextIncompletePayload(null)));
     globalThis.fetch = fn as unknown as typeof fetch;
     render(Page, { props: { data: pageData() } });
     await submit();
     await waitFor(() => expect(screen.getByTestId("quick-review-submit")).toBeDisabled());
     release(jsonResponse(savedPayload()));
+    await aguardarFimDoVoo(fn);
   });
 
   it("Enter submete sem precisar do botão", async () => {
@@ -306,6 +328,7 @@ describe("/editor/hinarios/[slug]/revisao-agil — submit (5E.3)", () => {
     await waitFor(() => expect(fetchFn).toHaveBeenCalled());
     const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
     expect(body.query).toContain("quickReviewHymn");
+    await aguardarFimDoVoo(fetchFn);
   });
 });
 

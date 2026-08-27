@@ -7,31 +7,31 @@
  *   2. Captura a rota equivalente no SvelteKit (`:5173`) — mesma corrida,
  *      mesmo browser, mesmo viewport, mesmo tema, animações congeladas,
  *      `prefers-reduced-motion: reduce`, mesmas máscaras.
- *   3. Confere que os DOIS lados renderizaram conteúdo real (status HTTP e
- *      ausência do estado de erro do shell).
+ *   3. Confere que os DOIS lados renderizaram conteúdo real: status HTTP,
+ *      ausência de estado de erro, ausência de estado VAZIO e (onde a
+ *      contagem significa algo) um piso de itens listados.
  *   4. Compara as duas capturas pixel a pixel com `pixelmatch` e falha se o
  *      diff passar do threshold, emitindo o percentual medido.
  *
- * **O que mudou em relação ao Sub-marco 4.I** (e por quê):
+ * **A suíte roda contra a FIXTURE, não contra o banco de dev.** Antes ela
+ * apontava pra `o-justiceiro` e pro usuário `nitaibezerra`, que só existem no
+ * Postgres de uma máquina — e foi por isso que as 8 specs ficaram vermelhas e
+ * fora do CI. O `seed_e2e` agora semeia `e2e-paridade`: 24 hinos, 12 linhas de
+ * letra cada, estilo e repetições preenchidos, um áudio aprovado e tocável,
+ * mais seguidores e notificações pro editor. Densidade importa: comparar telas
+ * quase vazias mede o fundo creme, não o design (ver o falso verde de
+ * `/busca/` em `_plan/marco4-diff-notes.md`).
  *
- * A versão anterior usava `expect(svelteShot).toMatchSnapshot("<id>.png")`.
- * `toMatchSnapshot` é snapshot-file-based por construção: a baseline vem do
- * disco. Na primeira corrida ela gravava a captura do **SvelteKit** como
- * baseline e, dali em diante, comparava SvelteKit contra SvelteKit — 0% de
- * diff sempre, independentemente do Django, cuja captura era só conferida com
- * `expect(djangoShot).toBeTruthy()`. O critério de aceite (">=95% das rotas
- * com diff <=5%") nunca foi medido.
- *
- * Agora não existe baseline em disco: as duas capturas são feitas ao vivo na
- * mesma corrida e comparadas uma contra a outra. Artefatos de inspeção (as
- * duas capturas + o PNG de diff) vão pra `test-results/visual-parity/`, que o
- * `web/.gitignore` já cobre — nada disso é commitado.
+ * Pra medir contra o banco de dev — hinário de 124 hinos, letra longa de
+ * verdade, dezenas de áudios — sobrescreva os três env: veja
+ * "Modo banco de dev" abaixo. Os dois modos foram medidos e o resultado é o
+ * mesmo em ordem de grandeza; a fixture não subestima a divergência.
  *
  * **Pra rodar:**
  *
  * ```bash
  * cd web
- * ./scripts/dev-fullstack.sh
+ * ./scripts/dev-fullstack.sh          # semeia e sobe Django :9000 + SvelteKit :5173
  * pnpm test:e2e:parity
  * ./scripts/dev-fullstack.sh down
  * ```
@@ -39,6 +39,15 @@
  * Sem `HINARIA_E2E_PLAYWRIGHT_READY=1` a suíte fica em skip, pra CI normal não
  * depender da orquestração full-stack. Resultados e pendências ficam em
  * `_plan/marco4-diff-notes.md`.
+ *
+ * **Esta suíte NÃO está na seleção do CI (`pnpm test:e2e:ci`), e é de
+ * propósito.** Ela é determinística agora, mas o veredito medido é NEGATIVO: o
+ * shell SvelteKit é um design diferente do monolito, não uma réplica, e o
+ * critério do Sub-marco 4.I (">=95% das rotas com diff <=5%") está longe.
+ * Colocá-la num check required deixaria `development` vermelho por um motivo
+ * que não é regressão, e baixar o threshold pra caber no resultado seria
+ * apagar o achado. Ela é o INSTRUMENTO que mede a distância; a tabela medida e
+ * a hipótese de causa por rota estão na nota do plano.
  */
 
 import { expect, test } from "@playwright/test";
@@ -46,22 +55,64 @@ import type { Page } from "@playwright/test";
 
 import { captureRouteWithDiagnostics } from "./_helpers/capture";
 import { contentBalance, formatRatio, inkRatio } from "./_helpers/image-diff";
-import { authenticatedContextState, describeAuthFixture } from "./_helpers/auth-fixture";
+import { describeSessionFailure, seedSession } from "./_helpers/editor-session";
+import {
+  PARITY_BOOK_SLUG,
+  PARITY_HYMN_COUNT,
+  PARITY_SEARCH_QUERY,
+  SEED_BOOKS,
+  describeSeedMissing,
+  editorUsername,
+} from "./_helpers/seed-fixture";
 import {
   DEFAULT_MAX_DIFF_RATIO,
   assertVisualParity,
   formatParityLine,
-  type ParityOutcome,
+  readMeasurements,
+  recordMeasurement,
+  resetMeasurements,
 } from "./_helpers/parity-report";
-import { findLoadFailure } from "./_helpers/render-guard";
+import { countOccurrences, findEmptyState, findLoadFailure } from "./_helpers/render-guard";
 
 const DJANGO_BASE = process.env.HINARIA_DJANGO_BASE_URL ?? "http://localhost:9000";
 const SVELTE_BASE = process.env.HINARIA_SVELTE_BASE_URL ?? "http://localhost:5173";
 
-/** Slug de hinário publicado em dev (o-justiceiro, o-cruzeiro, selecao-ingrid, viagem). */
-const HYMN_BOOK_SLUG = process.env.HINARIA_E2E_HYMNBOOK_SLUG ?? "o-justiceiro";
-const USERNAME = process.env.HINARIA_E2E_USERNAME ?? "nitaibezerra";
-const SEARCH_QUERY = process.env.HINARIA_E2E_SEARCH_QUERY ?? "luz";
+/**
+ * **Modo banco de dev.** Os três overrides abaixo apontam a suíte pra dados
+ * reais em vez da fixture:
+ *
+ * ```bash
+ * HINARIA_E2E_HYMNBOOK_SLUG=o-justiceiro \
+ *   HINARIA_E2E_USERNAME=<usuário do banco> \
+ *   HINARIA_E2E_PASSWORD=<senha dele> \
+ *   HINARIA_E2E_SEARCH_QUERY=luz \
+ *   pnpm test:e2e:parity
+ * ```
+ *
+ * Vale pra conferir que a fixture não está escondendo divergência (foi feito;
+ * ver a nota do plano). Não serve pra CI: o banco de dev não existe lá.
+ */
+const HYMN_BOOK_SLUG = process.env.HINARIA_E2E_HYMNBOOK_SLUG ?? PARITY_BOOK_SLUG;
+const USERNAME = process.env.HINARIA_E2E_USERNAME ?? editorUsername();
+const SEARCH_QUERY = process.env.HINARIA_E2E_SEARCH_QUERY ?? PARITY_SEARCH_QUERY;
+
+/** `true` quando a suíte está medindo a fixture semeada. */
+const MODO_FIXTURE = HYMN_BOOK_SLUG === PARITY_BOOK_SLUG;
+
+/** Hinários publicados da fixture — o que aparece em `/` e em `/hinarios/`. */
+const SEED_PUBLICADOS = SEED_BOOKS.filter((book) => book.isPublished).length;
+
+/**
+ * Equilíbrio de densidade de conteúdo abaixo do qual um "passou" é SUSPEITO.
+ *
+ * Não é gate — é rótulo. O threshold de 5% do Sub-marco 4.I conta pixels do
+ * viewport inteiro, e numa página que é 95% fundo creme QUALQUER conteúdo
+ * divergente cabe nos 5%. Medido em 2026-08-27: `hymnbook-corrido` deu 1,95%
+ * de diff (PASSA) com 40,36% de tinta no Django contra 2,16% no shell — as
+ * duas capturas em `test-results/visual-parity/` são visivelmente outro
+ * design. O rótulo existe pra esse "passou" não ser lido como paridade.
+ */
+const EQUILIBRIO_SUSPEITO = 0.5;
 
 /**
  * Máscaras aplicadas em TODAS as rotas, pras regiões legitimamente voláteis.
@@ -81,7 +132,7 @@ const GLOBAL_MASKS = {
  * Chrome escondido antes da captura, porque existe só num dos lados.
  *
  * O `django-debug-toolbar` roda no dev server do Django (`config.settings.local`)
- * e o painel abre expandido, cobrindo ~220px da direita da viewport — ~17% da
+ * e o painel abre expandido, cobrindo ~220px da direita da viewport — ~16% da
  * área. Não existe no shell SvelteKit. Medido: comparando o Django contra ELE
  * MESMO, a rota `profile` dava 1,52% de diff só pelo texto de CPU/queries do
  * painel, que muda a cada request; contra o SvelteKit o painel inteiro entraria
@@ -101,21 +152,22 @@ const GLOBAL_HIDE = {
  *
  * ```bash
  * HINARIA_E2E_SELF_COMPARE=1 \
- *   HINARIA_DJANGO_BASE_URL=http://localhost:9010 \
- *   HINARIA_SVELTE_BASE_URL=http://localhost:9010 \
+ *   HINARIA_DJANGO_BASE_URL=http://localhost:9000 \
+ *   HINARIA_SVELTE_BASE_URL=http://localhost:9000 \
  *   pnpm test:e2e:parity
  * ```
  */
 const SELF_COMPARE = !!process.env.HINARIA_E2E_SELF_COMPARE;
 
-/**
- * Equilíbrio mínimo de densidade de conteúdo entre os dois lados (ver
- * `contentBalance`). Abaixo disso um dos lados claramente não renderizou o
- * conteúdo, e comparar pixels não mede paridade de design.
- */
-const MIN_CONTENT_BALANCE = 0.5;
-
 type Paths = { django: string; svelte: string };
+
+/** Piso de itens listados, contado no HTML CRU dos dois lados. */
+type ContentFloor = {
+  /** Trecho literal a contar (`href="/hinos/` casa nos dois apps). */
+  needle: string;
+  /** Mínimo exigido em cada lado. */
+  min: number;
+};
 
 type RouteCase = {
   /** Identificador estável — vira nome dos arquivos de artefato. */
@@ -128,42 +180,64 @@ type RouteCase = {
   masks?: { django?: string[]; svelte?: string[] };
   /** Seletores extras a esconder, específicos da rota. */
   hide?: { django?: string[]; svelte?: string[] };
-  /** Rotas que exigem sessão autenticada. */
+  /** Rotas que exigem sessão autenticada em pelo menos um dos lados. */
   requiresAuth?: boolean;
+  /** Piso de conteúdo, quando contar itens diz algo (só no modo fixture). */
+  floor?: ContentFloor;
 };
 
 /**
  * Tabela de paridade — espelho da seção "Rotas cobertas" em
  * `_plan/marco4-diff-notes.md`. Manter as duas em sincronia.
+ *
+ * **Duas rotas não têm o mesmo path nos dois lados**, e isso é achado, não
+ * descuido: no Django, `?mode=corrido|carrossel` em `/hinarios/<slug>/`
+ * **redireciona** pra `/hinarios/<slug>/ler/?modo=…` (a leitura virou view
+ * própria), enquanto o shell manteve o `?mode=` na mesma rota. A tabela aponta
+ * pro destino final de cada lado em vez de depender do redirect legado, que
+ * pode sair a qualquer momento.
  */
 const ROUTES: ReadonlyArray<RouteCase> = [
-  { id: "home", paths: { django: "/", svelte: "/" } },
-  { id: "hinarios-list", paths: { django: "/hinarios/", svelte: "/hinarios/" } },
+  // O piso é o número de hinários PUBLICADOS da fixture: é o que os dois lados
+  // têm obrigação de listar. Contagens exatas divergem de propósito — o Django
+  // repete `href="/hinarios/` na navegação e o shell usa `/hinarios` sem barra
+  // no menu — e exigir igualdade mediria o markup, não o conteúdo.
+  {
+    id: "home",
+    paths: { django: "/", svelte: "/" },
+    floor: { needle: 'href="/hinarios/', min: SEED_PUBLICADOS },
+  },
+  {
+    id: "hinarios-list",
+    paths: { django: "/hinarios/", svelte: "/hinarios/" },
+    floor: { needle: 'href="/hinarios/', min: SEED_PUBLICADOS },
+  },
   {
     id: "hymnbook-indice",
     paths: {
       django: `/hinarios/${HYMN_BOOK_SLUG}/?mode=indice`,
       svelte: `/hinarios/${HYMN_BOOK_SLUG}/?mode=indice`,
     },
+    floor: { needle: 'href="/hinos/', min: Math.min(20, PARITY_HYMN_COUNT) },
   },
   {
     id: "hymnbook-corrido",
     paths: {
-      django: `/hinarios/${HYMN_BOOK_SLUG}/?mode=corrido`,
+      django: `/hinarios/${HYMN_BOOK_SLUG}/ler/?modo=corrido`,
       svelte: `/hinarios/${HYMN_BOOK_SLUG}/?mode=corrido`,
     },
   },
   {
     id: "hymnbook-carrossel",
     paths: {
-      django: `/hinarios/${HYMN_BOOK_SLUG}/?mode=carrossel`,
+      django: `/hinarios/${HYMN_BOOK_SLUG}/ler/?modo=carrossel`,
       svelte: `/hinarios/${HYMN_BOOK_SLUG}/?mode=carrossel`,
     },
   },
   // `/hinos/<pk>/` é `<uuid:pk>` nos dois lados; o pk é descoberto na hora a
   // partir do índice do hinário no Django, em vez de vir de um default fixo
-  // (o `HINARIA_E2E_HYMN_PK=1` do 4.I não existia no Postgres dev e a rota
-  // ficou fora da medição).
+  // (o `HINARIA_E2E_HYMN_PK=1` do 4.I não existia no Postgres e a rota ficou
+  // fora da medição).
   { id: "hymn-detail", paths: resolveHymnPaths },
   {
     id: "busca",
@@ -171,17 +245,24 @@ const ROUTES: ReadonlyArray<RouteCase> = [
       django: `/busca/?q=${encodeURIComponent(SEARCH_QUERY)}`,
       svelte: `/busca/?q=${encodeURIComponent(SEARCH_QUERY)}`,
     },
+    floor: { needle: 'href="/hinos/', min: 1 },
   },
   {
     id: "profile",
     paths: { django: `/perfil/${USERNAME}/`, svelte: `/perfil/${USERNAME}/` },
   },
+  // `/seguidores/` e `/seguindo/` são `@login_required` no Django
+  // (`apps/users/views_social.py`) e PÚBLICAS no shell. Medido: como anônimo,
+  // o Django devolve 302 pro `/accounts/login/` e o shell renderiza a lista —
+  // a comparação media página de login contra página real. Com sessão as duas
+  // medem a mesma tela. A divergência de gate está registrada na nota.
   {
     id: "profile-followers",
     paths: {
       django: `/perfil/${USERNAME}/seguidores/`,
       svelte: `/perfil/${USERNAME}/seguidores/`,
     },
+    requiresAuth: true,
   },
   {
     id: "profile-following",
@@ -189,6 +270,7 @@ const ROUTES: ReadonlyArray<RouteCase> = [
       django: `/perfil/${USERNAME}/seguindo/`,
       svelte: `/perfil/${USERNAME}/seguindo/`,
     },
+    requiresAuth: true,
   },
   {
     id: "notifications",
@@ -215,13 +297,13 @@ async function resolveHymnPaths(page: Page): Promise<Paths> {
   if (!pk) {
     throw new Error(
       `Não achei nenhum link /hinos/<pk>/ no índice de "${HYMN_BOOK_SLUG}" no Django. ` +
-        "Confira HINARIA_E2E_HYMNBOOK_SLUG ou passe HINARIA_E2E_HYMN_PK.",
+        `${describeSeedMissing()} Ou passe HINARIA_E2E_HYMNBOOK_SLUG / HINARIA_E2E_HYMN_PK.`,
     );
   }
   return { django: `/hinos/${pk}/`, svelte: `/hinos/${pk}/` };
 }
 
-const measured: ParityOutcome[] = [];
+
 
 test.describe("Paridade visual Django ↔ SvelteKit", () => {
   test.skip(
@@ -235,21 +317,33 @@ test.describe("Paridade visual Django ↔ SvelteKit", () => {
       browser,
       page,
     }) => {
-      const contextState = route.requiresAuth ? await authenticatedContextState() : null;
-      if (route.requiresAuth && !contextState) {
-        // Sem fixture de auth utilizável a rota não é medível — e um skip
-        // silencioso foi justamente o que deixou `/notificacoes/` fora da
-        // conta no 4.I. O motivo vai explícito na mensagem.
-        test.skip(true, describeAuthFixture());
-      }
+      // A primeira rota da tabela limpa o placar da corrida anterior. Roda uma
+      // vez só por corrida, falhe ela ou não — e o placar tem que viver em
+      // disco porque o Playwright reinicia o worker depois de cada falha (ver
+      // `_helpers/parity-report.ts`).
+      if (route.id === ROUTES[0].id) resetMeasurements();
 
-      const workPage = contextState
-        ? await (await browser.newContext({ storageState: contextState })).newPage()
-        : page;
+      let workPage = page;
+      if (route.requiresAuth) {
+        // A sessão sai da mutation `login` de verdade (`_helpers/editor-session`),
+        // não do form do django-admin: aquele exige `is_staff`, e dar staff ao
+        // editor da fixture o faria passar por gates que um editor comum não
+        // passa. Falha de login é ERRO com motivo, nunca skip silencioso — foi
+        // um skip desses que deixou `/notificacoes/` fora da conta no 4.I.
+        const session = await seedSession(USERNAME);
+        expect(session, describeSessionFailure(USERNAME)).not.toBeNull();
+        const context = await browser.newContext({ storageState: session!.state });
+        workPage = await context.newPage();
+      }
 
       const paths =
         typeof route.paths === "function" ? await route.paths(workPage) : route.paths;
 
+      // Django primeiro, e nesta ordem de propósito: `/notificacoes/` do
+      // Django MARCA as não lidas como lidas ao renderizar
+      // (`views_social.notifications_list`), enquanto o shell só lê. Capturando
+      // o Django antes, os dois lados mostram os mesmos itens já lidos; ao
+      // contrário, o shell mostraria "não lida" e o Django não.
       const django = await captureRouteWithDiagnostics(
         workPage,
         `${DJANGO_BASE}${paths.django}`,
@@ -271,8 +365,9 @@ test.describe("Paridade visual Django ↔ SvelteKit", () => {
         },
       );
 
-      // Guardas: um percentual só significa paridade se os dois lados
-      // renderizaram conteúdo de verdade.
+      // ---- Guardas: um percentual só significa paridade se os dois lados
+      // renderizaram conteúdo de verdade. --------------------------------- //
+
       expect(
         django.status,
         `Django respondeu ${django.status} em ${paths.django} — captura de referência inválida`,
@@ -293,49 +388,147 @@ test.describe("Paridade visual Django ↔ SvelteKit", () => {
         svelteFailure,
         `SvelteKit renderizou estado de erro em ${paths.svelte}: ${svelteFailure}. ` +
           "Enquanto isso acontecer o diff mede 'página de erro vs página real', " +
-          "não paridade de design — ver o bloqueador de CSRF em " +
-          "_plan/marco4-diff-notes.md.",
+          "não paridade de design.",
       ).toBeNull();
 
-      // Guarda de densidade de conteúdo. Um threshold de pixel sozinho não
-      // distingue "quase igual" de "quase vazio dos dois lados": medido em
-      // 2026-08-26, `/busca/?q=luz` dava 1,74% de diff (PASSA no threshold de
-      // 5%) com o Django listando 50 resultados e o shell dizendo "Nenhum
-      // resultado". Duas páginas majoritariamente vazias batem em pixels mesmo
-      // dizendo coisas opostas.
-      const balance = contentBalance(django.png, svelte.png);
+      // Estado VAZIO é o falso verde caro: duas páginas majoritariamente fundo
+      // creme batem em pixels mesmo dizendo coisas opostas. Medido em
+      // 2026-08-26: `/busca/?q=luz` deu 1,74% (PASSA no threshold de 5%) com o
+      // Django listando 50 resultados e o shell dizendo "Nenhum resultado".
+      const djangoEmpty = findEmptyState(django.html);
       expect(
-        balance,
-        `Densidade de conteúdo desequilibrada em ${route.id}: Django com ` +
-          `${formatRatio(inkRatio(django.png))} de tinta contra ` +
-          `${formatRatio(inkRatio(svelte.png))} do SvelteKit ` +
-          `(equilíbrio ${formatRatio(balance)}). Um dos lados não renderizou o ` +
-          "conteúdo — o diff de pixels não significaria paridade.",
-      ).toBeGreaterThan(MIN_CONTENT_BALANCE);
+        djangoEmpty,
+        `Django renderizou estado vazio em ${paths.django} (${djangoEmpty}). ` +
+          `${describeSeedMissing()}`,
+      ).toBeNull();
 
+      const svelteEmpty = findEmptyState(svelte.html);
+      expect(
+        svelteEmpty,
+        `SvelteKit renderizou estado vazio em ${paths.svelte} (${svelteEmpty}) ` +
+          "enquanto o Django tem conteúdo — o diff mediria o fundo, não o design.",
+      ).toBeNull();
+
+      // Piso de itens: onde contar diz algo, exige o mesmo mínimo dos dois
+      // lados. `href="/hinos/` e `href="/hinarios/` casam nos dois apps porque
+      // as ROTAS são as mesmas — é o contrato do refactor headless. Só no modo
+      // fixture: no banco de dev as contagens são outras.
+      if (route.floor && MODO_FIXTURE) {
+        const { needle, min } = route.floor;
+        const naDjango = countOccurrences(django.html, needle);
+        const naSvelte = countOccurrences(svelte.html, needle);
+        expect(
+          naDjango,
+          `Django listou ${naDjango} ocorrências de ${needle} em ${paths.django}, ` +
+            `esperado >= ${min}. ${describeSeedMissing()}`,
+        ).toBeGreaterThanOrEqual(min);
+        expect(
+          naSvelte,
+          `SvelteKit listou ${naSvelte} ocorrências de ${needle} em ${paths.svelte}, ` +
+            `esperado >= ${min}, e o Django listou ${naDjango} — um dos lados não ` +
+            "renderizou a lista.",
+        ).toBeGreaterThanOrEqual(min);
+      }
+
+      // ---- Medição. ------------------------------------------------------ //
+      //
+      // Densidade de tinta entra como DIAGNÓSTICO, não como gate. Havia um
+      // gate (`contentBalance > 0.5`) e ele barrou justamente a medição que o
+      // 4.I pede: o shell é um design mais esparso que o monolito — sem hero
+      // com arte de capa, sem faixa de cor, sem tag de estilo por linha — então
+      // a tinta desequilibra POR DESIGN. Medido com a fixture inteira na tela
+      // dos dois lados: `hymnbook-indice` com 64,12% de tinta no Django contra
+      // 3,69% no shell. Isso é o achado; transformá-lo em "não medi" perdia a
+      // informação. O que separa "esparso" de "não renderizou" são as guardas
+      // acima, que olham o que a página DIZ.
       assertVisualParity({
         id: route.id,
         djangoShot: django.png,
         svelteShot: svelte.png,
         maxDiffPixelRatio: route.maxDiffPixelRatio,
         report: (outcome) => {
-          measured.push(outcome);
+          const inkDjango = inkRatio(django.png);
+          const inkSvelte = inkRatio(svelte.png);
+          const balance = contentBalance(django.png, svelte.png);
+          recordMeasurement({
+            id: outcome.id,
+            ratio: outcome.ratio,
+            maxDiffPixelRatio: outcome.maxDiffPixelRatio,
+            withinThreshold: outcome.withinThreshold,
+            contentBalance: balance,
+            inkDjango,
+            inkSvelte,
+          });
+          const suspeito =
+            outcome.withinThreshold && balance < EQUILIBRIO_SUSPEITO
+              ? " · PASSE SUSPEITO: passou no threshold com densidade de conteúdo" +
+                ` desequilibrada (${formatRatio(balance)}) — ver as capturas em` +
+                " test-results/visual-parity/"
+              : "";
           // eslint-disable-next-line no-console
-          console.log(formatParityLine(outcome));
+          console.log(
+            `${formatParityLine(outcome)} · tinta Django ${formatRatio(inkDjango)} ` +
+              `vs shell ${formatRatio(inkSvelte)} ` +
+              `(equilíbrio ${formatRatio(balance)})${suspeito}`,
+          );
         },
       });
     });
   }
 
   test.afterAll(() => {
+    const measured = readMeasurements();
     if (measured.length === 0) return;
-    const dentro = measured.filter((o) => o.withinThreshold).length;
+
+    const dentro = measured.filter((m) => m.withinThreshold).length;
     const pct = ((dentro / measured.length) * 100).toFixed(0);
+    const suspeitos = measured.filter(
+      (m) => m.withinThreshold && m.contentBalance < EQUILIBRIO_SUSPEITO,
+    );
+    const linhas = measured.map((m) => {
+      const rotulo = m.withinThreshold
+        ? m.contentBalance < EQUILIBRIO_SUSPEITO
+          ? "OK?"
+          : "OK "
+        : "FORA";
+      return (
+        `  ${rotulo} ${m.id.padEnd(20)} diff ${formatRatio(m.ratio).padStart(7)}` +
+        `   equilíbrio ${formatRatio(m.contentBalance).padStart(7)}` +
+        `   tinta ${formatRatio(m.inkDjango).padStart(7)} / ${formatRatio(m.inkSvelte).padStart(7)}`
+      );
+    });
+    const incompleto =
+      measured.length < ROUTES.length
+        ? `[paridade] placar INCOMPLETO: ${measured.length} de ${ROUTES.length} rotas ` +
+          "chegaram a medir. As que faltam foram recusadas por uma guarda (status, " +
+          "estado de erro, estado vazio ou piso de conteúdo) — o motivo está no erro " +
+          "da rota, acima."
+        : "";
+
     // eslint-disable-next-line no-console
     console.log(
-      `\n[paridade] ${dentro} de ${measured.length} rotas medidas dentro do ` +
-        `threshold de ${(DEFAULT_MAX_DIFF_RATIO * 100).toFixed(0)}% (${pct}%). ` +
-        "Critério do Sub-marco 4.I: >=95%.",
+      [
+        "",
+        "[paridade] tabela medida " +
+          `(${MODO_FIXTURE ? `fixture ${PARITY_BOOK_SLUG}` : `banco de dev · ${HYMN_BOOK_SLUG}`})` +
+          " — colunas: diff de pixels · equilíbrio de densidade · tinta Django/shell:",
+        ...linhas,
+        "",
+        `[paridade] ${dentro} de ${measured.length} rotas medidas dentro do ` +
+          `threshold de ${(DEFAULT_MAX_DIFF_RATIO * 100).toFixed(0)}% (${pct}%). ` +
+          "Critério do Sub-marco 4.I: >=95%.",
+        incompleto,
+        suspeitos.length > 0
+          ? `[paridade] ATENÇÃO: ${suspeitos.length} das ${dentro} rotas dentro do ` +
+            `threshold são PASSES SUSPEITOS (${suspeitos.map((m) => m.id).join(", ")}) — ` +
+            "passaram porque a página é majoritariamente fundo, não porque as duas " +
+            "telas são iguais. O percentual acima SUPERESTIMA a paridade; ver a " +
+            "análise em _plan/marco4-diff-notes.md."
+          : "",
+        "",
+      ]
+        .filter((linha) => linha !== "")
+        .join("\n"),
     );
   });
 });
