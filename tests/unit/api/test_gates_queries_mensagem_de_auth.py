@@ -22,6 +22,7 @@ cliente é exatamente a que `authentication_required` produz).
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -36,6 +37,40 @@ API_DIR = Path(__file__).resolve().parents[3] / "apps" / "api"
 MODULOS_AUDITADOS = sorted(p for p in API_DIR.glob("*.py") if p.name != "errors.py")
 
 
+def _docstrings(arvore: ast.Module) -> set[int]:
+    """Linhas ocupadas por docstring — documentação não é mensagem."""
+    linhas: set[int] = set()
+    for no in ast.walk(arvore):
+        if not isinstance(no, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        corpo = getattr(no, "body", None)
+        if not corpo:
+            continue
+        primeiro = corpo[0]
+        if isinstance(primeiro, ast.Expr) and isinstance(primeiro.value, ast.Constant):
+            if isinstance(primeiro.value.value, str):
+                linhas.update(range(primeiro.lineno, (primeiro.end_lineno or primeiro.lineno) + 1))
+    return linhas
+
+
+def _strings_de_codigo(modulo: Path):
+    """Literais de string que viram VALOR, com a linha de cada um.
+
+    Lê a sintaxe em vez de varrer linha a linha, porque a versão anterior
+    varria texto cru e acusava `apps/api/types.py:76` — uma **docstring** que
+    explica o comportamento do gate pra quem for ler o código. Contorcer a
+    documentação pra calar o guard seria o incentivo errado: ensina a não
+    documentar. Comentário `#` também não é mensagem e some junto, porque o
+    `ast` nem o enxerga.
+    """
+    arvore = ast.parse(modulo.read_text(encoding="utf-8"))
+    ignoradas = _docstrings(arvore)
+    for no in ast.walk(arvore):
+        if isinstance(no, ast.Constant) and isinstance(no.value, str):
+            if no.lineno not in ignoradas:
+                yield no.lineno, no.value
+
+
 @pytest.mark.parametrize("modulo", MODULOS_AUDITADOS, ids=lambda p: p.name)
 def test_nenhum_resolver_repete_a_string_de_autenticacao(modulo):
     """A mensagem de auth só pode sair de `errors.authentication_required`.
@@ -44,14 +79,13 @@ def test_nenhum_resolver_repete_a_string_de_autenticacao(modulo):
     shell: o prefixo muda em `errors.py`, a cópia fica, e o redirect pro login
     para de acontecer sem nenhum teste ficar vermelho.
     """
-    for lineno, linha in enumerate(modulo.read_text(encoding="utf-8").splitlines(), start=1):
-        codigo = linha.split("#", 1)[0]
-        if AUTHENTICATION_REQUIRED_PREFIX in codigo:
+    for lineno, trecho in _strings_de_codigo(modulo):
+        if AUTHENTICATION_REQUIRED_PREFIX in trecho:
             pytest.fail(
                 f"{modulo.name}:{lineno} escreve '{AUTHENTICATION_REQUIRED_PREFIX}' na mão. "
                 f"Use `errors.authentication_required('<ação no infinitivo>')` — é o que trava o "
                 f"prefixo PT-BR que o shell classifica pra redirecionar pro login. "
-                f"Linha: {linha.strip()[:120]}"
+                f"Trecho: {trecho.strip()[:120]}"
             )
 
 
