@@ -40,6 +40,28 @@
 #   - A senha da fixture NÃO é impressa. `env` mostra só a origem dela
 #     (`ambiente` ou `default-de-dev`) — o suficiente pra diagnosticar
 #     "por que meu login falhou" sem despejar credencial em log de CI.
+#   - **O BANCO é compartilhado entre worktrees, e as portas não.** Este script
+#     isola porta, log e pidfile por frente, mas `DATABASE_URL` cai no default
+#     de `config/settings/base.py` (`…/hymnplat`) — ou seja, TODAS as frentes
+#     semeiam e mutam o MESMO Postgres. Medido em 2026-08-27: um `seed_e2e
+#     --reset` de outra frente apagou o hinário de paridade no meio de uma
+#     corrida de medição, e a suíte reportou 404 em rotas que estavam 200 dois
+#     minutos antes. Pra medir/rodar em paralelo com outra frente, use banco
+#     próprio:
+#
+#       docker exec hymnplat-postgres psql -U hymnplat -d postgres \
+#         -c 'CREATE DATABASE hymnplat_minhafrente OWNER hymnplat;'
+#       export DATABASE_URL=postgresql://hymnplat:hymnplat@localhost:5432/hymnplat_minhafrente
+#       DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py migrate
+#       DJANGO_PORT=9020 SVELTE_PORT=5193 \
+#         DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost:9020,http://localhost:5193 \
+#         ./scripts/dev-fullstack.sh
+#
+#     `DJANGO_CSRF_TRUSTED_ORIGINS` é obrigatório com porta fora do default: a
+#     lista de `config/settings/local.py` cobre só 5173 e 9000, e sem ela a
+#     mutation `login` (que as fixtures de sessão usam) toma 403 de Origin.
+#     Pra copiar os dados de dev em vez de partir de banco vazio:
+#     `pg_dump -U hymnplat hymnplat | psql -U hymnplat -d hymnplat_minhafrente`.
 
 set -euo pipefail
 
@@ -207,11 +229,12 @@ echo "            senha: $HINARIA_E2E_PASSWORD_ORIGEM"
 echo "  Paridade → HINARIA_DJANGO_BASE_URL=http://localhost:$DJANGO_PORT \\"
 echo "             HINARIA_SVELTE_BASE_URL=http://localhost:$SVELTE_PORT \\"
 echo "             pnpm test:e2e:parity"
+echo "             (mede a fixture 'e2e-paridade'; FORA do CI de propósito —"
+echo "              o critério do 4.I não é cumprido hoje. Ver"
+echo "              _plan/marco4-diff-notes.md)"
 echo "  Workspace → HINARIA_E2E_PLAYWRIGHT_READY=1 \\"
 echo "              HINARIA_SVELTE_BASE_URL=http://localhost:$SVELTE_PORT \\"
 echo "              HINARIA_DJANGO_BASE_URL=http://localhost:$DJANGO_PORT \\"
 echo "              pnpm exec playwright test --project=chromium \\"
-echo "                tests/e2e/editor-dashboard.spec.ts \\"
-echo "                tests/e2e/editor-crud.spec.ts \\"
-echo "                tests/e2e/revise-hymn.spec.ts"
+echo "              pnpm test:e2e:ci      # a MESMA seleção que o CI roda"
 echo "  Pra parar: $0 down"

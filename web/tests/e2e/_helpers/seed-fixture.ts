@@ -75,6 +75,14 @@ export const SEED_BOOKS: readonly SeedBook[] = [
     hymnsTotal: 2,
     hymnsReviewed: 2,
   },
+  {
+    slug: "e2e-paridade",
+    name: `${SEED_PREFIX}Paridade Visual`,
+    priority: "P3",
+    isPublished: true,
+    hymnsTotal: 24,
+    hymnsReviewed: 24,
+  },
 ];
 
 /** Hinário da jornada de revisão: tem pendente, próximo pendente, OCR e histórico. */
@@ -85,6 +93,47 @@ export const FULLY_REVIEWED_BOOK_SLUG = "e2e-selo-final";
 
 /** Hinário em rascunho — alvo do modal de publicação do 5.D. */
 export const DRAFT_BOOK_SLUG = "e2e-rascunho-interno";
+
+/**
+ * Hinário-alvo da suíte de paridade visual (`visual-parity.spec.ts`).
+ *
+ * Existe porque a suíte apontava para o banco de DEV (`o-justiceiro`, 124
+ * hinos) e por isso não rodava em CI nem na máquina de mais ninguém. Este é
+ * denso de propósito: 24 hinos, 12 linhas de letra cada, estilo e repetições
+ * preenchidos, um áudio aprovado e tocável. Comparar telas quase vazias
+ * mediria o fundo creme dos dois lados, não o design.
+ */
+export const PARITY_BOOK_SLUG = "e2e-paridade";
+
+/** Quantos hinos o hinário de paridade tem (enche o índice em duas colunas). */
+export const PARITY_HYMN_COUNT = 24;
+
+/**
+ * Termo default de `/busca/?q=`. Existe na letra da fixture — senão, num banco
+ * de CI recém-semeado, a rota compara "nenhum resultado" com "nenhum
+ * resultado", que é o falso verde já documentado em
+ * `_plan/marco4-diff-notes.md`.
+ */
+export const PARITY_SEARCH_QUERY = "luz";
+
+/**
+ * Gravação aprovada e DECODIFICÁVEL do hino nº 1 do hinário de paridade.
+ *
+ * O resto da fixture usa bytes falsos de propósito (a fila de pendentes usa
+ * `preload="none"`). Esta é a exceção: o teste-âncora do Sub-marco 4.F afirma
+ * que `audio.currentTime` avança ao navegar, e isso exige som que o browser
+ * consiga decodificar. O seed grava uma senoide WAV de 3 s.
+ */
+export const PARITY_AUDIO_TITLE = `${SEED_PREFIX}Gravação de Paridade`;
+
+/** Seguidores do editor — o que torna `/perfil/<u>/seguidores/` medível. */
+export const PARITY_FOLLOWERS_EXPECTED = 3;
+
+/** Quantos o editor segue — `/perfil/<u>/seguindo/`. */
+export const PARITY_FOLLOWING_EXPECTED = 2;
+
+/** Notificações não lidas do editor — `/notificacoes/`. */
+export const PARITY_NOTIFICATIONS_EXPECTED = 3;
 
 /** Título do hino nº 1 do hinário de revisão (o pendente com OCR sujo). */
 export const REVIEW_HYMN_TITLE = `${SEED_PREFIX}Primeiro Pendente`;
@@ -104,6 +153,7 @@ export const SEED_ORDER_DEFAULT: readonly string[] = [
   "e2e-fila-urgente",
   "e2e-coral-revisado",
   "e2e-rascunho-interno",
+  "e2e-paridade",
   "e2e-selo-final",
 ];
 
@@ -114,11 +164,16 @@ export const SEED_ORDER_DEFAULT: readonly string[] = [
  * de `coral-revisado` (66%). A troca acontece DENTRO da prioridade porque,
  * com `priority=all`, o backend promove `priority` a sort primário e os
  * chips do usuário ficam secundários (`Query.editorHymnbooks`).
+ *
+ * Os dois P3 (`e2e-paridade` e `e2e-selo-final`) estão ambos 100% revisados,
+ * então empatam em `review_pct` e o desempate por nome mantém a mesma ordem
+ * nas duas listas — é por isso que só o par P2 troca.
  */
 export const SEED_ORDER_REVIEW_ASC: readonly string[] = [
   "e2e-fila-urgente",
   "e2e-rascunho-interno",
   "e2e-coral-revisado",
+  "e2e-paridade",
   "e2e-selo-final",
 ];
 
