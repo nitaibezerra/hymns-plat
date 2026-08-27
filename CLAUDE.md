@@ -108,7 +108,25 @@ feature/* ─PR─▶ development ─PR─▶ main ─auto-deploy─▶ Railway
 - **`development`** is the integration target. All feature PRs merge here first. CI runs but **no deploy** is triggered.
 - **`main`** is production. The only PRs that target `main` are `development → main` promotion PRs, opened deliberately when ready to deploy. Merging to `main` triggers `deploy.yml`.
 - Never open a PR targeting `main` from a feature branch — always go through `development`.
-- To promote: `gh pr create --base main --head development --title "release: <date or summary>"`. Squash-merge.
+- To promote: `gh pr create --base main --head development --title "release: <date or summary>"`. **Merge commit, não squash** — ver abaixo.
+
+#### Método de merge por degrau (mudou em 2026-08-27)
+
+O repo aceita **squash e merge commit**; cada degrau usa um, e a escolha não é estética:
+
+| Degrau | Método | Por quê |
+|---|---|---|
+| `feature/*` → `development` | **Squash** | As branches de sub-marco têm 10-19 commits de ciclo TDD. Squashar deixa `development` com um commit por PR, que é a granularidade útil pra ler o histórico e pra `git revert`. |
+| `development` → `main` (release) | **Merge commit** | Preserva a ancestralidade. |
+
+**O que o squash-only causava, e por que foi abandonado:** squashar `development → main` cria em `main` um commit cujo *conteúdo* é igual ao de `development`, mas que **não está no histórico dela**. Duas consequências, as duas medidas na release de 2026-08-27 (PR #62):
+
+1. `main` deixa de ser ancestral de `development`. Como `main` é `strict: true`, **toda** release seguinte abre já "behind" e exige um "Update branch" antes de poder mergear.
+2. O back-merge fica armado pra conflito bobo: git vê a mesma mudança chegando por dois caminhos (o squash em `main` e os 34 commits em `development`). Resolve limpo enquanto ninguém editou as mesmas linhas depois — e vira conflito confuso, sem causa aparente, quando alguém editou.
+
+Com merge commit no degrau de release, `main` continua sendo ancestral de `development` e nada disso acontece. O histórico de `main` ganha os commits individuais de `development`, que já são um por PR justamente porque o degrau de baixo squasha — ou seja, a granularidade semântica de `main` **não** piora.
+
+> **Espelhar em `copa-dos-reis`:** esta é uma mudança de playbook de merge/deploy, e os dois projetos são mantidos alinhados de propósito. Se lá o fluxo de duas etapas existir, a mesma regra vale.
 
 #### Protection on `main`
 - **Required status checks** (5, desde 2026-08-27): `Lint & Format Check`, `Unit Tests`, `E2E Tests`, `Web Test & Build`, `Web E2E (Playwright)`.
@@ -122,7 +140,7 @@ feature/* ─PR─▶ development ─PR─▶ main ─auto-deploy─▶ Railway
 - **enforce_admins: false** — admin can push directly if needed for emergency fixes, though normal flow is still feature → PR → squash.
 - `allow_force_pushes: false`, `allow_deletions: false`.
 
-Implication: do NOT `git push origin main` or `git push origin development` from a feature branch. Workflow is always: feature branch → PR to `development` → CI green → squash merge; then periodically `development → main` PR for deploy.
+Implication: do NOT `git push origin main` or `git push origin development` from a feature branch. Workflow is always: feature branch → PR to `development` → CI green → **squash** merge; then periodically `development → main` PR for deploy, com **merge commit** (ver "Método de merge por degrau").
 
 ## Architecture (the parts that span files)
 
