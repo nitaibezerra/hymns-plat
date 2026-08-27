@@ -105,6 +105,57 @@ describe("perfil/seguidores load function", () => {
     });
     expect(result.page).toBe(1);
   });
+
+  /*
+   * O resolver `UserProfileType.followers` passou a exigir sessão (paridade
+   * com o `@login_required` de `apps/users/views_social.py`), então esta rota
+   * fecha a porta igual ao guard do `/editor/`: redireciona pro login
+   * preservando o destino. A classificação do erro é a MESMA função
+   * (`_isEditorAccessError`) — a mensagem que chega é PT-BR
+   * ("Autenticação necessária para listar seguidores."), e um classificador
+   * próprio procurando "authenticat" nunca casaria (é o bug de
+   * `routes/notificacoes/+page.ts`).
+   */
+  it("anônimo cai no login preservando o destino", async () => {
+    const fetchFn = fakeFetch({
+      data: { userProfile: null },
+      errors: [{ message: "Autenticação necessária para listar seguidores." }],
+    });
+    await expect(
+      _loadFollowers({
+        fetch: fetchFn,
+        params: { username: "ana" },
+        url: makeUrl("?page=2"),
+      }),
+    ).rejects.toMatchObject({
+      status: 302,
+      location: "/login?next=/perfil/ana/seguidores",
+    });
+  });
+
+  it("erro que NÃO é de acesso continua virando mensagem na página", async () => {
+    const fetchFn = fakeFetch({
+      data: { userProfile: null },
+      errors: [{ message: "Falha ao consultar o banco." }],
+    });
+    const result = await _loadFollowers({
+      fetch: fetchFn,
+      params: { username: "ana" },
+      url: makeUrl(""),
+    });
+    expect(result.error).toBe("Falha ao consultar o banco.");
+    expect(result.followers).toEqual([]);
+  });
+
+  it("falha de transporte (HTTP 5xx) não é confundida com falta de sessão", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(new Response("", { status: 503 }));
+    const result = await _loadFollowers({
+      fetch: fetchFn,
+      params: { username: "ana" },
+      url: makeUrl(""),
+    });
+    expect(result.error).toMatch(/^HTTP /);
+  });
 });
 
 function buildData(overrides: Record<string, unknown> = {}) {
