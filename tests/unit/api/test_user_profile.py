@@ -4,6 +4,10 @@ Marco 4.A · Ciclos 4A.9 e 4A.10.
 `Query.userProfile(username)` devolve `UserProfileType`:
 - 4A.9: `user`, `followersCount`, `followingCount`, `uploadedAudios`.
 - 4A.10: paginação `followers(first, offset)` / `following(first, offset)`.
+
+As duas paginações rodam COM sessão porque as LISTAS passaram a exigir login
+(paridade com o `@login_required` de `apps/users/views_social.py`); o gate em si
+está em `test_user_profile_privacy.py`.
 """
 
 from __future__ import annotations
@@ -77,6 +81,7 @@ def test_followers_paginated(client, user_factory):
     followers = [user_factory(email=f"f{i}@example.com") for i in range(5)]
     for f in followers:
         UserFollow.objects.create(follower=f, followed=target)
+    client.force_login(user_factory(email="viewer@example.com"))
 
     data = gql(
         client,
@@ -103,6 +108,7 @@ def test_following_paginated(client, user_factory):
     targets = [user_factory(email=f"t{i}@example.com") for i in range(5)]
     for t in targets:
         UserFollow.objects.create(follower=target, followed=t)
+    client.force_login(user_factory(email="viewer@example.com"))
 
     data = gql(
         client,
