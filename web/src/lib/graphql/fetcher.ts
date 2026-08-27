@@ -12,12 +12,18 @@
  * `event.fetch` do SvelteKit só herda o cookie do visitante quando o destino
  * é o mesmo host da app — em produção o Django mora em outro host
  * (`api.` vs `app.`), então não herda nada. Sem o cookie de sessão,
- * `currentUser`, `isFavorited`, `notifications` e `isEditor` renderizam como
- * anônimo no primeiro paint. Daí a opção `cookie`: quem tem acesso à
- * requisição do visitante (server load / `hooks.server.ts`, via
- * `event.request.headers.get("cookie")`) repassa a string aqui e o Django
- * recebe a sessão. No browser não se passa nada — o navegador proíbe definir
- * o header `cookie` na mão e `credentials: 'include'` já faz o trabalho.
+ * `currentUser`, `isFavorited`, `notifications` e `isEditor` renderizariam
+ * como anônimo no primeiro paint.
+ *
+ * **Quem resolve isso hoje é `src/hooks.server.ts`** (`handleFetch`): ele
+ * intercepta todo `event.fetch` do servidor e põe o header `cookie` do
+ * visitante nas requisições cujo destino é a origem de `GRAPHQL_URL`. Ou
+ * seja: nenhuma load function precisa passar `options.cookie` — e nenhuma
+ * passa. A opção continua aqui para quem chama o fetcher **fora** de uma
+ * load function (script, teste, endpoint futuro), onde o hook não roda; nesse
+ * caso ela tem precedência sobre o hook. No browser não se passa nada — o
+ * navegador proíbe definir o header `cookie` na mão e `credentials: 'include'`
+ * já faz o trabalho.
  */
 
 export interface GraphqlError {

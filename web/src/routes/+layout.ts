@@ -1,8 +1,14 @@
 /**
  * Marco 4.B — Ciclo 4B.7.
  *
- * Load function global do shell. Roda em SSR + CSR; preserva cookies via
- * `event.fetch` (a sessão Django mora num cookie do mesmo eTLD+1).
+ * Load function global do shell. Roda em SSR + CSR.
+ *
+ * Sobre a sessão: no browser é `credentials: 'include'` que carrega o cookie.
+ * Em SSR quem carrega é o `handleFetch` de `src/hooks.server.ts` — o
+ * `event.fetch` do SvelteKit, sozinho, só repassa cookie quando o Django está
+ * no mesmo hostname da app, o que é verdade em dev e falso em produção
+ * (`app.` vs `api.`). Era por isso que o header nascia "Entrar" mesmo com
+ * sessão válida e só a hidratação corrigia.
  *
  * Busca o `currentUser` do GraphQL e propaga `{ currentUser }` para todas
  * as páginas. Erros são engolidos (currentUser = null) porque a UI deve
