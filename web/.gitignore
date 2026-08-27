@@ -2,6 +2,9 @@ node_modules/
 /build
 /.svelte-kit
 /dist
+# Estado local da wrangler (cache de deploy, dados do miniflare). Criado por
+# `wrangler deploy`/`dev`, nunca versionado.
+/.wrangler
 .env
 .env.*
 !.env.example
