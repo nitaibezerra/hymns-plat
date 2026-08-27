@@ -245,14 +245,14 @@ SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
 
-# CORS — Marco 2. SvelteKit dev em :5173.
-# ATENÇÃO (corrigido em 2026-08-27): este comentário afirmava que
-# `production.py` adiciona app.hinaria.com.br. NÃO adiciona — produção herda
-# esta lista e portanto só confia em origens de localhost. Hoje é inofensivo
-# (a SPA não está deployada), mas no cutover (Marco 7) o domínio da SPA tem de
-# entrar via env `CORS_ALLOWED_ORIGINS`, senão toda chamada do navegador falha
-# por CORS. Ver também SESSION_COOKIE_DOMAIN/CSRF_COOKIE_DOMAIN, que ainda não
-# existem em lugar nenhum.
+# CORS — Marco 2. Esta lista é o default de **dev**: SvelteKit em :5173.
+#
+# Produção NÃO herda mais daqui (mudou em 2026-08-27, quando a SPA subiu em
+# `beta.hinaria.com.br`): `production.py` redefine `CORS_ALLOWED_ORIGINS` com
+# os domínios reais e sem localhost, porque liberar `http://localhost:5173`
+# junto com `CORS_ALLOW_CREDENTIALS = True` em produção deixa qualquer página
+# servida nessa porta ler dados autenticados. Ver o bloco "Origens cross-site
+# da SPA" em `production.py` e a seção "SPA em beta" do CLAUDE.md.
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
     default=["http://localhost:5173", "http://127.0.0.1:5173"],
