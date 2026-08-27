@@ -15,11 +15,13 @@
    * está em `editable_fields`). Enquanto o schema não expuser, editar aqui
    * seria mentira de UI.
    */
-  import { goto } from "$app/navigation";
+  import { goto, invalidateAll } from "$app/navigation";
   import { AUTOSAVE_DELAY_MS, debounce, formatSavedAt } from "$lib/autosave";
   import AudioReviewDrawer, {
     type AudioReviewTarget,
   } from "$lib/components/editor/AudioReviewDrawer.svelte";
+  import AudioUploadDrawer from "$lib/components/editor/AudioUploadDrawer.svelte";
+  import DeleteHymnModal from "$lib/components/editor/DeleteHymnModal.svelte";
   import InlineDiff from "$lib/components/editor/InlineDiff.svelte";
   import OcrConfidenceBar from "$lib/components/editor/OcrConfidenceBar.svelte";
   import RepetitionPills from "$lib/components/editor/RepetitionPills.svelte";
@@ -387,6 +389,39 @@
     audioOverrides = { ...audioOverrides, [reviewed.id]: reviewed };
   }
 
+  /* ===== Frente 1, ciclos 1.2/1.3 · pontos de entrada por hino =============
+   *
+   * `AudioUploadDrawer` e `DeleteHymnModal` (5.D) estavam importados em zero
+   * rotas. Esta é a tela em que o editor já está com UM hino na mão, e é o
+   * equivalente de `templates/hymns/hymn_detail.html`, que pareia "Editar"
+   * com "Revisar" sob `{% if can_edit %}` e oferece "♫ Adicionar áudio" a
+   * qualquer autenticado — com ou sem gravação prévia, por isso o botão de
+   * envio fica fora do `{#if reviewAudioTarget}`.
+   *
+   * O outro lugar plausível pra deleção seria a lista de hinos do detalhe do
+   * hinário, mas `HymnStatusList` só renderiza o link "Revisar" e não expõe
+   * slot pra ações extras — mudar sua API está fora desta frente.
+   */
+  let uploadDrawerOpen = $state(false);
+  let deleteHymnOpen = $state(false);
+
+  /** Recarrega a rota: a gravação nova precisa vir do backend, não do palpite. */
+  function handleAudioUploaded() {
+    uploadDrawerOpen = false;
+    void invalidateAll();
+  }
+
+  /**
+   * Hino deletado: não há mais o que revisar aqui. Volta pro hinário — o
+   * mesmo destino do "← Voltar" desta tela e do `hymn_delete_view` do Django
+   * (que redireciona pro detalhe do hinário via `hymn_detail`).
+   */
+  function handleHymnDeleted() {
+    deleteHymnOpen = false;
+    const slug = data.hymn?.hymnBook.slug;
+    if (slug) goto(`/editor/hinarios/${slug}`);
+  }
+
   /**
    * 5C.11 — "Salvar rascunho" (`next_action=back` no Django): grava os campos
    * e volta pro hinário sem tocar no `review_status`.
@@ -567,6 +602,42 @@
               Sem gravação para este hino.
             </p>
           {/if}
+
+          <button
+            class="btn-ghost"
+            type="button"
+            data-testid="open-audio-upload"
+            onclick={() => (uploadDrawerOpen = true)}
+          >
+            ♫ Enviar gravação
+          </button>
+          <AudioUploadDrawer
+            hymn={{ id: data.hymn.id, number: Number(form.number), title: form.title }}
+            open={uploadDrawerOpen}
+            onuploaded={handleAudioUploaded}
+            onclose={() => (uploadDrawerOpen = false)}
+          />
+        </div>
+
+        <div class="side-block">
+          <p class="eyebrow">Este hino</p>
+          <a class="btn-ghost" href={`/editor/hinos/${data.hymn.id}/editar/`} data-testid="edit-hymn-link">
+            Editar hino
+          </a>
+          <button
+            class="btn-ghost"
+            type="button"
+            data-testid="delete-hymn"
+            onclick={() => (deleteHymnOpen = true)}
+          >
+            Deletar hino
+          </button>
+          <DeleteHymnModal
+            hymn={{ id: data.hymn.id, number: Number(form.number), title: form.title }}
+            open={deleteHymnOpen}
+            ondeleted={handleHymnDeleted}
+            onclose={() => (deleteHymnOpen = false)}
+          />
         </div>
 
         <div class="side-block">
