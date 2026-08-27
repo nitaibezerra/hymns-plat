@@ -21,7 +21,7 @@
   export interface ProfileHeaderUser {
     id: string;
     username: string;
-    email: string;
+    email: string | null;
   }
 
   let {

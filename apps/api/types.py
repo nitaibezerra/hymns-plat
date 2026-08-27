@@ -23,7 +23,7 @@ from apps.users import models as user_models
 
 from .context import optional_request_from_info, user_from_info
 from .errors import authentication_required
-from .permissions import is_authenticated, is_editor_or_admin, require
+from .permissions import is_authenticated, is_editor_or_admin, is_staff, require
 
 
 def _absolute_media_url(request, url: str) -> str:
@@ -591,7 +591,29 @@ class HymnAudioType:
 class UserType:
     id: strawberry.auto
     username: strawberry.auto
-    email: strawberry.auto
+
+    @strawberry.field
+    def email(self, info: Info) -> str | None:
+        """E-mail: só pro próprio dono e pra staff. Terceiro e anônimo recebem `None`.
+
+        Antes era `strawberry.auto`, ou seja `String!` sem gate: qualquer
+        anônimo lia o e-mail de qualquer usuário por
+        `userProfile(username:"x"){ user{ email } }`. Medido em produção em
+        2026-08-27, com o endpoint público havia ~1h.
+
+        A régua é a página de perfil do Django, que é a fonte de verdade de
+        produto até o Marco 7: ela é pública (200 pra anônimo) e **não mostra
+        e-mail nenhum** — conferido no HTML servido. Logo o dado nunca foi
+        público por decisão; ficou exposto por `auto`.
+
+        Staff vê porque o Django admin já mostra, e moderação depende disso.
+        """
+        viewer = user_from_info(info)
+        if not is_authenticated(viewer):
+            return None
+        if viewer.pk == self.pk or is_staff(viewer):
+            return self.email
+        return None
 
     @strawberry.field
     def is_editor(self) -> bool:

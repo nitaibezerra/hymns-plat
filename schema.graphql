@@ -373,7 +373,7 @@ type UserProfileType {
 type UserType {
   id: ID!
   username: String!
-  email: String!
+  email: String
   isEditor: Boolean!
 }
 
