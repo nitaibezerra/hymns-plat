@@ -631,8 +631,29 @@ class UserProfileType:
         return user_models.UserFollow.objects.filter(follower=self.user).count()
 
     @strawberry.field
-    def uploaded_audios(self) -> list[HymnAudioType]:
-        return list(hymn_models.HymnAudio.objects.filter(uploaded_by=self.user).order_by("-created_at"))
+    def uploaded_audios(self, info: Info) -> list[HymnAudioType]:
+        """Envios de áudio deste perfil, com o gating de visibilidade do Django.
+
+        Duas réguas, as duas já existentes no domínio:
+
+        - **aprovação**: áudio pendente não aparece publicamente em nenhuma tela
+          do monolito (`templates/hymns/_audio_player.html` recebe aprovados; a
+          fila de pendentes é `/editor/audios-pendentes/`, gateada). Vêem
+          pendentes só o dono do perfil — é o envio dele, com o badge
+          "aguardando aprovação" — e editor/admin, que revisa. Mesma regra de
+          `HymnType.audios(approvedOnly: false)`;
+        - **visibilidade do hinário**: `HymnBook.objects.visible_to(viewer)`, pra
+          um áudio aprovado num hinário em RASCUNHO não escapar por aqui — o
+          detalhe do hino não o mostraria.
+        """
+        viewer = user_from_info(info)
+        qs = hymn_models.HymnAudio.objects.filter(
+            uploaded_by=self.user,
+            hymn__hymn_book__in=hymn_models.HymnBook.objects.visible_to(viewer),
+        )
+        if not (is_editor_or_admin(viewer) or viewer == self.user):
+            qs = qs.filter(is_approved=True)
+        return list(qs.order_by("-created_at"))
 
     @strawberry.field
     def followers(self, info: Info, first: int = 20, offset: int = 0) -> list[UserType]:

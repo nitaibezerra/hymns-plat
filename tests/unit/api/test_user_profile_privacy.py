@@ -13,6 +13,12 @@ Estes testes travam o alinhamento:
 - `followersCount` / `followingCount`: seguem públicos;
 - a paginação (`first`/`offset` e o cap de 100) continua valendo pra quem passa
   pelo gate — o gate não pode ter regredido o contrato de página.
+
+`uploadedAudios` segue o mesmo princípio de alinhamento, com a régua de áudio
+em vez da de follow: no Django, áudio só aparece publicamente quando
+`is_approved=True` (`templates/hymns/_audio_player.html` recebe os aprovados; a
+fila de pendentes é `/editor/audios-pendentes/`), e hino só aparece se o
+hinário for `visible_to(user)`.
 """
 
 from __future__ import annotations
@@ -123,3 +129,70 @@ def test_first_cap_of_100_survives_the_gate(client, user_factory):
     data = gql(client, '{ userProfile(username: "target") { followers(first: 5000) { username } } }')
     assert "errors" not in data, data
     assert len(data["data"]["userProfile"]["followers"]) == 100
+
+
+# --------------------------------------------------------------------------- #
+# uploadedAudios
+# --------------------------------------------------------------------------- #
+
+UPLOADS_QUERY = '{ userProfile(username: "target") { uploadedAudios { title } } }'
+
+
+@pytest.fixture
+def uploader_with_audios(user_factory, hymn_book_factory, hymn_factory):
+    """`target` com 1 áudio aprovado e 1 pendente, num hinário publicado."""
+    from apps.hymns.models import HymnAudio
+
+    target = user_factory(email="target@example.com")
+    hb = hymn_book_factory(name="O Cruzeiro", slug="cruzeiro", is_published=True)
+    hymn = hymn_factory(hymn_book=hb, number=1, title="Lua")
+    HymnAudio.objects.create(hymn=hymn, audio_file="ok.mp3", is_approved=True, uploaded_by=target, title="aprovado")
+    HymnAudio.objects.create(hymn=hymn, audio_file="pend.mp3", is_approved=False, uploaded_by=target, title="pendente")
+    return target
+
+
+def _titles(data: dict) -> set[str]:
+    assert "errors" not in data, data
+    return {row["title"] for row in data["data"]["userProfile"]["uploadedAudios"]}
+
+
+def test_uploaded_audios_hides_pending_from_anon(client, uploader_with_audios):
+    """Áudio não aprovado não aparece publicamente em lugar nenhum do Django."""
+    assert _titles(gql(client, UPLOADS_QUERY)) == {"aprovado"}
+
+
+def test_uploaded_audios_hides_pending_from_other_user(client, uploader_with_audios, user_factory):
+    other = user_factory(email="other@example.com")
+    assert _titles(gql(client, UPLOADS_QUERY, user=other)) == {"aprovado"}
+
+
+def test_uploaded_audios_shows_own_pending_to_the_owner(client, uploader_with_audios):
+    """O dono do perfil vê os próprios envios em revisão — é o dado dele."""
+    assert _titles(gql(client, UPLOADS_QUERY, user=uploader_with_audios)) == {"aprovado", "pendente"}
+
+
+def test_uploaded_audios_shows_pending_to_editor(client, uploader_with_audios, user_factory):
+    """Editor revisa pendentes (`/editor/audios-pendentes/`), então vê os dois."""
+    from django.contrib.auth.models import Group
+
+    editor = user_factory(email="editor@example.com")
+    editor.groups.add(Group.objects.get(name="editor"))
+    assert _titles(gql(client, UPLOADS_QUERY, user=editor)) == {"aprovado", "pendente"}
+
+
+def test_uploaded_audios_respects_hymnbook_visibility(client, user_factory, hymn_book_factory, hymn_factory):
+    """Áudio aprovado de hinário em RASCUNHO não é público — `visible_to(user)`."""
+    from django.contrib.auth.models import Group
+
+    from apps.hymns.models import HymnAudio
+
+    target = user_factory(email="target@example.com")
+    draft = hymn_book_factory(name="Rascunho", slug="rascunho", is_published=False)
+    hymn = hymn_factory(hymn_book=draft, number=1, title="Oculta")
+    HymnAudio.objects.create(hymn=hymn, audio_file="d.mp3", is_approved=True, uploaded_by=target, title="rascunho")
+
+    assert _titles(gql(client, UPLOADS_QUERY)) == set()
+
+    editor = user_factory(email="editor@example.com")
+    editor.groups.add(Group.objects.get(name="editor"))
+    assert _titles(gql(client, UPLOADS_QUERY, user=editor)) == {"rascunho"}
