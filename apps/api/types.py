@@ -279,12 +279,25 @@ class HymnBookType:
     sync_version: strawberry.auto
 
     @strawberry.field
-    def cover_image(self) -> str | None:
-        """URL da capa no storage ativo (`None` quando o hinário não tem capa).
+    def cover_image(self, info: Info) -> str | None:
+        """URL ABSOLUTA da capa (`None` quando o hinário não tem capa).
 
         Devolve URL em vez do path porque em produção o storage é R2 e o
-        cliente precisa do domínio de mídia."""
-        return self.cover_image.url if self.cover_image else None
+        cliente precisa do domínio de mídia — e devolve ABSOLUTA pelo mesmo
+        motivo que `HymnAudioType.url`: quem consome é o `<img src>` do shell
+        SvelteKit, servido por OUTRA origem (`:5173` em dev, domínio próprio
+        via `adapter-cloudflare` em produção), e URL relativa resolve contra a
+        origem do SHELL, não do Django.
+
+        Em produção já saía absoluta, mas por acidente de config:
+        `S3Boto3Storage` + `AWS_S3_CUSTOM_DOMAIN` fazem `MEDIA_URL` absoluta,
+        então `FileField.url` sai absoluta de graça. Trocar o storage quebraria
+        as capas sem aviso. URL já absoluta passa intacta; ver
+        `_absolute_media_url`.
+        """
+        if not self.cover_image:
+            return None
+        return _absolute_media_url(optional_request_from_info(info), self.cover_image.url)
 
     @strawberry.field
     def published_by(self) -> "UserType | None":
