@@ -21,9 +21,28 @@ from strawberry.types import Info
 from apps.hymns import models as hymn_models
 from apps.users import models as user_models
 
-from .context import user_from_info
+from .context import optional_request_from_info, user_from_info
 from .errors import authentication_required
 from .permissions import is_authenticated, is_editor_or_admin, require
+
+
+def _absolute_media_url(request, url: str) -> str:
+    """URL de mídia absoluta a partir do que o storage devolveu.
+
+    - vazia (áudio/capa sem arquivo): fica vazia;
+    - já absoluta (`https://media.hinaria.com.br/…` do R2, ou protocol-relative):
+      passa INTACTA — remontar sobre o host do request estragaria a URL de CDN;
+    - relativa (`/media/…` do `FileSystemStorage`): completa com o host do
+      request, que é o host do DJANGO — a origem que serve `/media/`;
+    - sem request: devolve a relativa. Sem host confiável, chutar um (via
+      `ALLOWED_HOSTS`, que é `*` em vários ambientes) produziria link quebrado
+      com cara de link certo.
+    """
+    if not url or url.startswith(("http://", "https://", "//")):
+        return url
+    if request is None:
+        return url
+    return request.build_absolute_uri(url)
 
 
 def _require_session(info: Info, action: str) -> None:
@@ -537,9 +556,26 @@ class HymnAudioType:
         return self.reviewed_by
 
     @strawberry.field
-    def url(self) -> str:
-        """URL pública do arquivo de áudio (FileField.url do backend ativo)."""
-        return self.audio_file.url if self.audio_file else ""
+    def url(self, info: Info) -> str:
+        """URL pública ABSOLUTA do arquivo de áudio. `""` quando não há arquivo.
+
+        O contrato é "absoluta sempre", e não "o que o storage disser": quem
+        consome é o `<audio src>` do shell SvelteKit, servido por OUTRA origem
+        (`:5173` em dev, domínio próprio via `adapter-cloudflare` em produção),
+        e uma URL relativa resolve contra a origem do SHELL — medido: 404 em
+        `:5173`, 200 em `:9000`.
+
+        Em produção isso já funcionava, mas por acidente: `S3Boto3Storage` com
+        `AWS_S3_CUSTOM_DOMAIN` faz `MEDIA_URL` absoluta, então `FileField.url`
+        saía absoluta de graça (medido: 124 áudios, todas
+        `https://media.hinaria.com.br/…`). Trocar o storage quebraria o player
+        sem aviso — daí completar aqui, explicitamente, em vez de depender da
+        config. URL já absoluta passa intacta; ver `_absolute_media_url`.
+        """
+        return _absolute_media_url(
+            optional_request_from_info(info),
+            self.audio_file.url if self.audio_file else "",
+        )
 
     @strawberry.field
     def duration_seconds(self) -> float | None:
