@@ -64,10 +64,16 @@ Cinco jobs, em dois workflows. Ambos disparam em `pull_request` para `main` e `d
 
 | Job | Cobre | Required check? |
 |---|---|---|
-| **Web Test & Build** | `svelte-check` + Vitest + `pnpm build` | **Não** |
-| **Web E2E (Playwright)** | Stack completa: Postgres + Redis como services, `migrate`, `seed_e2e`, Django em `:9000` e SvelteKit em `:5173`, e as specs do workspace editorial em Chromium | **Não** |
+| **Web Test & Build** | `svelte-check` + Vitest + `pnpm build` | **Sim** (desde 2026-08-27) |
+| **Web E2E (Playwright)** | Stack completa: Postgres + Redis como services, `migrate`, `seed_e2e`, Django em `:9000` e SvelteKit em `:5173`, e as specs do workspace editorial em Chromium | **Sim** (desde 2026-08-27) |
 
-**Nenhum dos dois jobs de `ci-web.yml` é required**, ou seja, um `web/` vermelho **não** bloqueia merge — vale saber antes de confiar numa PR verde. Promover qualquer um a required é **decisão humana**: mexe em branch protection (ver "Protection on `main`"/"`development`" abaixo), e **nenhum agente deve tocar em branch protection**, nem pela UI nem via `gh api`.
+**Os cinco jobs são required em `main` e em `development` desde 2026-08-27.** Um `web/` vermelho passou a bloquear merge — antes não bloqueava, e foi exatamente assim que uma regressão de `pnpm build` chegou em `development` e ficou dois meses sem ninguém ver.
+
+Duas consequências práticas de ter o E2E como required:
+- **PR de documentação também espera a stack subir.** É o preço de não ter `paths` no workflow (ver a armadilha abaixo). Se isso incomodar, a saída NÃO é reintroduzir `paths` — é discutir tirar o E2E da lista de required.
+- **Um job que passa sem executar spec nenhuma seria pior que job ausente**, agora que ele bloqueia merge. Daí o passo "Provar que as specs rodaram mesmo", que reprova se nada executou ou se algum teste está pulado pelo gate de ambiente.
+
+Mexer em branch protection é **decisão humana**: **nenhum agente deve tocar em branch protection**, nem pela UI nem via `gh api`.
 
 #### Sobre o job "Web E2E (Playwright)"
 
@@ -105,13 +111,13 @@ feature/* ─PR─▶ development ─PR─▶ main ─auto-deploy─▶ Railway
 - To promote: `gh pr create --base main --head development --title "release: <date or summary>"`. Squash-merge.
 
 #### Protection on `main`
-- **Required status checks**: `Lint & Format Check`, `Unit Tests`, `E2E Tests`.
+- **Required status checks** (5, desde 2026-08-27): `Lint & Format Check`, `Unit Tests`, `E2E Tests`, `Web Test & Build`, `Web E2E (Playwright)`.
 - **strict: true** — branch must be up to date.
 - **enforce_admins: true** — even the repo owner cannot push directly to `main` or bypass.
 - `allow_force_pushes: false`, `allow_deletions: false`.
 
 #### Protection on `development`
-- Same required status checks as `main`.
+- Same required status checks as `main` (os mesmos 5).
 - **strict: false** (changed 2026-08-26) — a PR branch does **not** need to be up to date before merging. It used to be `true`, but with several PRs queued behind auto-merge, every merge left the others `BEHIND` and GitHub's auto-merge does **not** press "Update branch" — the queue stalled after each merge and needed a manual nudge per PR. Trade-off accepted: a PR tested against an older base can merge, so semantic conflicts (green PR + green base = broken merge) are possible. `main` keeps `strict: true`, since that is the branch that deploys.
 - **enforce_admins: false** — admin can push directly if needed for emergency fixes, though normal flow is still feature → PR → squash.
 - `allow_force_pushes: false`, `allow_deletions: false`.
