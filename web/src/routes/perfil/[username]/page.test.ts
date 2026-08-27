@@ -39,6 +39,38 @@ describe("perfil/[username] load function", () => {
     expect(result.error).toBeNull();
   });
 
+  /**
+   * Frente 1 — Ciclo 1.4.
+   *
+   * `ProfileHeader` aceita `isFollowedByCurrentUser` desde o 5E.7, mas
+   * ninguém passava a prop e o campo nem era pedido na query — o botão
+   * nascia "Seguir" pra quem já seguia, e só o clique (que então
+   * *des*seguia) revelava o engano.
+   */
+  it("pede isFollowedByCurrentUser — o botão precisa nascer com o estado certo", async () => {
+    const fetchFn = fakeFetch({ data: { userProfile: null } });
+    await _loadProfile({ fetch: fetchFn, params: { username: "ana" } });
+    const callBody = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(callBody.query).toMatch(/isFollowedByCurrentUser/);
+  });
+
+  it("devolve isFollowedByCurrentUser pra tela", async () => {
+    const fetchFn = fakeFetch({
+      data: {
+        userProfile: {
+          user: { id: "u1", username: "ana", email: "ana@example.com" },
+          followersCount: 3,
+          followingCount: 5,
+          isFollowedByCurrentUser: true,
+          uploadedAudios: [],
+          activityHeatmap: [],
+        },
+      },
+    });
+    const result = await _loadProfile({ fetch: fetchFn, params: { username: "ana" } });
+    expect(result.userProfile?.isFollowedByCurrentUser).toBe(true);
+  });
+
   it("passa params.username como variável da query", async () => {
     const fetchFn = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ data: { userProfile: null } }), {
@@ -72,6 +104,7 @@ function buildData(overrides: Record<string, unknown> = {}) {
       user: { id: "u1", username: "ana", email: "ana@example.com" },
       followersCount: 12,
       followingCount: 3,
+      isFollowedByCurrentUser: false,
       uploadedAudios: [],
       activityHeatmap: [],
     },
@@ -97,6 +130,29 @@ describe("perfil/[username] página", () => {
       },
     });
     expect(screen.getByRole("button", { name: /seguir/i })).toBeInTheDocument();
+  });
+
+  it("quem já segue vê 'Seguindo', não 'Seguir' (1.4)", () => {
+    render(Page, {
+      props: {
+        data: buildData({
+          currentUser: { id: "u2", username: "joao", email: "j@x" },
+          userProfile: { ...buildData().userProfile, isFollowedByCurrentUser: true },
+        }),
+      },
+    });
+    const button = screen.getByTestId("follow-btn");
+    expect(button).toHaveTextContent(/^Seguindo$/);
+    expect(button).toHaveAttribute("data-following", "true");
+  });
+
+  it("quem ainda não segue vê 'Seguir' (1.4)", () => {
+    render(Page, {
+      props: {
+        data: buildData({ currentUser: { id: "u2", username: "joao", email: "j@x" } }),
+      },
+    });
+    expect(screen.getByTestId("follow-btn")).toHaveAttribute("data-following", "false");
   });
 
   it("não mostra botão Seguir no próprio perfil", () => {

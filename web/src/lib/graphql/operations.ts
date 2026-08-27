@@ -126,6 +126,10 @@ export const USER_PROFILE_QUERY = `
       user { id username email }
       followersCount
       followingCount
+      # Estado inicial do botão "Seguir" (ProfileHeader). Sem este campo o
+      # botão nasce sempre em "Seguir", e o primeiro clique de quem já segue
+      # *des*segue — o oposto do que o rótulo prometia.
+      isFollowedByCurrentUser
       uploadedAudios {
         id
         url
