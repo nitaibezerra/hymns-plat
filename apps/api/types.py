@@ -21,8 +21,41 @@ from strawberry.types import Info
 from apps.hymns import models as hymn_models
 from apps.users import models as user_models
 
-from .context import user_from_info
-from .permissions import is_editor_or_admin
+from .context import optional_request_from_info, user_from_info
+from .errors import authentication_required
+from .permissions import is_authenticated, is_editor_or_admin, require
+
+
+def _absolute_media_url(request, url: str) -> str:
+    """URL de mídia absoluta a partir do que o storage devolveu.
+
+    - vazia (áudio/capa sem arquivo): fica vazia;
+    - já absoluta (`https://media.hinaria.com.br/…` do R2, ou protocol-relative):
+      passa INTACTA — remontar sobre o host do request estragaria a URL de CDN;
+    - relativa (`/media/…` do `FileSystemStorage`): completa com o host do
+      request, que é o host do DJANGO — a origem que serve `/media/`;
+    - sem request: devolve a relativa. Sem host confiável, chutar um (via
+      `ALLOWED_HOSTS`, que é `*` em vários ambientes) produziria link quebrado
+      com cara de link certo.
+    """
+    if not url or url.startswith(("http://", "https://", "//")):
+        return url
+    if request is None:
+        return url
+    return request.build_absolute_uri(url)
+
+
+def _require_session(info: Info, action: str) -> None:
+    """Levanta `GraphQLError` em PT-BR se não houver usuário logado.
+
+    Mesma tradução que as queries do workspace editorial usam
+    (`permissions.require`): campos que devolvem lista não-nulável não têm
+    posição no schema pra um union de erro, então o caminho é `GraphQLError` —
+    é o precedente de `Query.notifications` e de `Query.editorHymnbooks`.
+    A mensagem sai de `errors.authentication_required` pra ficar dentro do
+    prefixo que o shell classifica.
+    """
+    require(user_from_info(info), is_authenticated, message=authentication_required(action))
 
 
 @strawberry.input
@@ -523,9 +556,26 @@ class HymnAudioType:
         return self.reviewed_by
 
     @strawberry.field
-    def url(self) -> str:
-        """URL pública do arquivo de áudio (FileField.url do backend ativo)."""
-        return self.audio_file.url if self.audio_file else ""
+    def url(self, info: Info) -> str:
+        """URL pública ABSOLUTA do arquivo de áudio. `""` quando não há arquivo.
+
+        O contrato é "absoluta sempre", e não "o que o storage disser": quem
+        consome é o `<audio src>` do shell SvelteKit, servido por OUTRA origem
+        (`:5173` em dev, domínio próprio via `adapter-cloudflare` em produção),
+        e uma URL relativa resolve contra a origem do SHELL — medido: 404 em
+        `:5173`, 200 em `:9000`.
+
+        Em produção isso já funcionava, mas por acidente: `S3Boto3Storage` com
+        `AWS_S3_CUSTOM_DOMAIN` faz `MEDIA_URL` absoluta, então `FileField.url`
+        saía absoluta de graça (medido: 124 áudios, todas
+        `https://media.hinaria.com.br/…`). Trocar o storage quebraria o player
+        sem aviso — daí completar aqui, explicitamente, em vez de depender da
+        config. URL já absoluta passa intacta; ver `_absolute_media_url`.
+        """
+        return _absolute_media_url(
+            optional_request_from_info(info),
+            self.audio_file.url if self.audio_file else "",
+        )
 
     @strawberry.field
     def duration_seconds(self) -> float | None:
@@ -617,12 +667,38 @@ class UserProfileType:
         return user_models.UserFollow.objects.filter(follower=self.user).count()
 
     @strawberry.field
-    def uploaded_audios(self) -> list[HymnAudioType]:
-        return list(hymn_models.HymnAudio.objects.filter(uploaded_by=self.user).order_by("-created_at"))
+    def uploaded_audios(self, info: Info) -> list[HymnAudioType]:
+        """Envios de áudio deste perfil, com o gating de visibilidade do Django.
+
+        Duas réguas, as duas já existentes no domínio:
+
+        - **aprovação**: áudio pendente não aparece publicamente em nenhuma tela
+          do monolito (`templates/hymns/_audio_player.html` recebe aprovados; a
+          fila de pendentes é `/editor/audios-pendentes/`, gateada). Vêem
+          pendentes só o dono do perfil — é o envio dele, com o badge
+          "aguardando aprovação" — e editor/admin, que revisa. Mesma regra de
+          `HymnType.audios(approvedOnly: false)`;
+        - **visibilidade do hinário**: `HymnBook.objects.visible_to(viewer)`, pra
+          um áudio aprovado num hinário em RASCUNHO não escapar por aqui — o
+          detalhe do hino não o mostraria.
+        """
+        viewer = user_from_info(info)
+        qs = hymn_models.HymnAudio.objects.filter(
+            uploaded_by=self.user,
+            hymn__hymn_book__in=hymn_models.HymnBook.objects.visible_to(viewer),
+        )
+        if not (is_editor_or_admin(viewer) or viewer == self.user):
+            qs = qs.filter(is_approved=True)
+        return list(qs.order_by("-created_at"))
 
     @strawberry.field
-    def followers(self, first: int = 20, offset: int = 0) -> list[UserType]:
-        """Página de seguidores (mais recentes primeiro). `first` é capado em 100."""
+    def followers(self, info: Info, first: int = 20, offset: int = 0) -> list[UserType]:
+        """Página de seguidores (mais recentes primeiro). `first` é capado em 100.
+
+        Exige sessão: a LISTA é `@login_required` no Django
+        (`views_social.followers_list`), diferente de `followersCount`. Ver
+        `_require_session` acima."""
+        _require_session(info, "listar seguidores")
         first = max(0, min(first, 100))
         offset = max(0, offset)
         rows = (
@@ -633,8 +709,12 @@ class UserProfileType:
         return [row.follower for row in rows]
 
     @strawberry.field
-    def following(self, first: int = 20, offset: int = 0) -> list[UserType]:
-        """Página de quem o usuário segue (mais recentes primeiro). `first` é capado em 100."""
+    def following(self, info: Info, first: int = 20, offset: int = 0) -> list[UserType]:
+        """Página de quem o usuário segue (mais recentes primeiro). `first` é capado em 100.
+
+        Exige sessão, igual a `followers` — `views_social.following_list`
+        também é `@login_required`."""
+        _require_session(info, "listar quem o usuário segue")
         first = max(0, min(first, 100))
         offset = max(0, offset)
         rows = (

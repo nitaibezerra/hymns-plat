@@ -85,6 +85,52 @@ describe("perfil/seguindo load function", () => {
     expect(result.page).toBe(1);
     expect(result.username).toBe("ana");
   });
+
+  /*
+   * Espelho de /seguidores: `UserProfileType.following` exige sessão desde o
+   * alinhamento com o `@login_required` de `apps/users/views_social.py`, e a
+   * rota fecha a porta como o guard do `/editor/`.
+   */
+  it("anônimo cai no login preservando o destino", async () => {
+    const fetchFn = fakeFetch({
+      data: { userProfile: null },
+      errors: [{ message: "Autenticação necessária para listar quem o usuário segue." }],
+    });
+    await expect(
+      _loadFollowing({
+        fetch: fetchFn,
+        params: { username: "ana" },
+        url: makeUrl("?page=3"),
+      }),
+    ).rejects.toMatchObject({
+      status: 302,
+      location: "/login?next=/perfil/ana/seguindo",
+    });
+  });
+
+  it("erro que NÃO é de acesso continua virando mensagem na página", async () => {
+    const fetchFn = fakeFetch({
+      data: { userProfile: null },
+      errors: [{ message: "Falha ao consultar o banco." }],
+    });
+    const result = await _loadFollowing({
+      fetch: fetchFn,
+      params: { username: "ana" },
+      url: makeUrl(""),
+    });
+    expect(result.error).toBe("Falha ao consultar o banco.");
+    expect(result.following).toEqual([]);
+  });
+
+  it("falha de transporte (HTTP 5xx) não é confundida com falta de sessão", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(new Response("", { status: 503 }));
+    const result = await _loadFollowing({
+      fetch: fetchFn,
+      params: { username: "ana" },
+      url: makeUrl(""),
+    });
+    expect(result.error).toMatch(/^HTTP /);
+  });
 });
 
 function buildData(overrides: Record<string, unknown> = {}) {

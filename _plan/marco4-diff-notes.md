@@ -3,6 +3,12 @@
 > Última atualização: 2026-08-27 (Frente B — **o critério do 4.I foi medido pela
 > primeira vez e NÃO é cumprido**; ver "Execução de 2026-08-27" e o veredito
 > abaixo)
+>
+> Atualização posterior do mesmo dia: saíram da lista de bugs abertos a
+> **divergência de gate de `/seguidores/` e `/seguindo/`** (a causa era a API
+> entregando as listas pra anônimo) e a **URL de mídia relativa** (item 9 dos
+> bloqueadores, onde a afirmação de que "em produção é pior" estava ERRADA e foi
+> corrigida com a medição real).
 
 Este documento registra **o que foi testado**, **o que foi medido**, **o que
 ficou pendente e por quê** e **quais diferenças são intencionais/aceitas**
@@ -249,18 +255,55 @@ mas o contrato de URL das duas leituras **não é o mesmo**, e um link de
 carrossel compartilhado por um usuário do monolito não abre no carrossel do
 shell (abre, via redirect; o inverso não).
 
-### Divergência de GATE de autenticação (achado)
+### Divergência de GATE de autenticação — **RESOLVIDA** (2026-08-27)
 
 `/perfil/<u>/seguidores/` e `/perfil/<u>/seguindo/` são `@login_required` no
-Django (`apps/users/views_social.py`) e **públicas no shell**. Medido: como
-anônimo, o Django devolve 302 pro `/accounts/login/` e o shell renderiza a
+Django (`apps/users/views_social.py`) e **eram públicas no shell**. Medido: como
+anônimo, o Django devolvia 302 pro `/accounts/login/` e o shell renderizava a
 lista. É por isso que a medição anterior dessas duas rotas comparava página de
 login com página real (o guard de densidade acusou: Django 4,98% de tinta
-contra 1,23% do shell). A suíte agora mede as duas com sessão.
+contra 1,23% do shell). A suíte mede as duas com sessão.
 
-O ponto de produto é maior que a paridade: **o shell expõe anonimamente uma
-lista que o monolito protege.** Quem decide qual dos dois está certo não é esta
-frente; fica registrado.
+O ponto de produto era maior que a paridade, e a causa não estava no shell:
+**a API entregava as listas pra anônimo.** Medido em produção antes do
+conserto: `POST /graphql/` sem sessão com
+`userProfile(username:"nitai"){ followers{username} following{username} }`
+respondia **200 com as listas**; os resolvers
+`UserProfileType.followers`/`following` não tinham gate nenhum. Não houve
+vazamento na sondagem só porque aquele usuário tem 0 seguidores.
+
+**Decisão de produto tomada: o Django é a fonte de verdade até o Marco 7.**
+Portanto:
+
+- as LISTAS (`followers`/`following`) exigem sessão — `GraphQLError` em PT-BR
+  via `permissions.require`, o mesmo formato de `Query.notifications` e dos 3
+  resolvers do workspace editorial (campo de lista não-nulável não tem posição
+  no schema pra union de erro);
+- as CONTAGENS (`followersCount`/`followingCount`) seguem **públicas**, porque a
+  página pública do Django as mostra (`GET /perfil/nitai/` → 200);
+- `/perfil/<u>/seguidores/` e `/seguindo/` no shell redirecionam anônimo pra
+  `/login?next=<destino>`, reusando `_isEditorAccessError` e
+  `_editorLoginRedirect` do guard de `/editor/`.
+
+Achado no caminho, no mesmo campo de leitura anônima: **`uploadedAudios`
+devolvia áudios PENDENTES de aprovação e áudios de hinário em RASCUNHO pra
+qualquer um.** No Django, pendente só aparece na fila gateada
+`/editor/audios-pendentes/`, e hino de hinário não publicado não aparece pra
+anônimo (`visible_to`). Alinhado com as duas réguas que já existiam (o gate de
+`HymnType.audios(approvedOnly: false)` e `HymnBook.objects.visible_to`).
+
+Conferido e **deixado como está** no mesmo `UserProfileType`:
+`followersCount`/`followingCount`, `activityHeatmap` (o
+`/api/users/<u>/heatmap/` do Django não tem `@login_required` — público de
+propósito) e `isFollowedByCurrentUser` (anônimo recebe `False`, não erro).
+
+Continua aberto, medido aqui e **não** consertado: `UserType.email` é público.
+`userProfile(username:"x"){ user{ email } }` devolve o e-mail de qualquer
+usuário pra anônimo, e a página de perfil do Django não mostra e-mail nenhum.
+Fechar exige tornar o campo nulável e mexer nos tipos de props de
+`web/src/lib/components/**` (`ProfileHeader`, `ProfileUploads`, `Header`), que
+declaram `email: string` obrigatório — mudança de contrato maior que um gate,
+com dono diferente.
 
 ### Efeito colateral do Django em `/notificacoes/` (achado)
 
@@ -569,14 +612,33 @@ Qualquer das três é decisão humana. Nenhuma foi tomada nesta frente.
 8. **Máscara de timestamp é assimétrica e infla o diff.** Quantificado acima
    (~4 pp em `notifications`). O conserto é um hook estável nos dois lados
    (`data-parity-volatile`); exige `templates/**` e `web/src/**`.
-9. **URL de mídia relativa quebra o áudio fora do domínio do Django.**
-   `HymnAudioType.url` devolve `FileField.url` (`/media/…`, relativo). O
-   `<audio src>` do shell resolve contra a origem do SHELL: medido, 404 em
-   `:5173` e 200 em `:9000`. Em produção é pior — o shell é servido por outro
-   domínio (`adapter-cloudflare`) e a mídia vive em `media.hinaria.com.br`. A
-   spec de player contorna com `page.route`, o que resolve o TESTE e não o
-   produto. Conserto em `apps/api/types.py` (devolver URL absoluta) ou em
-   `web/src/**` (prefixar com a origem da API).
+9. ~~**URL de mídia relativa quebra o áudio fora do domínio do Django.**~~
+   **RESOLVIDO** (2026-08-27) em `apps/api/types.py`: `HymnAudioType.url`
+   completa a URL relativa com o host do request e deixa intacta a que já vem
+   absoluta.
+
+   **Correção de uma afirmação errada desta nota.** Dizia "em produção é pior".
+   **Não é: em produção estava CERTO.** Medido em produção antes do conserto:
+   124 áudios, **todas as URLs absolutas** (`https://media.hinaria.com.br/…`),
+   porque `S3Boto3Storage` com `AWS_S3_CUSTOM_DOMAIN` faz `MEDIA_URL` absoluta
+   e `FileField.url` sai absoluta de graça. O problema era **só em
+   dev/local/CI** (`FileSystemStorage`, `MEDIA_URL="/media/"`): aí sim
+   `FileField.url` é relativa e o `<audio src>` do shell resolve contra a
+   origem do SHELL — medido, 404 em `:5173` e 200 em `:9000`.
+
+   O que o conserto compra, então, não é "consertar produção" — é **tornar o
+   contrato explícito em vez de acidental**: hoje o acerto em produção era
+   efeito colateral da config de storage, e trocar o storage (voltar pra local,
+   sair do custom domain) quebraria o player sem aviso. Sem request no contexto
+   o resolver devolve a URL do storage como veio; inventar host a partir de
+   `ALLOWED_HOSTS` (`*` em vários ambientes) daria link quebrado com cara de
+   link certo. A spec de player segue com o `page.route` — ele agora é
+   redundante, não indispensável.
+
+   **Mesmo defeito, ainda aberto:** `HymnBookType.cover_image` devolve
+   `FileField.url` cru, relativo em dev, consumido por `<img src>` no shell. O
+   conserto é uma linha reusando `_absolute_media_url` — não foi feito aqui para
+   não mexer em campo fora do escopo desta frente.
 10. **`PlayButton` não recupera o player depois do dismiss.** Ver abaixo.
 11. **O banco é compartilhado entre worktrees.** Ver "Como reproduzir".
 12. **CI não roda a suíte de paridade.** Por decisão, não por bloqueio técnico:
@@ -611,7 +673,12 @@ Três coisas foram necessárias pra ela rodar de verdade:
    WAV de 3 s, gerada no próprio comando (nada de binário versionado, nada de
    ffmpeg).
 2. **Mídia acessível do shell** — ver bloqueador 9. A spec redireciona as
-   requisições de mídia pro Django com `page.route`.
+   requisições de mídia pro Django com `page.route`. Desde 2026-08-27 o
+   `HymnAudioType.url` já sai absoluto (bloqueador 9 resolvido), então o
+   `page.route` virou rede de segurança: o glob `**/media/**` casa a URL
+   absoluta também, e o comentário da spec que manda consertar em
+   `apps/api/types.py` está cumprido — o texto lá ficou desatualizado porque a
+   spec tem outra dona.
 3. **Esperar a hidratação.** `page.goto` com o default (`load`) volta antes do
    Svelte anexar os handlers e o click no botão vira no-op; a barra
    simplesmente não aparecia e o teste falhava como se o produto estivesse

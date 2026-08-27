@@ -17,6 +17,25 @@ from graphql import GraphQLError
 # devolver union (lista / objeto não-nulável).
 PERMISSION_DENIED_MESSAGE = "Você não tem permissão para realizar essa ação."
 
+# Prefixo ESTÁVEL das mensagens de "precisa estar logado".
+#
+# `Query.notifications` já falava assim ("Autenticação necessária para listar
+# notificações.") e o shell classifica erro por substring pra decidir o
+# redirect pro login (`_isEditorAccessError` em `web/src/routes/editor/+layout.ts`
+# casa "autenticação"). Toda mensagem nova de autenticação passa por
+# `authentication_required` pra não nascer fora desse prefixo — foi assim que
+# `web/src/routes/notificacoes/+page.ts` acabou procurando "authenticat" numa
+# mensagem em português e nunca redirecionando.
+AUTHENTICATION_REQUIRED_PREFIX = "Autenticação necessária"
+
+
+def authentication_required(action: str) -> str:
+    """Mensagem PT-BR de autenticação exigida para `action`.
+
+    `action` é a ação no infinitivo, sem pontuação: `"listar seguidores"`.
+    """
+    return f"{AUTHENTICATION_REQUIRED_PREFIX} para {action}."
+
 
 @strawberry.type
 class PermissionDeniedError:
