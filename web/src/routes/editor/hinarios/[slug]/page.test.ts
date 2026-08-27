@@ -7,7 +7,7 @@
  * Paridade de referência: `templates/hymns/editor/hymnbook_detail.html`.
  */
 
-import { fireEvent, render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import Page from "./+page.svelte";
@@ -16,13 +16,63 @@ import { _loadEditorHymnbookDetail } from "./+page";
 import type { EditorHymnbookDetail } from "./+page";
 
 const gotoMock = vi.fn();
+const invalidateAllMock = vi.fn();
 vi.mock("$app/navigation", () => ({
   goto: (...args: unknown[]) => gotoMock(...args),
+  invalidateAll: () => invalidateAllMock(),
 }));
 
 beforeEach(() => {
   gotoMock.mockClear();
+  invalidateAllMock.mockClear();
+  vi.stubGlobal("fetch", vi.fn(modalBackend));
 });
+
+/**
+ * Backend de mentira pros modais de 5.D.
+ *
+ * Eles falam com o servidor por conta própria (o `fetch` global, não o da
+ * load), então sem um stub o jsdom despeja erro de rede no meio do teste. O
+ * stub responde por operação: o que está sendo medido aqui é a REAÇÃO da
+ * página ao callback do modal, não o caminho de falha das mutations — esse
+ * já é coberto em `src/lib/components/editor/*.test.ts`.
+ */
+async function modalBackend(_url: unknown, init?: RequestInit): Promise<Response> {
+  const body = String(init?.body ?? "");
+  const json = (payload: unknown) =>
+    new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  if (body.includes("publishReadiness")) {
+    return json({ data: { publishReadiness: { canPublish: true, checks: [] } } });
+  }
+  if (body.includes("unpublishHymnBook")) {
+    return json({
+      data: {
+        unpublishHymnBook: {
+          __typename: "HymnBookType",
+          id: "b1",
+          slug: "o-cruzeiro",
+          name: "O Cruzeiro",
+          isPublished: false,
+        },
+      },
+    });
+  }
+  if (body.includes("publishHymnBook")) {
+    return json({
+      data: { publishHymnBook: { __typename: "PublishResult", ok: true, failedChecks: [] } },
+    });
+  }
+  if (body.includes("deleteHymnBook")) {
+    return json({
+      data: { deleteHymnBook: { __typename: "DeleteResult", ok: true, deletedId: "b1" } },
+    });
+  }
+  return json({ data: {} });
+}
 
 function fakeFetch<T>(payload: T, status = 200) {
   return vi.fn().mockResolvedValue(
@@ -200,5 +250,97 @@ describe("botão 'Próximo pendente' (5B.9)", () => {
   it("é um <button> — a ação depende do dado do backend, não de uma URL adivinhada", () => {
     render(Page, { props: { data: buildData() } });
     expect(screen.getByTestId("next-pending").tagName).toBe("BUTTON");
+  });
+});
+
+/**
+ * Frente 1 — Ciclo 1.2 · portas de entrada do detalhe editorial.
+ *
+ * Paridade com o bloco `{% if can_edit %}` de
+ * `templates/hymns/hymnbook_detail.html` ("+ Hino" e "Editar" pareados) mais
+ * o `hymnbook_publish` de `templates/hymns/editor/hymnbook_list.html`. As
+ * rotas e os modais existem desde o 5.D; faltava quem apontasse pra eles.
+ */
+describe("portas de entrada do detalhe editorial (1.2)", () => {
+  it("leva ao form de edição do hinário", () => {
+    render(Page, { props: { data: buildData() } });
+    expect(screen.getByTestId("edit-hymnbook-link")).toHaveAttribute(
+      "href",
+      "/editor/hinarios/o-cruzeiro/editar/",
+    );
+  });
+
+  it("leva ao form de novo hino DESTE hinário", () => {
+    render(Page, { props: { data: buildData() } });
+    const link = screen.getByTestId("new-hymn-link");
+    expect(link).toHaveAttribute("href", "/editor/hinarios/o-cruzeiro/hinos/novo/");
+    expect(link).toHaveTextContent(/hino/i);
+  });
+
+  it("o modal de publicação só aparece depois do clique", async () => {
+    render(Page, { props: { data: buildData() } });
+    expect(screen.queryByTestId("publish-hymnbook-modal")).not.toBeInTheDocument();
+
+    await fireEvent.click(screen.getByTestId("publish-hymnbook"));
+    expect(screen.getByTestId("publish-hymnbook-modal")).toBeInTheDocument();
+  });
+
+  it("rascunho convida a publicar; publicado convida a despublicar", () => {
+    const { unmount } = render(Page, { props: { data: buildData() } });
+    expect(screen.getByTestId("publish-hymnbook")).toHaveTextContent(/^Publicar$/);
+    unmount();
+
+    render(Page, { props: { data: buildData({ isPublished: true }) } });
+    expect(screen.getByTestId("publish-hymnbook")).toHaveTextContent(/despublicar/i);
+  });
+
+  it("publicar com sucesso recarrega a rota — o estado da tela vem do backend", async () => {
+    render(Page, { props: { data: buildData({ isPublished: true }) } });
+    await fireEvent.click(screen.getByTestId("publish-hymnbook"));
+    await fireEvent.click(screen.getByTestId("confirm-publish"));
+
+    await waitFor(() => expect(invalidateAllMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId("publish-hymnbook-modal")).not.toBeInTheDocument();
+  });
+
+  it("cancelar o modal de publicação fecha sem recarregar nada", async () => {
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.click(screen.getByTestId("publish-hymnbook"));
+    await fireEvent.click(screen.getByTestId("cancel-publish"));
+
+    expect(screen.queryByTestId("publish-hymnbook-modal")).not.toBeInTheDocument();
+    expect(invalidateAllMock).not.toHaveBeenCalled();
+  });
+
+  it("o modal de deleção só aparece depois do clique, e sabe quantos hinos leva junto", async () => {
+    render(Page, { props: { data: buildData() } });
+    expect(screen.queryByTestId("delete-hymnbook-modal")).not.toBeInTheDocument();
+
+    await fireEvent.click(screen.getByTestId("delete-hymnbook"));
+    const modal = screen.getByTestId("delete-hymnbook-modal");
+    expect(modal).toBeInTheDocument();
+    // `stats.hymnsTotal` do payload — é o número que o Django mostra no
+    // `hymnbook_confirm_delete.html`.
+    expect(modal).toHaveTextContent(/30 hinos/);
+  });
+
+  it("hinário deletado devolve o editor pra fila — o detalhe deixou de existir", async () => {
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.click(screen.getByTestId("delete-hymnbook"));
+
+    const input = screen.getByTestId("confirm-name-input");
+    await fireEvent.input(input, { target: { value: "O Cruzeiro" } });
+    await fireEvent.click(screen.getByTestId("confirm-delete"));
+
+    await waitFor(() => expect(gotoMock).toHaveBeenCalledWith("/editor/"));
+  });
+
+  it("cancelar a deleção fecha o modal e não navega", async () => {
+    render(Page, { props: { data: buildData() } });
+    await fireEvent.click(screen.getByTestId("delete-hymnbook"));
+    await fireEvent.click(screen.getByTestId("cancel-delete"));
+
+    expect(screen.queryByTestId("delete-hymnbook-modal")).not.toBeInTheDocument();
+    expect(gotoMock).not.toHaveBeenCalled();
   });
 });

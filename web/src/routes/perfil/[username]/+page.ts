@@ -35,6 +35,11 @@ export interface UserProfile {
   user: ProfileUser;
   followersCount: number;
   followingCount: number;
+  /**
+   * `UserProfileType.isFollowedByCurrentUser` — estado inicial do botão
+   * "Seguir". O backend resolve contra a sessão; anônimo recebe `false`.
+   */
+  isFollowedByCurrentUser: boolean;
   uploadedAudios: ProfileAudio[];
   activityHeatmap: HeatmapBucket[];
 }

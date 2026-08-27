@@ -26,14 +26,14 @@
  * conhecido, e é exatamente por isso que `seed_e2e` é idempotente e
  * sobrescreve o que a suíte deixou.
  *
- * **O que está em `test.fixme` e por quê.** Autosave e "marcar revisado" são
- * MUTATIONS disparadas do browser em `:5173` contra o Django em `:9000`. O
- * `CsrfViewMiddleware` recusa com `Origin checking failed -
- * http://localhost:5173 does not match any trusted origins`, porque
- * `config/settings/local.py` não define `CSRF_TRUSTED_ORIGINS` (só
- * `production.py` define). Medido nesta base com curl e no browser, não
- * deduzido. Não é bug de UI e o conserto é uma linha em `config/` — fora do
- * escopo desta frente. Ver `blocked` no relatório.
+ * **Os dois `test.fixme` saíram (Frente 1).** Autosave e "marcar revisado" são
+ * MUTATIONS disparadas do browser contra o Django noutra porta, e o
+ * `CsrfViewMiddleware` recusava com `Origin checking failed - … does not match
+ * any trusted origins` porque `config/settings/local.py` não definia
+ * `CSRF_TRUSTED_ORIGINS`. O PR #82 definiu, e os dois testes passam como
+ * estavam escritos — rodados de verdade antes de sair do fixme, não
+ * destravados no escuro. Se você rodar em porta customizada, passe a origem
+ * pelo env (`DJANGO_CSRF_TRUSTED_ORIGINS`), senão o 403 volta.
  */
 
 import { expect, test } from "@playwright/test";
@@ -191,41 +191,45 @@ test.describe("revisar hino — tela 07 (5C.17)", () => {
     expect(page.url()).toBe(urlAntes);
   });
 
-  test.fixme(
-    "autosave de 2s grava e mostra 'Salvo às HH:MM'",
-    async ({ browser }) => {
-      // BLOQUEADO por configuração, não por UI — medido: o rodapé vai a
-      // `data-state="error"` com o texto "HTTP 403". O `updateHymn` sai do
-      // browser em :5173 para o Django em :9000 e o CsrfViewMiddleware recusa
-      // com "Origin checking failed", porque `config/settings/local.py` não
-      // define CSRF_TRUSTED_ORIGINS (só `production.py` define). Conserto:
-      // uma linha em `config/` — fora do escopo desta frente. Com ela, este
-      // teste passa como está escrito.
-      const page = await pageComoEditor(browser);
-      await abrirProximoPendente(page);
+  test("autosave de 2s grava e mostra 'Salvo às HH:MM'", async ({ browser }) => {
+    const page = await pageComoEditor(browser);
+    await abrirProximoPendente(page);
 
-      await page.locator("input.input-title").fill("Revisado pela suíte E2E");
+    // O rodapé em "idle" é o sinal de que os efeitos da tela já rodaram.
+    const status = page.getByTestId("autosave-status");
+    await expect(status).toHaveAttribute("data-state", "idle");
 
-      const status = page.getByTestId("autosave-status");
-      await expect(status).toHaveAttribute("data-state", "saved", { timeout: AUTOSAVE_WAIT_MS });
-      await expect(status).toHaveText(/^Salvo às \d{2}:\d{2}$/);
-    },
-  );
+    // Valor ÚNICO por corrida, de propósito: o autosave compara com o último
+    // snapshot persistido e não agenda nada quando o campo não mudou. O teste
+    // anterior desta mesma spec já gravou "Revisado pela suíte E2E" neste
+    // hino; repetir a string deixaria o rodapé em "idle" e o teste morreria
+    // esperando um "saved" que nunca viria — por um motivo que não é bug.
+    const marca = `E2E Autosave ${Date.now()}`;
+    await page.locator("input.input-title").fill(marca);
+    await expect(status).toHaveAttribute("data-state", "pending");
 
-  test.fixme(
-    "'Marcar revisado e avançar' cai no próximo pendente",
-    async ({ browser }) => {
-      // Mesmo bloqueio do autosave: `updateHymn` + `setReviewStatus` são
-      // mutations do browser e tomam 403 de CSRF por Origin em dev.
-      const page = await pageComoEditor(browser);
-      await abrirProximoPendente(page);
+    await expect(status).toHaveAttribute("data-state", "saved", { timeout: AUTOSAVE_WAIT_MS });
+    await expect(status).toHaveText(/^Salvo às \d{2}:\d{2}$/);
+  });
 
-      const urlAntes = page.url();
-      await page.getByTestId("save-and-advance").click();
+  test("'Marcar revisado e avançar' cai no próximo pendente", async ({ browser }) => {
+    const page = await pageComoEditor(browser);
+    await abrirProximoPendente(page);
 
-      await expect(page).toHaveURL(/\/editor\/hinos\/[0-9a-f-]+\/revisar/);
-      expect(page.url()).not.toBe(urlAntes);
-      await expect(page.locator("input.input-title")).toHaveValue(NEXT_PENDING_HYMN_TITLE);
-    },
-  );
+    // Mesma espera de hidratação do teste acima: o botão é `<button>` e um
+    // clique antes dos efeitos é um no-op silencioso.
+    await expect(page.getByTestId("autosave-status")).toHaveAttribute("data-state", "idle");
+
+    const urlAntes = page.url();
+    await page.getByTestId("save-and-advance").click();
+
+    // A espera vem PRIMEIRO no título, não na URL: o padrão
+    // `/editor/hinos/<uuid>/revisar` já casa com a página de onde saímos,
+    // então `toHaveURL` passaria na hora e `page.url()` seria lido antes de a
+    // navegação terminar. O título do próximo pendente é o que só existe
+    // depois de chegar lá.
+    await expect(page.locator("input.input-title")).toHaveValue(NEXT_PENDING_HYMN_TITLE);
+    await expect(page).toHaveURL(/\/editor\/hinos\/[0-9a-f-]+\/revisar/);
+    expect(page.url()).not.toBe(urlAntes);
+  });
 });

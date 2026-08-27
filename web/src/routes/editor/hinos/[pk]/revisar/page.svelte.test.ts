@@ -6,7 +6,7 @@
  * `apps/hymns/editor_views.py::editor_revise_hymn`.
  */
 
-import { fireEvent, render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { goto } from "$app/navigation";
@@ -816,5 +816,104 @@ describe("5C.17 — jornada completa (cobertura de unidade do E2E pendente)", ()
     await fireEvent.click(screen.getByRole("button", { name: /Marcar revisado e avançar/ }));
     await vi.advanceTimersByTimeAsync(50);
     expect(goto).toHaveBeenCalledWith("/editor/hinos/h-2/revisar");
+  });
+});
+
+/**
+ * Frente 1 — Ciclos 1.2/1.3 · pontos de entrada por hino.
+ *
+ * Esta é a tela de trabalho do editor SOBRE UM HINO, e é onde o Django
+ * pendura as ações equivalentes: `templates/hymns/hymn_detail.html` pareia
+ * "Editar" com "Revisar" dentro de `{% if can_edit %}` e oferece
+ * "♫ Adicionar áudio" a qualquer autenticado, tenha o hino gravação ou não.
+ *
+ * `AudioUploadDrawer` e `DeleteHymnModal` chegaram no 5.D importados em zero
+ * rotas. `HymnStatusList` (a lista do detalhe do hinário, onde uma coluna de
+ * ações por linha seria o outro lugar natural) não expõe slot pra isso e é
+ * componente fechado nesta frente — ver o relatório.
+ */
+describe("ações por hino na tela de revisão (1.2/1.3)", () => {
+  const withAudio = {
+    ...sampleData,
+    hymn: {
+      ...sampleData.hymn!,
+      audios: [
+        {
+          id: "a-1",
+          url: "https://media.example.com/a1.mp3",
+          title: "Gravação 1997",
+          waveformPeaks: [1, 2, 3],
+          durationSeconds: 125,
+          isApproved: false,
+          isMatch: null,
+          qualityRating: null,
+          qualityObservations: [],
+          mismatchReason: "",
+          reviewedAt: null,
+          reviewedBy: null,
+        },
+      ],
+    },
+  };
+
+  beforeEach(() => {
+    vi.mocked(goto).mockClear();
+    stubFetch({
+      data: { deleteHymn: { __typename: "DeleteResult", ok: true, deletedId: "h-1" } },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("leva ao form de edição DESTE hino", () => {
+    render(Page, { props: { data: sampleData } });
+    expect(screen.getByTestId("edit-hymn-link")).toHaveAttribute(
+      "href",
+      "/editor/hinos/h-1/editar/",
+    );
+  });
+
+  it("o drawer de envio de gravação começa fechado e abre pelo botão", async () => {
+    render(Page, { props: { data: sampleData } });
+    expect(screen.queryByTestId("audio-upload-drawer")).toBeNull();
+
+    await fireEvent.click(screen.getByTestId("open-audio-upload"));
+    expect(screen.getByTestId("audio-upload-drawer")).toBeInTheDocument();
+  });
+
+  it("enviar gravação é oferecido mesmo quando o hino JÁ tem áudio", () => {
+    render(Page, { props: { data: withAudio } });
+    expect(screen.getByTestId("open-audio-upload")).toBeInTheDocument();
+    // A gravação existente continua revisável — os dois convivem.
+    expect(screen.getByTestId("open-audio-review")).toBeInTheDocument();
+  });
+
+  it("o modal de deleção do hino só aparece depois do clique", async () => {
+    render(Page, { props: { data: sampleData } });
+    expect(screen.queryByTestId("delete-hymn-modal")).toBeNull();
+
+    await fireEvent.click(screen.getByTestId("delete-hymn"));
+    const modal = screen.getByTestId("delete-hymn-modal");
+    expect(modal).toBeInTheDocument();
+    expect(modal).toHaveTextContent("Estrela do Norte");
+  });
+
+  it("hino deletado devolve o editor ao hinário — este hino deixou de existir", async () => {
+    render(Page, { props: { data: sampleData } });
+    await fireEvent.click(screen.getByTestId("delete-hymn"));
+    await fireEvent.click(screen.getByTestId("confirm-delete-hymn"));
+
+    await waitFor(() => expect(goto).toHaveBeenCalledWith("/editor/hinarios/o-cruzeiro"));
+  });
+
+  it("cancelar a deleção fecha o modal e não navega", async () => {
+    render(Page, { props: { data: sampleData } });
+    await fireEvent.click(screen.getByTestId("delete-hymn"));
+    await fireEvent.click(screen.getByTestId("cancel-delete-hymn"));
+
+    expect(screen.queryByTestId("delete-hymn-modal")).toBeNull();
+    expect(goto).not.toHaveBeenCalled();
   });
 });

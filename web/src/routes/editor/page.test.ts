@@ -413,3 +413,42 @@ describe("jornadas do 5B.10 (E2E adiado — casos cobertos como unidade)", () =>
     );
   });
 });
+
+/**
+ * Frente 1 — Ciclo 1.1 · portas de entrada do dashboard.
+ *
+ * Paridade: `templates/hymns/hymnbook_list.html` oferece "+ Novo hinário" no
+ * cabeçalho pra quem tem `can_review_any_hymnbook`, e
+ * `templates/hymns/editor/hymnbook_list.html` faz do aviso de áudios
+ * pendentes um LINK pra `hymns:editor_pending_audios`. As duas rotas já
+ * existem na SPA desde o 5.D; até aqui nenhuma tela apontava pra elas, então
+ * só se chegava nelas digitando a URL.
+ */
+describe("portas de entrada do dashboard (1.1)", () => {
+  it("oferece criar hinário novo, no destino da rota do 5.D", () => {
+    render(Page, { props: { data: buildData() } });
+    const link = screen.getByTestId("new-hymnbook-link");
+    expect(link).toHaveAttribute("href", "/editor/hinarios/novo/");
+    expect(link).toHaveTextContent(/novo hinário/i);
+  });
+
+  it("o aviso de áudios pendentes é link de verdade, não badge inerte", () => {
+    render(Page, { props: { data: buildData() } });
+    const badge = screen.getByTestId("pending-audios-badge");
+    expect(badge.tagName).toBe("A");
+    expect(badge).toHaveAttribute("href", "/editor/audios/pendentes/");
+  });
+
+  it("o link de áudios pendentes repete o convite do template Django", () => {
+    render(Page, { props: { data: buildData() } });
+    expect(screen.getByTestId("pending-audios-badge")).toHaveTextContent(/revisar áudios/i);
+  });
+
+  it("sem áudio pendente não há link — e o de criar hinário não some por isso", () => {
+    const data = buildData();
+    data.stats.pendingAudiosCount = 0;
+    render(Page, { props: { data } });
+    expect(screen.queryByTestId("pending-audios-badge")).not.toBeInTheDocument();
+    expect(screen.getByTestId("new-hymnbook-link")).toBeInTheDocument();
+  });
+});

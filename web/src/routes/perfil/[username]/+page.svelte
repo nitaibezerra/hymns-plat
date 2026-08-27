@@ -19,6 +19,7 @@
       followersCount={data.userProfile.followersCount}
       followingCount={data.userProfile.followingCount}
       currentUser={data.currentUser}
+      isFollowedByCurrentUser={data.userProfile.isFollowedByCurrentUser}
     />
 
     <section class="activity">
