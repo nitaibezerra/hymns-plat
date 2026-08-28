@@ -21,7 +21,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { _repassarSessao, handleFetch } from "./hooks.server";
+import { _declararOrigem, _desviarParaSsr, _repassarSessao, handleFetch } from "./hooks.server";
 
 const GRAPHQL = "http://localhost:8000/graphql/";
 const COOKIE = "sessionid=abc123; csrftoken=def456";
@@ -36,11 +36,15 @@ function outgoing(url = GRAPHQL, headers: Record<string, string> = {}): Request 
 }
 
 /** Evento de servidor mínimo: só o header `cookie` da requisição do visitante. */
-function visitorEvent(cookie: string | null) {
+function visitorEvent(cookie: string | null, paginaUrl = "http://localhost:5173/") {
   return {
-    request: new Request("http://localhost:5173/", {
+    request: new Request(paginaUrl, {
       headers: cookie ? { cookie } : {},
     }),
+    // O hook lê `event.url.origin` pra declarar o `Origin` de saída — é o que
+    // o `universal_fetch` do SvelteKit exige de volta no
+    // `Access-Control-Allow-Origin`.
+    url: new URL(paginaUrl),
   };
 }
 
@@ -131,5 +135,68 @@ describe("_repassarSessao", () => {
   it("não repassa nada quando a URL do GraphQL é inválida", () => {
     const request = _repassarSessao(outgoing(), COOKIE, "nao-e-url");
     expect(request.headers.has("cookie")).toBe(false);
+  });
+});
+
+describe("_declararOrigem — o header Origin que o universal_fetch exige", () => {
+  const GRAPHQL = "https://hinaria.com.br/graphql/";
+  const PAGINA = "https://beta.hinaria.com.br";
+
+  it("declara a origem da página quando o destino é o host do GraphQL", () => {
+    const req = new Request(GRAPHQL, { method: "POST" });
+    _declararOrigem(req, PAGINA, GRAPHQL);
+    expect(req.headers.get("origin")).toBe(PAGINA);
+  });
+
+  it("não declara nada para outro host — o gate é o mesmo do cookie", () => {
+    const req = new Request("https://evil.example.com/graphql/", { method: "POST" });
+    _declararOrigem(req, PAGINA, GRAPHQL);
+    expect(req.headers.get("origin")).toBeNull();
+  });
+
+  it("não declara para host que só termina igual", () => {
+    const req = new Request("https://evil-hinaria.com.br/graphql/", { method: "POST" });
+    _declararOrigem(req, PAGINA, GRAPHQL);
+    expect(req.headers.get("origin")).toBeNull();
+  });
+
+  it("não sobrescreve Origin que o chamador já declarou", () => {
+    const req = new Request(GRAPHQL, { method: "POST", headers: { origin: "https://outra.com" } });
+    _declararOrigem(req, PAGINA, GRAPHQL);
+    expect(req.headers.get("origin")).toBe("https://outra.com");
+  });
+
+  it("não declara quando GRAPHQL_URL é inválida", () => {
+    const req = new Request(GRAPHQL, { method: "POST" });
+    _declararOrigem(req, PAGINA, "isto-nao-e-url");
+    expect(req.headers.get("origin")).toBeNull();
+  });
+});
+
+describe("_desviarParaSsr — o apex é inalcançável de dentro do Worker", () => {
+  const PUB = "https://hinaria.com.br/graphql/";
+  const SSR = "https://hinaria-production.up.railway.app/graphql/";
+
+  it("troca a origem pública pela interna, preservando caminho", () => {
+    const r = _desviarParaSsr(new Request(PUB, { method: "POST" }), PUB, SSR);
+    expect(new URL(r.url).host).toBe("hinaria-production.up.railway.app");
+    expect(new URL(r.url).pathname).toBe("/graphql/");
+  });
+
+  it("preserva o header Origin ao trocar o destino", () => {
+    const req = new Request(PUB, { method: "POST", headers: { origin: "https://beta.hinaria.com.br" } });
+    const r = _desviarParaSsr(req, PUB, SSR);
+    expect(r.headers.get("origin")).toBe("https://beta.hinaria.com.br");
+  });
+
+  it("não desvia quando as duas URLs têm a mesma origem (dev)", () => {
+    const r = _desviarParaSsr(new Request(PUB, { method: "POST" }), PUB, PUB);
+    expect(new URL(r.url).host).toBe("hinaria.com.br");
+  });
+
+  it("não desvia destino que não é o GraphQL", () => {
+    const outro = "https://evil.example.com/x";
+    const r = _desviarParaSsr(new Request(outro, { method: "POST" }), PUB, SSR);
+    expect(r.url).toBe(outro);
   });
 });

@@ -99,3 +99,22 @@ export const GRAPHQL_URL = _resolveGraphqlUrl({
   ...(import.meta.env as RuntimeEnv),
   BUILDING: building,
 });
+
+/**
+ * Destino do GraphQL **no SSR**, quando ele precisa diferir do público.
+ *
+ * Por que existe: em produção o apex `hinaria.com.br` é servido por um Worker
+ * (`hinaria-proxy`) que reescreve o `Host` — o Railway não responde sem isso.
+ * E um Worker que faz `fetch` para o PRÓPRIO domínio **não passa pelas rotas
+ * de Worker da zona**: a subrequisição vai direto ao origin, com o Host que o
+ * Railway não sabe rotear. Resultado medido no beta: `404` servido pela
+ * `cloudflare`, que o SvelteKit reporta como
+ * `CORS error: No 'Access-Control-Allow-Origin' header` — porque um 404 do
+ * edge não carrega header de CORS. O erro que aparece não é o erro que existe.
+ *
+ * Então o SSR aponta para a URL interna do Railway (fora da zona, sem a
+ * armadilha) e o navegador continua no apex, onde o proxy funciona e o cookie
+ * de sessão flui. Vazio = sem desvio, que é o certo em dev.
+ */
+export const GRAPHQL_SSR_URL: string =
+  (import.meta.env.VITE_GRAPHQL_SSR_URL as string | undefined)?.trim() || GRAPHQL_URL;

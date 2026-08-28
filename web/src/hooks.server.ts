@@ -60,7 +60,7 @@
  * não existe POST de mutation em SSR pra ficar sem token.
  */
 
-import { GRAPHQL_URL } from "$lib/config";
+import { GRAPHQL_SSR_URL, GRAPHQL_URL } from "$lib/config";
 
 import type { HandleFetch } from "@sveltejs/kit";
 
@@ -104,5 +104,97 @@ export function _repassarSessao(
   return request;
 }
 
-export const handleFetch: HandleFetch = ({ event, request, fetch }) =>
-  fetch(_repassarSessao(request, event.request.headers.get("cookie")));
+/**
+ * Põe o header `Origin` da página na requisição de saída, sob o MESMO gate de
+ * host do cookie.
+ *
+ * ## Por que isto é necessário
+ *
+ * O `universal_fetch` do SvelteKit **emula CORS no servidor**. O trecho, no
+ * runtime dele, é literal:
+ *
+ *     const acao = response.headers.get("access-control-allow-origin");
+ *     if (!acao || (acao !== event.url.origin && acao !== "*")) throw ...
+ *
+ * Ou seja: mesmo rodando em Node/Workers, sem navegador nenhum, a resposta
+ * precisa carregar `Access-Control-Allow-Origin` igual à origem da página.
+ *
+ * E `fetch` de servidor **não manda `Origin`**. O `django-cors-headers` sai
+ * cedo quando o header não existe (`if not origin: return response`), então a
+ * resposta volta sem `Access-Control-Allow-Origin` e o SvelteKit lança
+ * `CORS error: No 'Access-Control-Allow-Origin' header is present`.
+ *
+ * MEDIDO contra produção, e é o que fecha o raciocínio:
+ *   POST sem  Origin              -> 200, nenhum header ACAO
+ *   POST com  Origin: <beta>      -> 200, access-control-allow-origin: <beta>
+ *
+ * Foi exatamente esse 500 que derrubou toda rota do beta no primeiro deploy.
+ *
+ * ## Por que não aparece em dev
+ *
+ * Em `localhost` a app e o Django compartilham hostname, e o cookie
+ * passthrough do próprio SvelteKit já entrega — o caminho que quebra é o
+ * cross-host, que só existe em produção. É o mesmo motivo pelo qual o bug de
+ * sessão em SSR também era invisível na máquina.
+ *
+ * @param request Requisição prestes a sair.
+ * @param origemDaPagina `event.url.origin` — a origem que o SvelteKit vai
+ *   exigir de volta no `Access-Control-Allow-Origin`.
+ * @param graphqlUrl Origem autorizada. Injetável só pra teste.
+ */
+export function _declararOrigem(
+  request: Request,
+  origemDaPagina: string,
+  graphqlUrl: string = GRAPHQL_URL,
+): Request {
+  // Quem já declarou `Origin` manda — o hook complementa, não sobrescreve.
+  if (request.headers.has("origin")) return request;
+
+  const autorizada = origem(graphqlUrl);
+  if (autorizada === null || origem(request.url) !== autorizada) return request;
+
+  request.headers.set("origin", origemDaPagina);
+  return request;
+}
+
+/**
+ * Troca o destino público pelo interno, quando eles diferem.
+ *
+ * Por que existe: em produção o apex é servido por um Worker (`hinaria-proxy`)
+ * que reescreve o `Host`, porque o Railway não responde sem isso. E um Worker
+ * que faz `fetch` para o PRÓPRIO domínio **não passa pelas rotas de Worker da
+ * zona** — a subrequisição vai direto ao origin, com o Host que o Railway não
+ * sabe rotear.
+ *
+ * Medido no primeiro deploy do beta: a resposta era `404` servido pela
+ * `cloudflare`, e o SvelteKit reportava
+ * `CORS error: No 'Access-Control-Allow-Origin' header is present` — porque um
+ * 404 do edge não carrega header de CORS. **O erro que aparecia não era o erro
+ * que existia**, e foi por isso que ele sobreviveu a duas tentativas de
+ * conserto no lado de CORS.
+ *
+ * Sob o mesmo gate de origem do cookie. Vazio ou igual = sem desvio (dev).
+ */
+export function _desviarParaSsr(
+  request: Request,
+  graphqlUrl: string = GRAPHQL_URL,
+  graphqlSsrUrl: string = GRAPHQL_SSR_URL,
+): Request {
+  const autorizada = origem(graphqlUrl);
+  if (autorizada === null || origem(request.url) !== autorizada) return request;
+
+  const destino = origem(graphqlSsrUrl);
+  if (destino === null || destino === autorizada) return request;
+
+  const alvo = new URL(request.url);
+  const base = new URL(graphqlSsrUrl);
+  alvo.protocol = base.protocol;
+  alvo.host = base.host;
+  return new Request(alvo.toString(), request);
+}
+
+export const handleFetch: HandleFetch = ({ event, request, fetch }) => {
+  const comSessao = _repassarSessao(request, event.request.headers.get("cookie"));
+  const comOrigem = _declararOrigem(comSessao, event.url.origin);
+  return fetch(_desviarParaSsr(comOrigem));
+};
