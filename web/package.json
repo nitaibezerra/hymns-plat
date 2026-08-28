@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "build:deploy": "node -e \"const u=(process.env.VITE_GRAPHQL_URL||'').trim(); const local=/(^|\\/\\/)(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)([:\\/]|$)/; let m=null; if(!u){m='VITE_GRAPHQL_URL não está definida.';} else if(local.test(u)){m='VITE_GRAPHQL_URL aponta pra máquina local ('+u+').';} if(m){console.error('\\n[build:deploy] BUILD ABORTADO — '+m+'\\n\\nA URL do GraphQL é resolvida em TEMPO DE BUILD (web/src/lib/config.ts): o que estiver aqui fica embutido no bundle e não dá pra corrigir depois sem rebuildar. Com a URL errada o visitante recebe erro de CORS, que é o sintoma errado e já custou tempo a este projeto.\\n\\nRode:  VITE_GRAPHQL_URL=https://hinaria.com.br/graphql/ pnpm build:deploy\\n'); process.exit(1);} console.log('[build:deploy] VITE_GRAPHQL_URL = '+u);\" && vite build",
+    "deploy:beta": "wrangler deploy",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
@@ -23,7 +25,7 @@
     "@graphql-codegen/typescript": "^4.0.0",
     "@graphql-codegen/typescript-operations": "^4.0.0",
     "@playwright/test": "^1.49.0",
-    "@sveltejs/adapter-cloudflare": "^4.0.0",
+    "@sveltejs/adapter-cloudflare": "^7.2.9",
     "@sveltejs/kit": "^2.10.0",
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
     "@tailwindcss/postcss": "^4.3.0",
@@ -42,7 +44,8 @@
     "tailwindcss": "^4.3.0",
     "typescript": "^5.7.0",
     "vite": "^5.4.21",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "wrangler": "^4.127.0"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.2.11",

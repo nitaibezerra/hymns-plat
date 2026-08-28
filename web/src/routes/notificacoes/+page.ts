@@ -11,13 +11,31 @@
  * O resolver `Query.notifications` exige sessão autenticada (gateado em
  * 4.A); para usuários anônimos devolve um GraphQL error. Neste caso
  * redirecionamos para /login preservando o destino — paridade com o
- * comportamento Django de `@login_required`.
+ * comportamento Django de `@login_required`
+ * (`apps/users/views_social.py::notifications_list`).
+ *
+ * **Frente B — o classificador local nunca disparava.** Ele procurava a
+ * substring inglesa `authenticat`; a mensagem real do resolver é PT-BR
+ * ("Autenticação necessária para listar notificações.") e `autenticação` não
+ * contém `authenticat` — o `ç` quebra o casamento. Resultado: anônimo em
+ * `/notificacoes` via "Falha ao carregar notificações: …" em vez do login que
+ * este cabeçalho promete desde o 4H.9.
+ *
+ * O conserto não é remendar a substring: é reusar `_isEditorAccessError` de
+ * `routes/editor/+layout.ts`, o classificador do repo que lista as formas
+ * PT-BR reais (`permissão`, `autenticação`) e as inglesas, mais
+ * `_editorLoginRedirect` pro destino. Mesmo precedente que
+ * `/perfil/[username]/seguidores/` e `/seguindo/` já seguem. Com um único
+ * classificador, uma mensagem nova do backend passa a ser reconhecida por
+ * todas as rotas de uma vez.
  */
 
 import { GRAPHQL_URL } from "$lib/config";
 import { gqlFetch } from "$lib/graphql/fetcher";
 import { NOTIFICATIONS_WITH_SENDER_QUERY } from "$lib/graphql/operations/quick-review";
 import { redirect } from "@sveltejs/kit";
+
+import { _editorLoginRedirect, _isEditorAccessError } from "../editor/+layout";
 
 import type { PageLoad } from "./$types";
 
@@ -52,22 +70,6 @@ function parseUnreadOnly(raw: string | null): boolean {
   return raw === "1" || raw === "true";
 }
 
-/**
- * Identifica erros de autenticação. O resolver de 4.A levanta GraphQLError
- * com mensagens como "User must be logged in", "authenticated" ou
- * "Permission denied" — todas formas comuns no Strawberry/Graphene. Cobrir
- * o conjunto evita acoplamento à mensagem exata.
- */
-function isAuthError(message: string): boolean {
-  const m = message.toLowerCase();
-  return (
-    m.includes("authenticat") ||
-    m.includes("must be logged in") ||
-    m.includes("permission denied") ||
-    m.includes("unauthorized")
-  );
-}
-
 export async function _loadNotifications(event: {
   fetch: typeof globalThis.fetch;
   url: URL;
@@ -84,9 +86,13 @@ export async function _loadNotifications(event: {
   // `next` para o redirect pós-login). Erros HTTP (5xx) e GraphQL errors
   // não relacionados a auth não disparam o redirect — eles caem no
   // campo `error` para a página exibir uma mensagem.
+  //
+  // `HTTP nnn` vem do `gqlFetch` para falha de transporte e fica FORA do
+  // redirect: backend caído não é falta de login, e mandar o visitante pro
+  // login esconderia a queda.
   const errorMessage = response.errors?.[0]?.message;
-  if (errorMessage && !errorMessage.startsWith("HTTP ") && isAuthError(errorMessage)) {
-    throw redirect(302, "/login?next=/notificacoes/");
+  if (errorMessage && !errorMessage.startsWith("HTTP ") && _isEditorAccessError(errorMessage)) {
+    throw redirect(302, _editorLoginRedirect(event.url.pathname));
   }
 
   return {
