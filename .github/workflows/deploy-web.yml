@@ -69,6 +69,22 @@ jobs:
       # aparece no console dele é CORS, que aponta pro lugar errado. O
       # `pnpm build:deploy` existe pra transformar isso em falha barulhenta.
       VITE_GRAPHQL_URL: https://hinaria.com.br/graphql/
+      # Destino do GraphQL NO SSR, e ele precisa ser diferente do público.
+      #
+      # O apex é servido pelo Worker `hinaria-proxy`, que reescreve o `Host`
+      # porque o Railway não responde sem isso. E um Worker que faz `fetch`
+      # para o PRÓPRIO domínio não passa pelas rotas de Worker da zona: a
+      # subrequisição vai direto ao origin, com o Host que o Railway não sabe
+      # rotear. Medido no primeiro deploy do beta: 404 servido pela
+      # `cloudflare`, que o SvelteKit reporta como
+      # "CORS error: No 'Access-Control-Allow-Origin' header is present",
+      # porque um 404 do edge não carrega header de CORS. O erro que aparece
+      # não é o erro que existe — custou dois consertos no lugar errado.
+      #
+      # O SSR sai pela URL interna do Railway (fora da zona, sem a armadilha);
+      # o navegador continua no apex, onde o proxy funciona e o cookie de
+      # sessão flui. Remover esta linha ressuscita o 404 em toda rota.
+      VITE_GRAPHQL_SSR_URL: https://hinaria-production.up.railway.app/graphql/
       URL_BETA: https://beta.hinaria.com.br/
       # Sem telemetria interativa no runner.
       WRANGLER_SEND_METRICS: "false"
