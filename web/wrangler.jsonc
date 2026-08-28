@@ -64,11 +64,24 @@
   // registro e deixar o custom domain criá-lo — não criar o registro à mão.
   "routes": [{ "pattern": "beta.hinaria.com.br", "custom_domain": true }],
 
-  // Escape hatch deliberado: mantém `hinaria-beta.<subdomínio>.workers.dev`
-  // no ar. É por onde se verifica que o deploy em si funcionou quando o
-  // custom domain ainda não propagou — sem isso, um deploy verde com DNS
-  // pendente é indistinguível de um deploy quebrado.
-  "workers_dev": true,
+  // Desligado por FALTA DE OPÇÃO, não por escolha de desenho.
+  //
+  // O escape hatch de `hinaria-beta.<subdomínio>.workers.dev` seria útil pelo
+  // motivo certo (distinguir "o deploy quebrou" de "o deploy foi e o DNS não
+  // propagou"), mas exige que a conta tenha um subdomínio workers.dev
+  // registrado — e esta não tem. A API responde: "You do not have a
+  // workers.dev subdomain... Opening the Workers & Pages landing page for the
+  // first time will create [one] automatically". Ou seja, é ação de dashboard,
+  // sem endpoint. Com `workers_dev: true` e sem subdomínio, o `wrangler
+  // deploy` ABORTA — foi assim que a primeira tentativa de deploy falhou.
+  //
+  // O worker `hinaria-proxy`, que já roda nesta conta há tempo, também opera
+  // por rota de zona e não por workers.dev: isto segue o padrão da casa.
+  //
+  // Se alguém abrir aquela página no painel um dia, dá pra voltar a `true` e
+  // recuperar o escape hatch. Enquanto isso, a distinção se faz pelo passo de
+  // smoke: o `wrangler deploy` falha alto quando o deploy em si falha.
+  "workers_dev": false,
 
   // Logs do Worker no dashboard. Um beta sem observabilidade é um beta que
   // ninguém consegue depurar remotamente.
