@@ -13,7 +13,7 @@
  * SvelteKit.)
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -29,7 +29,36 @@ const REQUIRED_TOKENS = [
   "--color-border",
   "--radius-md",
   "--radius-lg",
+  // Superfícies de card/modal/drawer. Adicionadas na Fase 1 da paridade
+  // visual: eram consumidas em 19 lugares SEM fallback e nunca declaradas,
+  // então 19 fundos renderizavam transparentes. Ver o teste de órfãos abaixo,
+  // que é a forma geral desta regressão.
+  "--color-surface",
+  "--color-surface-soft",
+  "--color-on-accent",
 ];
+
+const SRC_DIR = path.resolve(__dirname, "../../src");
+const COMPONENTS_CSS_PATH = path.resolve(
+  __dirname,
+  "../../src/lib/styles/components.css",
+);
+
+function declaracoesEm(conteudo: string): Set<string> {
+  return new Set(conteudo.match(/--[a-z0-9-]+(?=\s*:)/g) ?? []);
+}
+
+function arquivosDeEstilo(dir: string, encontrados: string[] = []): string[] {
+  for (const entrada of readdirSync(dir)) {
+    const caminho = path.join(dir, entrada);
+    if (statSync(caminho).isDirectory()) {
+      arquivosDeEstilo(caminho, encontrados);
+    } else if (/\.(svelte|css)$/.test(entrada)) {
+      encontrados.push(caminho);
+    }
+  }
+  return encontrados;
+}
 
 describe("design tokens in src/app.css", () => {
   it("declares the minimum :root token set", () => {
@@ -52,5 +81,34 @@ describe("design tokens in src/app.css", () => {
         new RegExp(`${token}\\s*:`),
       );
     }
+  });
+
+  /**
+   * A forma GERAL do bug que a Fase 1 consertou: `var(--token)` sem fallback
+   * apontando para um token que ninguém declara. O CSS não erra — só resolve
+   * para nada, e o elemento renderiza sem cor. Foi assim que 19 superfícies de
+   * card/modal ficaram transparentes por um marco inteiro sem ninguém notar.
+   *
+   * Um token declarado no PRÓPRIO arquivo vale (componentes definem custom
+   * properties locais); o que não pode é referência a lugar nenhum.
+   */
+  it("nenhum var(--token) sem fallback aponta para token não declarado", () => {
+    const globais = new Set([
+      ...declaracoesEm(readFileSync(APP_CSS_PATH, "utf-8")),
+      ...declaracoesEm(readFileSync(COMPONENTS_CSS_PATH, "utf-8")),
+    ]);
+
+    const orfaos: string[] = [];
+    for (const arquivo of arquivosDeEstilo(SRC_DIR)) {
+      const conteudo = readFileSync(arquivo, "utf-8");
+      const locais = declaracoesEm(conteudo);
+      for (const uso of conteudo.match(/var\(--[a-z0-9-]+\)/g) ?? []) {
+        const token = uso.slice(4, -1);
+        if (globais.has(token) || locais.has(token)) continue;
+        orfaos.push(`${path.relative(SRC_DIR, arquivo)}: ${token}`);
+      }
+    }
+
+    expect(orfaos, `tokens usados e nunca declarados:\n${orfaos.join("\n")}`).toEqual([]);
   });
 });

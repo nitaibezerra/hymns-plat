@@ -24,17 +24,22 @@ import { describe, expect, it } from "vitest";
 
 const WEB_ROOT = path.resolve(__dirname, "../../");
 
-const REQUIRED_FONT_DEPS = [
+/* QUATRO famílias, não três. `templates/base.html` do monolito carrega
+   Cormorant Garamond, Source Serif 4, Inter Tight E JetBrains Mono; a migração
+   para self-hosting portou as três primeiras e esqueceu a mono. `--font-mono`
+   ficou declarada apontando para uma fonte que nunca era baixada, então todo
+   eyebrow, badge e `.label-mono` do app renderizava no monospace do sistema —
+   e nenhum teste reclamou, porque a lista aqui também tinha só três.
+   Corrigido na Fase 1 da paridade visual (2026-08-31). */
+const FAMILIAS_OBRIGATORIAS = [
   "@fontsource/cormorant-garamond",
   "@fontsource/source-serif-4",
   "@fontsource/inter-tight",
+  "@fontsource/jetbrains-mono",
 ];
 
-const REQUIRED_FONT_IMPORTS = [
-  "@fontsource/cormorant-garamond",
-  "@fontsource/source-serif-4",
-  "@fontsource/inter-tight",
-];
+const REQUIRED_FONT_DEPS = FAMILIAS_OBRIGATORIAS;
+const REQUIRED_FONT_IMPORTS = FAMILIAS_OBRIGATORIAS;
 
 const FORBIDDEN_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 
@@ -63,7 +68,7 @@ function walk(dir: string, files: string[] = []): string[] {
 }
 
 describe("fonts self-hosted via @fontsource", () => {
-  it("declares the three font families as dependencies", () => {
+  it("declares the four font families as dependencies", () => {
     const pkg = JSON.parse(
       readFileSync(path.join(WEB_ROOT, "package.json"), "utf-8"),
     ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
@@ -73,7 +78,7 @@ describe("fonts self-hosted via @fontsource", () => {
     }
   });
 
-  it("imports the three font families from src/app.css", () => {
+  it("imports the four font families from src/app.css", () => {
     const appCss = readFileSync(path.join(WEB_ROOT, "src/app.css"), "utf-8");
     for (const name of REQUIRED_FONT_IMPORTS) {
       expect(appCss, `app.css missing import for ${name}`).toMatch(

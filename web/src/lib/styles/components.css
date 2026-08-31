@@ -1,0 +1,439 @@
+/* Subconjunto PÚBLICO de `static/css/components.css` do monolito Django,
+ * portado na Fase 1 da paridade visual (2026-08-31).
+ * Ver `_plan/plano-paridade-visual-spa.md`.
+ *
+ * Regra de ouro deste arquivo: ele é uma CÓPIA, não uma reinterpretação. Os
+ * valores (px, %, cores, timings) vêm verbatim do monolito — se um número
+ * aqui divergir de `static/css/components.css`, é bug, não estilo. A única
+ * transformação aplicada foi mecânica: os tokens do Django foram renomeados
+ * para os nomes semânticos do shell, porque no shell os nomes do Django
+ * (`--color-text`, `--color-border`, `--color-accent`) pertencem à camada
+ * ESTÁTICA do `@theme` do Tailwind e não invertem no tema escuro. Sem o
+ * rename, todo componente portado renderizaria tinta escura sobre fundo
+ * escuro. O mapa:
+ *
+ *   --color-text        → --color-text          --color-border      → --color-border
+ *   --color-text-soft   → --color-text-soft     --color-border-soft → --color-border-soft
+ *   --color-text-muted   → --color-text-muted    --color-accent → --color-accent
+ *   --color-bg-elevated    → --color-bg-elevated   --color-accent-2 → --color-accent-2
+ *
+ * `gold`, `moss`, `rust`, `vermilion`, `night` e `status-*` NÃO invertem no
+ * monolito, então seguem com o nome original resolvido pela paleta `@theme`.
+ *
+ * O que ficou FORA: tudo de `/editor/**` (workspace editorial, ~130 dos 220
+ * seletores), que o Marco 5 já reimplementou como CSS escopado nos próprios
+ * componentes Svelte, e `.diff-inline`/`.ocr-confidence-sparkline`, que viraram
+ * `InlineDiff.svelte`/`OcrConfidenceBar.svelte`. Reimportar aqui duplicaria
+ * regra viva. */
+
+/* ===== BOTÕES — primário usa firmament (acento de marca), secundário gold. ===== */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border: 1px solid var(--color-accent);
+  cursor: pointer;
+  transition: background-color 120ms;
+}
+.btn-primary:hover {
+  background: var(--color-accent-2);
+  border-color: var(--color-accent-2);
+}
+.btn-gold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: var(--color-gold);
+  color: #1A1D2E;
+  border: 1px solid var(--color-gold);
+  cursor: pointer;
+  transition: background-color 120ms;
+}
+.btn-gold:hover { background: var(--color-gold-soft); }
+
+/* Pílulas semânticas (status de revisão e publicação). */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-soft);
+}
+.pill::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor;
+}
+.pill-ok    { color: var(--color-status-ok); border-color: color-mix(in oklab, var(--color-status-ok) 35%, var(--color-border)); }
+.pill-mid   { color: var(--color-status-mid); border-color: color-mix(in oklab, var(--color-status-mid) 35%, var(--color-border)); }
+.pill-not   { color: var(--color-status-not); border-color: color-mix(in oklab, var(--color-status-not) 35%, var(--color-border)); }
+.pill-pub   { color: var(--color-accent); border-color: color-mix(in oklab, var(--color-accent) 35%, var(--color-border)); }
+.pill-draft { color: var(--color-text-muted); }
+
+/* Hairline divisor — usa cor de papel-amarelado, não ink translúcido. */
+.hairline { height: 1px; background: var(--color-border); border: 0; margin: 1rem 0; }
+
+/* Highlight de busca — sobrepõe o amarelo nativo do <mark> com gold-soft sutil
+   da paleta editorial. box-decoration-break:clone garante o estilo correto
+   quando o highlight quebra de linha. */
+mark {
+  background: rgb(232 213 168 / 0.55);
+  color: var(--color-text);
+  padding: 0.05em 0.25em;
+  border-radius: 3px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+html.dark mark {
+  background: rgb(181 141 62 / 0.4);
+  color: var(--color-text);
+}
+
+/* "label-mono": labels uppercase tracked usadas no design (PORTAL · HINÁRIOS). */
+.label-mono {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
+}
+
+/* dot-leader: linha de pontilhado entre número/título e o estilo. */
+.dot-leader {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.dot-leader > .leader-fill {
+  flex: 1;
+  border-bottom: 1px dotted color-mix(in srgb, var(--color-text) 22%, transparent);
+  transform: translateY(-3px);
+  min-width: 1.5rem;
+}
+
+/* Pílulas de toggle (modo de leitura, status de revisão). */
+.btn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--color-text-soft);
+  border: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+  cursor: pointer;
+  transition: background-color 120ms, color 120ms, border-color 120ms;
+}
+.btn-pill:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+.btn-pill[aria-selected="true"],
+.btn-pill[data-active="true"] {
+  background: var(--color-text);
+  color: var(--color-bg);
+  border-color: var(--color-text);
+}
+html.dark .btn-pill[aria-selected="true"],
+html.dark .btn-pill[data-active="true"] {
+  background: var(--color-gold);
+  color: var(--color-night, #0E1320);
+  border-color: var(--color-gold);
+}
+
+/* ===== TOGGLE EDITORIAL (corrido / carrossel) na tela /ler/ =====
+   Anchors sem caixa: cor label-mono no estado normal, ativo ganha
+   underline rust + cor ink. Sentido editorial, leitura de índice. */
+.reading-toggle {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
+  padding-bottom: 4px;
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+  transition: color 120ms, border-color 120ms;
+}
+.reading-toggle:hover { color: var(--color-text); }
+.reading-toggle--active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-rust);
+}
+
+/* ===== BARRA "MODO DE LEITURA" (legado — não mais usada no detail) =====
+   Wrapper "pill" com border + paper bg, abrigando os 3 botões. Botão ativo
+   usa rust (burgundy) — espelha `_design/fase2-bundle/.../hymnbook-detail.jsx`
+   linhas 56-86. */
+.mode-toggle-group {
+  display: inline-flex;
+  padding: 4px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  gap: 0;
+}
+.mode-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--color-text-soft);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.mode-toggle-btn:hover { color: var(--color-text); }
+.mode-toggle-btn[data-active="true"] {
+  background: var(--color-rust);
+  color: var(--color-bg);
+}
+.mode-toggle-btn svg { flex-shrink: 0; }
+
+/* ===== CHROME DO CARROSSEL =====
+   Pílula contador "NN / total" no topo + dots no rodapé com ativo em barra
+   alongada (24×6). Espelha `_design/fase2-bundle/.../extras.jsx:174-205`. */
+.carousel-counter-pill {
+  display: inline-block;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--color-text-soft);
+}
+
+/* Trade-off resolvido: cada slide tem altura natural (intrínseca do conteúdo
+   = pílula + card + paddings). O carousel container ajusta dinamicamente sua
+   altura para a do slide ativo via JS (em hymn-carousel.js `update()`),
+   transicionando suavemente. Slides ao lado, com altura natural diferente,
+   ficam recortados pelo `overflow-y: hidden` do container. Resultado: card
+   sempre aparece inteiro, sem barra de rolagem interna. */
+.carousel-slide {
+  align-self: flex-start;
+}
+[data-carousel] {
+  transition: height 250ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-carousel] { transition: none; }
+}
+.carousel-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  background: var(--color-border);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: width 200ms, background 200ms;
+}
+.carousel-dot[data-active="true"] {
+  width: 24px;
+  background: var(--color-rust);
+}
+.carousel-dot:hover:not([data-active="true"]) {
+  background: var(--color-text-soft);
+}
+
+/* Cards */
+.card-soft {
+  background: color-mix(in srgb, var(--color-bg) 92%, var(--color-text) 0%);
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-radius: var(--radius-card);
+  box-shadow: 0 1px 2px var(--color-shadow);
+}
+
+/* "Página" de hino — card que simula o papel do cantador. Usado nos modos
+   corrido (lista de cards stacked, shadow-1) e carrossel (card central
+   por slide, shadow-2). Tokens espelham `_design/fase2-bundle`. */
+.hymn-page {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+.hymn-page-deep { box-shadow: var(--shadow-2); }
+[data-theme="dark"] .hymn-page,
+html.dark .hymn-page { border-color: var(--color-border); }
+
+/* Tipografia interna do .hymn-page — espelha
+   `_design/fase2-bundle/project/styles/components.css` linhas 196-249.
+   Régua warm de 70% (não mais ink translúcido), título 28px (não huge),
+   meta footer com border-top rule-soft. */
+.hymn-page .hymn-num {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 14px;
+}
+.hymn-page .hymn-title {
+  /* Mesma família do corpo do hino (Source Serif 4) — espelha página de
+     cantador impresso, onde título e versos vêm na mesma face. Peso 500
+     espelha `_design/fase2-bundle/.../components.css` (.hymn-page .hymn-title
+     font-weight: 500). */
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 28px;
+  text-align: center;
+  letter-spacing: 0;
+  color: var(--color-text);
+  /* Sem eyebrow ou régua abaixo: o título sozinho vira o cabeçalho.
+     Espaço inferior maior para separar do corpo do hino. */
+  margin: 0 0 28px;
+  line-height: 1.2;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+}
+@media (min-width: 640px) {
+  .hymn-page .hymn-title { font-size: 32px; }
+}
+.hymn-page .title-rule {
+  height: 1px;
+  background: var(--color-border);
+  width: 70%;
+  margin: 0 auto 28px;
+  border: 0;
+}
+.hymn-page .hymn-end {
+  text-align: center;
+  margin-top: 28px;
+  font-size: 18px;
+  color: var(--color-gold);
+  letter-spacing: 0.4em;
+}
+.hymn-page .hymn-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  flex-wrap: wrap;
+}
+
+/* Refinos da grade de barras de repetição (já implementadas em
+   apps/hymns/repetitions.py — apenas suaviza cor para harmonizar com tokens). */
+.hymn-grid .repetition-bar {
+  border-left-color: var(--color-text) !important;
+  opacity: 0.7;
+}
+
+/* No modo carrossel E na página individual do hino (hymn_detail), o BLOCO do
+   corpo do hino é centralizado horizontalmente, mas os versos ficam alinhados
+   à esquerda (estilo página de cantador). Como `text-align: center` no parent
+   afeta inline/inline-block children, transformamos o corpo em block com
+   `width: max-content` (simple text) ou inline-grid (com barras de repetição)
+   e mantemos text-align:left dentro pra preservar a régua dos versos. */
+.carousel-body,
+.hymn-body-centered { text-align: center; }
+.carousel-body .hymn-text,
+.hymn-body-centered .hymn-text {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+  text-align: left;
+}
+.carousel-body .hymn-grid,
+.hymn-body-centered .hymn-grid {
+  display: inline-grid !important;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+}
+.carousel-body .hymn-line,
+.hymn-body-centered .hymn-line { text-align: left; }
+
+/* Sparkline de confiança OCR — uma barra por linha do OCR, altura proporcional
+   ao score de fidelidade (similaridade entre OCR e texto revisado). Espelha o
+   design `_design/fase2-bundle/.../revise-hymn.jsx` 82-97. */
+.ocr-confidence-sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 36px;
+  padding: 0;
+}
+.ocr-confidence-sparkline .bar {
+  flex: 1;
+  min-width: 4px;
+  min-height: 4px;
+  border-radius: 2px 2px 0 0;
+  opacity: 0.85;
+  transition: opacity 120ms;
+}
+.ocr-confidence-sparkline .bar:hover { opacity: 1; }
+.ocr-confidence-sparkline .bar.low  { background: var(--color-rust); }
+.ocr-confidence-sparkline .bar.mid  { background: var(--color-gold); }
+.ocr-confidence-sparkline .bar.high { background: var(--color-moss); }
+
+/* Print: detalhe de hino em PDF-like. */
+@media print {
+  header, footer, [data-no-print] { display: none !important; }
+  body { background: white; color: black; }
+  .hymn-card { box-shadow: none; border: none; padding: 0; }
+}
+
+/* Audio card (Marco 2 — pós-Fase 2). */
+.audio-card [data-audio-bars-played] rect,
+.audio-card [data-audio-played-rect] {
+  transition: width 80ms linear;
+}
+.audio-card .audio-waveform-btn { cursor: pointer; }
+.audio-card .audio-waveform-btn:hover [data-audio-bars-base] { color: var(--color-text-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-card [data-audio-played-rect],
+  .audio-play-btn { transition: none; }
+}
+
+
+/* eyebrow: label uppercase tracked acima de cada bloco do form. Idêntica a
+   .label-mono mas nomeada por papel (eyebrow no design). */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
+}
