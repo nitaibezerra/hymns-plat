@@ -193,6 +193,7 @@ type HymnType {
   nextInBook: HymnType
   siblingsWithSameNumber: [HymnType!]!
   audios(approvedOnly: Boolean! = true): [HymnAudioType!]!
+  hasApprovedAudio: Boolean!
 }
 
 input HymnUpdateInput {

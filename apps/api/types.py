@@ -619,6 +619,25 @@ class HymnType:
             return list(base.order_by("-created_at"))
         return list(base.filter(Q(is_approved=True) | Q(uploaded_by=user)).order_by("-created_at"))
 
+    @strawberry.field
+    def has_approved_audio(self) -> bool:
+        """Há gravação aprovada deste hino? Público, como o player.
+
+        Existe para o ÍNDICE do hinário, que precisa decidir por linha entre o
+        botão ▶ e o `⊘` cinza — é o `hymns_with_audio` que
+        `views.HymnBookDetailView` monta em uma consulta só.
+
+        Por que não usar `audios`: o índice de "O Cruzeirinho" tem 160 linhas,
+        e pedir `audios { id }` por hino são 160 subconsultas para responder um
+        sim-ou-não. Aqui é um `EXISTS` por hino, e a intenção fica legível no
+        schema.
+
+        Sem gate por design: espelha o default `approved_only=True` de
+        `audios`, que já é o comportamento público. Não revela nada que o
+        player não revele.
+        """
+        return hymn_models.HymnAudio.objects.filter(hymn=self, is_approved=True).exists()
+
 
 @strawberry_django.type(hymn_models.HymnAudio)
 class HymnAudioType:
