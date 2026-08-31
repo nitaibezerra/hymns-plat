@@ -127,9 +127,33 @@ O maior retorno do plano inteiro, e não toca lógica de rota nenhuma.
 
 ---
 
-### Fase 2 — Casca
+### Fase 2 — Casca ✅ CONCLUÍDA
 
-Paga em todas as 11 rotas de uma vez.
+Paga em todas as 11 rotas de uma vez — e pagou.
+
+**Resultado medido:** a região `header` foi de ~3,4% para **0,00% em 10 das 11 rotas** (paridade exata de pixel na casca). O total de cada rota desceu, e o ratchet foi reabaixado nas 11:
+
+| rota | antes | depois | header |
+|---|---|---|---|
+| `hymnbook-indice` | 59,65% | 59,42% | 3,43% → **0,00%** |
+| `hinarios-list` | 48,24% | 47,95% | 3,43% → **0,00%** |
+| `home` | 9,47% | 8,87% | 3,42% → **0,00%** |
+| `notifications` | 8,38% | 7,82% | 4,34% → **0,00%** |
+| `profile` | 3,33% | 2,94% | 3,39% → **0,00%** |
+| `hymn-detail` | 2,25% | 1,98% | 3,39% → **0,00%** |
+| `hymnbook-carrossel` | 2,06% | 1,71% | 8,04% → 4,62% |
+| `hymnbook-corrido` | 1,81% | 1,50% | 3,43% → **0,00%** |
+| `profile-followers` | 2,07% | 1,43% | 4,34% → **0,00%** |
+| `busca` | 1,46% | 1,17% | 3,41% → **0,00%** |
+| `profile-following` | 1,62% | 1,10% | 4,34% → **0,00%** |
+
+`profile-followers` e `profile-following` chegaram a **99,2%** e **99,3%** de equilíbrio de densidade.
+
+A única exceção do header é `hymnbook-carrossel` (4,62%): a rota `/ler/` do Django tem header **próprio**, minimalista, com as abas Corrido/Carrossel. Some quando a Fase 4 portar a tela de leitura.
+
+**Falha da Fase 1 que só apareceu aqui.** As 3 rotas autenticadas travaram em 1,52% de header enquanto as outras 8 iam a zero. Testei a hipótese óbvia (o ponto de não-lidas do sino) e ela estava **errada** — injetar o ponto piorou para 1,56%. A causa real: `.editor-cta` mora na seção do *workspace editorial* do `components.css` (linha ~1231), fora da faixa 1–404 que a Fase 1 portou, mas o seletor é usado no **header global**. A CTA "Fila de revisão" renderizava sem estilo. Portada, as 3 rotas foram a 0,00%.
+
+*A lição, registrada porque vale para o resto do porte:* classificar CSS por posição no arquivo é heurística, não critério. O critério é onde o seletor é **usado**.
 
 `web/src/lib/components/Header.svelte` — portar de `templates/_partials/_header.html` (108 linhas, já lido): marca `Hinaria` em `font-display text-2xl` + logo SVG (`_logo_mark.html`, timão de 8 raios em `text-gold`); nav `Início / Hinários / Buscar` com item ativo em `text-firmament` + `border-b border-gold`; busca inline em pílula com `<kbd>⌘K</kbd>`; sino de notificações com dot; avatar circular `bg-moss` com iniciais; "Entrar" preenchido em `bg-firmament`; CTA `.editor-cta` "Fila de revisão" com contagem; hambúrguer + drawer off-canvas mobile. Sticky com `backdrop-blur`.
 

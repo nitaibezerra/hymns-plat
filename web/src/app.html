@@ -26,7 +26,18 @@
     />
     %sveltekit.head%
   </head>
-  <body data-sveltekit-preload-data="hover">
+  <!--
+    Classes do `<body>` portadas de `templates/base.html` (Fase 2 da paridade
+    visual). `antialiased` não é detalhe: sem `-webkit-font-smoothing`, TODO
+    glifo da página rasteriza diferente do monolito, e isso é diff de pixel em
+    cada uma das 11 rotas medidas. O `app.css` também aplica o smoothing via
+    token, então esta classe é redundante por segurança — se alguém trocar o
+    `body` do CSS, o markup ainda espelha o do Django.
+  -->
+  <body
+    class="bg-cream text-ink antialiased font-sans dark:bg-night dark:text-cream transition-colors"
+    data-sveltekit-preload-data="hover"
+  >
     <div style="display: contents">%sveltekit.body%</div>
   </body>
 </html>

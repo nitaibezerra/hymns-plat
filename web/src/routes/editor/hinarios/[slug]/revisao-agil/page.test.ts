@@ -131,6 +131,7 @@ function pageData(overrides: Record<string, unknown> = {}) {
   return {
     editor: { id: "u1", username: "ana", isEditor: true },
     currentUser: null,
+    editorPendingCount: 0,
     hymnbook: { id: HYMNBOOK.id, name: HYMNBOOK.name, slug: HYMNBOOK.slug },
     hymns,
     current,

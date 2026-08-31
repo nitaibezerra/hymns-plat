@@ -98,7 +98,7 @@ function dataWith(
   hymns: SearchData["results"]["hymns"],
   hymnbooks: SearchData["results"]["hymnbooks"],
 ) {
-  return { currentUser: null, query, results: { hymns, hymnbooks }, error: null };
+  return { currentUser: null, editorPendingCount: 0, query, results: { hymns, hymnbooks }, error: null };
 }
 
 describe("busca render: resultados agrupados", () => {

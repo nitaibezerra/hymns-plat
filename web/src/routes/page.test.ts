@@ -144,6 +144,7 @@ describe("+page.svelte (home)", () => {
     featured: FEATURED_PAYLOAD.data.hourlyFeatured,
     error: null,
     currentUser: null,
+    editorPendingCount: 0,
   };
 
   it("renderiza bloco hero com slogan e CTA 'Explorar hinários'", () => {
@@ -187,7 +188,7 @@ describe("+page.svelte (home)", () => {
   it("mostra mensagem de erro quando stats falham", () => {
     render(Page, {
       props: {
-        data: { stats: null, featured: [], error: "HTTP 500", currentUser: null },
+        data: { stats: null, featured: [], error: "HTTP 500", currentUser: null, editorPendingCount: 0 },
       },
     });
     expect(screen.getByTestId("error")).toHaveTextContent(/HTTP 500/);

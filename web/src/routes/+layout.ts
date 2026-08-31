@@ -26,25 +26,41 @@ export interface LayoutUser {
   id: string;
   username: string;
   email: string | null;
+  /** Acesso ao workspace editorial — governa a CTA "Fila de revisão". */
+  isEditor: boolean;
 }
 
 export interface LayoutData {
   currentUser: LayoutUser | null;
+  /**
+   * Badge da CTA editorial: hinários com ao menos um hino não revisado.
+   *
+   * Vem junto do `currentUser` numa consulta só. O monolito pega o mesmo número
+   * de um context processor que roda em TODA request
+   * (`apps.hymns.context_processors.editor_workspace`), então o custo é o
+   * mesmo — e o resolver devolve 0 pra anônimo em vez de erro, justamente pra
+   * poder ser pedido aqui sem derrubar o shell de quem não está logado.
+   */
+  editorPendingCount: number;
 }
+
+const VAZIO: LayoutData = { currentUser: null, editorPendingCount: 0 };
 
 export async function _loadLayout(event: { fetch: typeof globalThis.fetch }): Promise<LayoutData> {
   try {
-    const response = await gqlFetch<{ currentUser: LayoutUser | null }>(
-      event.fetch,
-      GRAPHQL_URL,
-      CURRENT_USER_QUERY,
-    );
+    const response = await gqlFetch<{
+      currentUser: LayoutUser | null;
+      editorPendingBookCount: number;
+    }>(event.fetch, GRAPHQL_URL, CURRENT_USER_QUERY);
     if (response.errors?.length) {
-      return { currentUser: null };
+      return VAZIO;
     }
-    return { currentUser: response.data?.currentUser ?? null };
+    return {
+      currentUser: response.data?.currentUser ?? null,
+      editorPendingCount: response.data?.editorPendingBookCount ?? 0,
+    };
   } catch {
-    return { currentUser: null };
+    return VAZIO;
   }
 }
 

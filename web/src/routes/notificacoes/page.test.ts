@@ -70,6 +70,7 @@ describe("notificacoes load function (4H.7)", () => {
 function buildData(overrides: Record<string, unknown> = {}) {
   return {
     currentUser: null,
+    editorPendingCount: 0,
     notifications: [
       {
         id: "n1",

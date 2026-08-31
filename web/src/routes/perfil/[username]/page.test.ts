@@ -109,6 +109,7 @@ function buildData(overrides: Record<string, unknown> = {}) {
       activityHeatmap: [],
     },
     currentUser: null,
+    editorPendingCount: 0,
     error: null,
     ...overrides,
   };

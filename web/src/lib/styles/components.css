@@ -437,3 +437,62 @@ html.dark .hymn-page { border-color: var(--color-border); }
   text-transform: uppercase;
   color: var(--color-text-soft);
 }
+
+/* =====================================================
+ * CTA pílula "Fila de revisão" no header (só para editor).
+ *
+ * Portada na Fase 2 da paridade visual, DEPOIS do resto: no
+ * `static/css/components.css` estas regras moram na seção do workspace
+ * editorial (linha ~1231), e o recorte da Fase 1 foi por faixa de linhas,
+ * então ficaram de fora. Mas o seletor é usado no HEADER GLOBAL — é casca
+ * pública, não workspace. Consequência medida: a região `header` das 3
+ * rotas autenticadas ficou em 1,52% enquanto as outras 8 foram a 0,00%,
+ * porque a CTA renderizava sem estilo nenhum.
+ *
+ * A lição: classificar CSS por posição no arquivo é heurística, não
+ * critério. O critério é onde o seletor é USADO.
+ * ===================================================== */
+.editor-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--color-gold) 45%, var(--color-border));
+  background: color-mix(in oklab, var(--color-gold) 8%, var(--color-bg));
+  color: color-mix(in oklab, var(--color-gold) 85%, var(--color-text));
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background 150ms, border-color 150ms, color 150ms;
+}
+.editor-cta:hover {
+  background: color-mix(in oklab, var(--color-gold) 18%, var(--color-bg));
+  border-color: var(--color-gold);
+  color: var(--color-text);
+}
+.editor-cta.is-active {
+  background: var(--color-text);
+  border-color: var(--color-text);
+  color: var(--color-bg);
+}
+.editor-cta-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--color-gold);
+  color: #1A1D2E;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+.editor-cta.is-active .editor-cta-count {
+  background: var(--color-bg);
+  color: var(--color-text);
+}

@@ -6,14 +6,23 @@
  */
 
 import { render, screen } from "@testing-library/svelte";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// O layout lê `page.url.pathname` pra dizer ao Header qual item de navegação
+// está ativo. Importar `$app/state` de verdade puxa o runtime de cliente do
+// SvelteKit (`notifiable_store is not a function` sob jsdom), então mockamos —
+// mesmo padrão que os testes de rota já usam com `$app/navigation`.
+vi.mock("$app/state", () => ({
+  page: { url: new URL("http://localhost/") },
+}));
 
 import Layout from "./+layout.svelte";
 import { audioPlayer } from "$lib/stores/audio";
 
-const ANON_DATA = { currentUser: null };
+const ANON_DATA = { currentUser: null, editorPendingCount: 0 };
 const USER_DATA = {
-  currentUser: { id: "u1", username: "ana", email: "ana@example.com" },
+  currentUser: { id: "u1", username: "ana", email: "ana@example.com", isEditor: false },
+  editorPendingCount: 0,
 };
 
 describe("+layout.svelte (shell)", () => {

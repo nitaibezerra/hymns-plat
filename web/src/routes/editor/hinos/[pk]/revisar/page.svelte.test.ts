@@ -63,8 +63,9 @@ function bodyOf(fn: FetchMock, callIndex = 0) {
  * é o guard, no layout). Todas as fixtures dos casos fazem `...sampleData`,
  * então um campo novo no contrato do layout se resolve aqui, num lugar só.
  */
-export const sampleData: ReviseHymnData & EditorLayoutData & { currentUser: null } = {
+export const sampleData: ReviseHymnData & EditorLayoutData & { currentUser: null; editorPendingCount: number } = {
   currentUser: null,
+  editorPendingCount: 0,
   editor: null,
   error: null,
   hymn: {

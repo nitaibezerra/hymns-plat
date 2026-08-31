@@ -169,6 +169,7 @@ function buildData(overrides: Partial<EditorHymnbookDetail> = {}) {
   return {
     editor: null,
     currentUser: null,
+    editorPendingCount: 0,
     hymnbook: hymnbookPayload(overrides),
     error: null,
   };

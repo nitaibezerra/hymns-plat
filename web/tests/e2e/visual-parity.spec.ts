@@ -157,25 +157,26 @@ const MARGEM_DE_RUIDO = 0.02;
  * que consertou. É o que transforma "64% → 95%" numa sequência de entregas
  * verificáveis em vez de um salto único.
  *
- * Valores medidos em 2026-08-31, na branch da Fase 0, com a fixture
- * `e2e-paridade` e a Fase 1 (fundação de design) já em `development`.
+ * Valores medidos em 2026-08-31 com a fixture `e2e-paridade`, já com as Fases 1
+ * (fundação de design) e 2 (casca) aplicadas. Cada fase reabaixa o que
+ * consertou — foi o que aconteceu aqui: as 11 rotas desceram.
  * Ver `_plan/plano-paridade-visual-spa.md`.
  *
  * PROCEDIMENTO ao abaixar um teto: rode `pnpm test:e2e:parity`, pegue o número
  * medido na tabela do final e escreva-o aqui. Nunca arredonde pra cima.
  */
 const TETO_POR_ROTA: Record<string, number> = {
-  "hymnbook-indice": 0.5965,
-  "hinarios-list": 0.4824,
-  home: 0.0947,
-  notifications: 0.0838,
-  profile: 0.0333,
-  "hymn-detail": 0.0225,
-  "profile-followers": 0.0207,
-  "hymnbook-carrossel": 0.0206,
-  "hymnbook-corrido": 0.0181,
-  "profile-following": 0.0162,
-  busca: 0.0146,
+  "hymnbook-indice": 0.5942,
+  "hinarios-list": 0.4795,
+  home: 0.0887,
+  notifications: 0.0782,
+  profile: 0.0294,
+  "hymn-detail": 0.0198,
+  "hymnbook-carrossel": 0.0171,
+  "hymnbook-corrido": 0.015,
+  "profile-followers": 0.0143,
+  busca: 0.0117,
+  "profile-following": 0.011,
 };
 
 /**
@@ -186,26 +187,29 @@ const TETO_POR_ROTA: Record<string, number> = {
  * suíte antes de ter linha de base.
  */
 const TETO_POR_REGIAO: Record<string, Partial<Record<NomeDeRegiao, number>>> = {
-  // `header` gira em ~3,4% em quase toda rota: é a linha de base da CASCA, e é
-  // o número que a Fase 2 (header/rodapé portados do monolito) tem que
-  // derrubar nas 11 rotas de uma vez.
+  // `header: 0` em 10 das 11 rotas — paridade EXATA de pixel na casca, depois
+  // da Fase 2. Era ~3,4% em quase toda rota antes dela.
   //
-  // Exceção que o instrumento achou: em `hymnbook-carrossel` o header dá 8,04%
-  // porque a rota `/ler/` do Django tem header PRÓPRIO (minimalista, com as
-  // abas Corrido/Carrossel de `hymnbook_read.html`) em vez do header global.
-  // O seletor pega o primeiro `<header>` de cada lado, então ali a comparação é
-  // entre dois elementos diferentes — divergência estrutural real, não ruído.
-  "hymnbook-indice": { header: 0.0343, corpo: 0.6521 },
-  "hinarios-list": { header: 0.0343, corpo: 0.5269 },
-  home: { header: 0.0342, corpo: 0.1007 },
-  notifications: { header: 0.0434, corpo: 0.107, rodape: 0.0156 },
-  profile: { header: 0.0339, corpo: 0.0332 },
-  "hymn-detail": { header: 0.0339, corpo: 0.0214 },
-  "profile-followers": { header: 0.0434, corpo: 0.021, rodape: 0.0156 },
-  "hymnbook-carrossel": { header: 0.0804, corpo: 0.0147 },
-  "hymnbook-corrido": { header: 0.0343, corpo: 0.0165 },
-  "profile-following": { header: 0.0434, corpo: 0.0149, rodape: 0.0156 },
-  busca: { header: 0.0341, corpo: 0.0126 },
+  // A única exceção é `hymnbook-carrossel`, com 4,62% (era 8,04%): a rota
+  // `/ler/` do Django tem header PRÓPRIO (minimalista, com as abas
+  // Corrido/Carrossel de `hymnbook_read.html`) em vez do header global, então
+  // o seletor compara dois elementos diferentes. Divergência estrutural real,
+  // não ruído — e ela some quando a Fase 4 portar a tela de leitura.
+  //
+  // Um teto de 0 ainda tolera `MARGEM_DE_RUIDO`, porque 0,00% é o número desta
+  // máquina; o runner Linux rasteriza fonte de outro jeito e vai medir algo
+  // pequeno e não-zero.
+  "hymnbook-indice": { header: 0, corpo: 0.6529 },
+  "hinarios-list": { header: 0, corpo: 0.5271 },
+  home: { header: 0, corpo: 0.0975 },
+  notifications: { header: 0, corpo: 0.1056, rodape: 0.0087 },
+  profile: { header: 0, corpo: 0.0323 },
+  "hymn-detail": { header: 0, corpo: 0.0218 },
+  "profile-followers": { header: 0, corpo: 0.0182, rodape: 0.0109 },
+  "hymnbook-carrossel": { header: 0.0462, corpo: 0.0142 },
+  "hymnbook-corrido": { header: 0, corpo: 0.0165 },
+  "profile-following": { header: 0, corpo: 0.0137, rodape: 0.0109 },
+  busca: { header: 0, corpo: 0.0129 },
 };
 
 /** Teto efetivo de uma rota: o fixado no ratchet, ou o default se não houver. */
