@@ -17,6 +17,21 @@ export function solidPng(width: number, height: number, color: Rgba): Buffer {
 }
 
 /**
+ * PNG dividido HORIZONTALMENTE: as primeiras `topRows` linhas em `top`, o
+ * resto em `bottom`. É a forma de uma página — casca no topo, conteúdo abaixo —
+ * e serve pra provar que o recorte por região pega a faixa certa.
+ */
+export function stackedPng(
+  width: number,
+  height: number,
+  topRows: number,
+  top: Rgba,
+  bottom: Rgba,
+): Buffer {
+  return buildPng(width, height, (_x, y) => (y < topRows ? top : bottom));
+}
+
+/**
  * PNG dividido verticalmente: as primeiras `leftColumns` colunas em `left`,
  * o resto em `right`. Serve pra produzir um ratio de diff conhecido.
  */

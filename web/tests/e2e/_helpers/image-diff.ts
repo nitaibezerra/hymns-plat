@@ -203,3 +203,47 @@ function quantize(data: Buffer | Uint8Array, offset: number): number {
   const b = data[offset + 2] >> 5;
   return (r << 6) | (g << 3) | b;
 }
+
+
+/** Retângulo em coordenadas de página (CSS px), origem no topo-esquerda. */
+export type Retangulo = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/**
+ * Recorta um PNG num retângulo, cortado ao que existe na imagem.
+ *
+ * Serve ao diff por REGIÃO: em vez de recapturar a página quatro vezes com
+ * `clip` (quatro navegações, quatro riscos de a página render diferente), a
+ * captura é uma só e as regiões saem dela por recorte. Isso também garante que
+ * as duas regiões comparadas venham de pixels rigorosamente alinhados.
+ *
+ * Retângulo fora da imagem devolve um PNG 1×1 em vez de estourar: região que
+ * não aparece na viewport (o rodapé, na maioria das rotas) tem que sair da
+ * conta como "não medida", não derrubar a corrida.
+ */
+export function recortarPng(buffer: Buffer, rect: Retangulo): Buffer {
+  const origem = PNG.sync.read(buffer);
+  const x = Math.max(0, Math.round(rect.x));
+  const y = Math.max(0, Math.round(rect.y));
+  const width = Math.min(Math.round(rect.width), origem.width - x);
+  const height = Math.min(Math.round(rect.height), origem.height - y);
+
+  if (width <= 0 || height <= 0) {
+    return PNG.sync.write(new PNG({ width: 1, height: 1 }));
+  }
+
+  // Cópia linha a linha em vez de `PNG.bitblt`: `PNG.sync.read` devolve um
+  // objeto sem os métodos de instância, e a forma estática varia entre versões
+  // do pngjs. Copiar RGBA na mão é explícito e não depende de API.
+  const destino = new PNG({ width, height });
+  for (let linha = 0; linha < height; linha += 1) {
+    const inicioOrigem = ((origem.width * (y + linha) + x) << 2) >>> 0;
+    const inicioDestino = ((width * linha) << 2) >>> 0;
+    origem.data.copy(destino.data, inicioDestino, inicioOrigem, inicioOrigem + (width << 2));
+  }
+  return PNG.sync.write(destino);
+}

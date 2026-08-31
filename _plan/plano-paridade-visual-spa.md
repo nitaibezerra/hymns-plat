@@ -45,21 +45,35 @@ Pior: `web/tests/unit/typography-parity.spec.ts` asserta que `tailwind.config.ts
 
 ---
 
-## Linha de base medida (2026-08-27)
+## Linha de base
 
-| Rota | Diff | Equilíbrio de densidade | Veredito |
-|---|---|---|---|
-| `hymnbook-indice` | **59,86%** | 5,64% | fora |
-| `hinarios-list` | **48,49%** | 31,49% | fora |
-| `home` | **11,10%** | 43,63% | fora |
-| `notifications` | **8,35%** | 57,26% | fora (~4pp é máscara assimétrica, não design) |
-| `profile` | 3,33% | 65,88% | ok |
-| `hymn-detail` | 2,42% | 21,25% | **passe falso** |
-| `hymnbook-carrossel` | 2,21% | 5,88% | **passe falso** |
-| `profile-followers` | 2,16% | 58,43% | ok |
-| `hymnbook-corrido` | 1,95% | 5,34% | **passe falso** |
-| `busca` | 1,95% | 20,41% | **passe falso** |
-| `profile-following` | 1,69% | 54,77% | ok |
+### Medida em 2026-08-27 (antes da Fase 1)
+
+7 de 11 rotas dentro de 5% = **64%**, com 4 dos 7 passes falsos.
+
+### Remedida em 2026-08-31, com a Fase 1 em `development`
+
+Colunas: diff total · teto do ratchet · equilíbrio de densidade · tinta Django/shell · diff por região.
+
+| | rota | diff | teto | equilíbrio | tinta D/S | header | corpo | rodapé |
+|---|---|---|---|---|---|---|---|---|
+| ract | `hymnbook-indice` | 59,65% | 61,65% | 5,09% | 68,17 / 3,47 | 3,43% | 65,21% | n/d |
+| ract | `hinarios-list` | 48,24% | 50,24% | 84,53% | 58,38 / 49,34 | 3,43% | 52,69% | n/d |
+| ract | `home` | 9,47% | 11,47% | 38,12% | 27,38 / 10,44 | 3,42% | 10,07% | n/d |
+| ract | `notifications` | 8,38% | 10,38% | 60,11% | 4,99 / 8,30 | 4,34% | 10,70% | 1,56% |
+| PAR | `profile` | 3,33% | 5,33% | 64,12% | 12,53 / 8,03 | 3,39% | 3,32% | n/d |
+| PAR | `hymn-detail` | 2,25% | 4,25% | 85,60% | 13,06 / 11,18 | 3,39% | 2,14% | n/d |
+| PAR | `profile-followers` | 2,07% | 4,07% | 55,81% | 3,82 / 2,13 | 4,34% | 2,10% | 1,56% |
+| PAR? | `hymnbook-carrossel` | 2,06% | 4,06% | 5,63% | 48,31 / 2,72 | **8,04%** | 1,47% | n/d |
+| PAR? | `hymnbook-corrido` | 1,81% | 3,81% | 5,06% | 40,36 / 2,04 | 3,43% | 1,65% | n/d |
+| PAR | `profile-following` | 1,62% | 3,62% | 52,07% | 3,41 / 1,78 | 4,34% | 1,49% | 1,56% |
+| PAR? | `busca` | 1,46% | 3,46% | 15,53% | 6,17 / 0,96 | 3,41% | 1,26% | n/d |
+
+Rótulos: **PAR** cumpre o critério de ≤5% · **PAR?** cumpre mas com densidade desequilibrada (passe suspeito) · **ract** dentro do próprio teto do ratchet, acima do critério — não regrediu e também não chegou · **FORA** regressão.
+
+**O que a Fase 1 fez, medido.** O diff total quase não se moveu, mas o equilíbrio de densidade saltou: `hinarios-list` de 31,49% para **84,53%** (tinta do shell 18,32% → 49,34%) e `hymn-detail` de 21,25% para **85,60%**. As páginas deixaram de ser esqueleto e ganharam tipografia real. `hymn-detail` deixou de ser passe suspeito e virou passe genuíno. `home` caiu de 11,10% para 9,47% e `busca` de 1,95% para 1,46%.
+
+**O que o diff por região achou de imediato.** O `header` gira em ~3,4% em quase toda rota — é a linha de base da casca e o número que a Fase 2 tem que derrubar nas 11 de uma vez. A exceção é `hymnbook-carrossel` com **8,04%**: a rota `/ler/` do Django tem header PRÓPRIO (minimalista, com as abas Corrido/Carrossel), então ali o seletor compara dois elementos diferentes — divergência estrutural que o número único escondia.
 
 ---
 
@@ -71,9 +85,13 @@ O eixo é um **ratchet**: cada rota ganha um `maxDiffPixelRatio` fixado no valor
 
 ---
 
-### Fase 0 — Afinar o instrumento
+### Fase 0 — Afinar o instrumento ✅ CONCLUÍDA
 
 Sem isso, nenhuma fase seguinte é mensurável e os 4 passes falsos continuam mentindo.
+
+**Entregue:** ratchet por rota e por região com os tetos fixados nos valores medidos; diff por região (`header`/`corpo`/`rodapé`) recortando as capturas pelo bounding box real dos elementos do lado Django; rótulos de três estados (PAR / ract / FORA), porque com o ratchet "verde" passou a significar "não piorou" e não "está em paridade"; job de CI informativo. Verificado que o gate reprova: uma única linha de CSS trocando o fundo do header deixou **as 11 rotas FORA**.
+
+**Fora desta fase, com motivo:** a asserção estrutural (mesmos rótulos, mesma ordem) e o conserto da máscara assimétrica de timestamp. A máscara só morde em `notifications` — que você roteou para a Fase 7 como divergência aceita — e em `profile` a banda mascarada é lacuna real de conteúdo (o shell não renderiza "Membro há"), não artefato do instrumento.
 
 `web/tests/e2e/visual-parity.spec.ts`, `_helpers/parity-report.ts`, `_helpers/capture.ts`, `_helpers/image-diff.ts`:
 
