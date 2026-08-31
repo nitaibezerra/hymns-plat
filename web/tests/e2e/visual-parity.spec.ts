@@ -157,9 +157,17 @@ const MARGEM_DE_RUIDO = 0.02;
  * que consertou. É o que transforma "64% → 95%" numa sequência de entregas
  * verificáveis em vez de um salto único.
  *
- * Valores medidos em 2026-08-31 com a fixture `e2e-paridade`, já com as Fases 1
- * (fundação de design) e 2 (casca) aplicadas. Cada fase reabaixa o que
- * consertou — foi o que aconteceu aqui: as 11 rotas desceram.
+ * Valores medidos em 2026-08-31 com a fixture `e2e-paridade`, com as Fases 1
+ * (fundação), 2 (casca) e 4a/4c (card de hinário + home) aplicadas. Cada fase
+ * reabaixa o que consertou.
+ *
+ * O ratchet já provou o valor dele em operação: ao portar o card SEM portar o
+ * hero da home, a `home` subiu de 8,87% pra 12,94% e a suíte REPROVOU. Os cards
+ * ficaram mais altos e mais pesados, e o hero antigo da SPA desalinhou tudo
+ * abaixo dele. Sem o teto por rota isso teria passado como "ainda dentro dos
+ * 5%... não, dentro do vermelho de sempre" e ninguém veria. Com ele, a saída
+ * foi portar o hero — que era o passo seguinte do plano de todo jeito — e a
+ * home caiu pra 1,15%.
  * Ver `_plan/plano-paridade-visual-spa.md`.
  *
  * PROCEDIMENTO ao abaixar um teto: rode `pnpm test:e2e:parity`, pegue o número
@@ -167,8 +175,7 @@ const MARGEM_DE_RUIDO = 0.02;
  */
 const TETO_POR_ROTA: Record<string, number> = {
   "hymnbook-indice": 0.5942,
-  "hinarios-list": 0.4795,
-  home: 0.0887,
+  "hinarios-list": 0.1271,
   notifications: 0.0782,
   profile: 0.0294,
   "hymn-detail": 0.0198,
@@ -176,6 +183,7 @@ const TETO_POR_ROTA: Record<string, number> = {
   "hymnbook-corrido": 0.015,
   "profile-followers": 0.0143,
   busca: 0.0117,
+  home: 0.0115,
   "profile-following": 0.011,
 };
 
@@ -200,8 +208,8 @@ const TETO_POR_REGIAO: Record<string, Partial<Record<NomeDeRegiao, number>>> = {
   // máquina; o runner Linux rasteriza fonte de outro jeito e vai medir algo
   // pequeno e não-zero.
   "hymnbook-indice": { header: 0, corpo: 0.6529 },
-  "hinarios-list": { header: 0, corpo: 0.5271 },
-  home: { header: 0, corpo: 0.0975 },
+  "hinarios-list": { header: 0, corpo: 0.1397 },
+  home: { header: 0, corpo: 0.0127 },
   notifications: { header: 0, corpo: 0.1056, rodape: 0.0087 },
   profile: { header: 0, corpo: 0.0323 },
   "hymn-detail": { header: 0, corpo: 0.0218 },

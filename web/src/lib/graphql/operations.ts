@@ -28,6 +28,10 @@ export const HYMNBOOKS_QUERY = `
       name
       slug
       isPublished
+      ownerName
+      createdAt
+      coverImage
+      displayAccent
       stats {
         hymnsTotal
         hymnsReviewed
@@ -44,6 +48,10 @@ export const HOURLY_FEATURED_QUERY = `
       name
       slug
       isPublished
+      ownerName
+      createdAt
+      coverImage
+      displayAccent
       stats {
         hymnsTotal
         hymnsReviewed

@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // SvelteKit (`notifiable_store is not a function` sob jsdom), então mockamos —
 // mesmo padrão que os testes de rota já usam com `$app/navigation`.
 vi.mock("$app/state", () => ({
-  page: { url: new URL("http://localhost/") },
+  page: { url: new URL("http://localhost/"), route: { id: "/hinarios" } },
 }));
 
 import Layout from "./+layout.svelte";

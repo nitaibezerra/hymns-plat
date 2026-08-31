@@ -183,11 +183,27 @@ Duas coisas são **impossíveis** de replicar no frontend hoje. Deve entrar ante
 
 Paralelizável (arquivos disjuntos). O ratchet dá a ordem.
 
+**Feito até agora: 4b (card + lista) e 4c (home).**
+
+| rota | antes | depois | equilíbrio |
+|---|---|---|---|
+| `hinarios-list` | 47,95% | **12,71%** | 81,94% → 89,50% |
+| `home` | 8,87% | **1,15%** ✅ cumpre o critério | 33,67% → 95,39% |
+
+O critério de ≤5% passou de 7 para **8 de 11 rotas**.
+
+**O ratchet provou o valor dele em operação.** Ao portar o card SEM portar o hero da home, a `home` subiu de 8,87% para **12,94%** e a suíte reprovou: os cards ficaram mais altos e mais pesados (`aspect-[3/4]` em 3 colunas no lugar de 4), e o hero antigo da SPA desalinhou tudo abaixo. Sem o teto por rota isso passaria batido — a rota já estava no vermelho e continuaria no vermelho. A saída foi portar o hero, que era o passo seguinte de todo jeito.
+
+**Duas dívidas estruturais resolvidas no caminho:**
+
+- **Grade dos cards.** A SPA usava `repeat(auto-fill, minmax(260px, 1fr))`, que no container de 1152px dá QUATRO colunas; o monolito usa `lg:grid-cols-3`. Com o card em `aspect-[3/4]`, o número de colunas define a altura de tudo — cada card saía ~25% menor e nenhum elemento caía na mesma linha.
+- **Container do `<main>`.** No monolito o `<main>` não tem container: cada template traz o seu, e é isso que permite a faixa de cor full-bleed do hero. No shell o container morava no `<main>`, então nenhuma rota conseguia sangrar. Agora existe uma lista explícita de rotas sem container no `+layout.svelte` — o **livro-caixa da migração**: cada rota portada entra nela, e quando todas estiverem, o container sai do `<main>` de vez.
+
 **4a — `hymnbook-indice` (59,86%).** `web/src/routes/hinarios/[slug]/+page.svelte`, `HymnIndex.svelte`. De `templates/hymns/hymnbook_detail.html` (153 linhas): hero de ~470px com gradiente `display_accent`, cover-card `aspect-[3/4]` com monograma `text-[12rem]`, H1 `font-display text-5xl md:text-6xl`, contagens em label-mono, CTAs "▶ Tocar hinário" e "Abrir hinário"; índice agrupado por seção com `.dot-leader`, botão ▶ por hino (`⊘` quando sem áudio) e tag de estilo à direita.
 
-**4b — `hinarios-list` (48,49%).** `HymnbookCard.svelte`, `routes/hinarios/+page.svelte`. De `_partials/_hymnbook_card.html` (68 linhas): gradiente diagonal `linear-gradient(140deg, accent 0%, color-mix(in srgb, accent 60%, black) 100%)`, variante desktop `aspect-[3/4]` full-bleed com scrim `linear-gradient(to top, rgba(0,0,0,0.78)…)`, monograma `text-[14rem] text-cream/20`, badge `EST. YYYY` e `RASCUNHO`, título com `text-shadow`, autor, `N HINOS · <bolinha dourada> N ÁUDIOS`; variante mobile `sm:hidden` horizontal com avatar 80×80. **Remover "Revisados"** conforme decidido. Filtro local permanece (divergência aceita) → a região `corpo` desta rota ganha threshold documentado, não 5%.
+**4b — `hinarios-list` ✅ CONCLUÍDA (47,95% → 12,71%).** `HymnbookCard.svelte`, `routes/hinarios/+page.svelte`. De `_partials/_hymnbook_card.html` (68 linhas): gradiente diagonal `linear-gradient(140deg, accent 0%, color-mix(in srgb, accent 60%, black) 100%)`, variante desktop `aspect-[3/4]` full-bleed com scrim `linear-gradient(to top, rgba(0,0,0,0.78)…)`, monograma `text-[14rem] text-cream/20`, badge `EST. YYYY` e `RASCUNHO`, título com `text-shadow`, autor, `N HINOS · <bolinha dourada> N ÁUDIOS`; variante mobile `sm:hidden` horizontal com avatar 80×80. **Remover "Revisados"** conforme decidido. Filtro local permanece (divergência aceita) → a região `corpo` desta rota ganha threshold documentado, não 5%.
 
-**4c — `home` (11,10%).** `routes/+page.svelte`. De `templates/hymns/home.html` (76 linhas): faixa `bg-cream-deep` com grid `md:grid-cols-[1.4fr_1fr]`, H1 `font-display text-5xl md:text-6xl leading-[1.05]` em 3 linhas com `<em>` em opacidade reduzida, círculo decorativo `blur-xl` à direita, **campo de busca em pílula como CTA** (hoje são dois botões), `<dl>` de 4 stats com número em `font-display text-3xl text-gold`. Ordem rótulo/número: divergência aceita.
+**4c — `home` ✅ CONCLUÍDA (8,87% → 1,15%, agora cumpre o critério).** `routes/+page.svelte`. De `templates/hymns/home.html` (76 linhas): faixa `bg-cream-deep` com grid `md:grid-cols-[1.4fr_1fr]`, H1 `font-display text-5xl md:text-6xl leading-[1.05]` em 3 linhas com `<em>` em opacidade reduzida, círculo decorativo `blur-xl` à direita, **campo de busca em pílula como CTA** (hoje são dois botões), `<dl>` de 4 stats com número em `font-display text-3xl text-gold`. Ordem rótulo/número: divergência aceita.
 
 **4d — `busca` (passe falso).** `routes/busca/+page.svelte` — **é a pior página do app** e precisa ser reescrita, não ajustada: é a única de todo o `web/` em Tailwind cru, sem `<style>`, usando `border-ink/15` e `text-ink/40` (cores que não existiam) e `.label-mono` (nunca definida ali). A Fase 1 já faz essas classes funcionarem. De `templates/hymns/search.html` (84 linhas): cards `.card-soft` com ícone/label, tabs `● Tudo (N) / ● Em hinos (N) / ● Em hinários (N)`, chip removível de filtro, e o trecho com `<mark>` da Fase 3.
 
