@@ -1,7 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.postgres.search import SearchQuery, SearchRank, TrigramSimilarity
-from django.db.models import Count, F, Func, IntegerField, OuterRef, Q, Subquery, Value
+from django.db.models import Count, IntegerField, OuterRef, Subquery
 from django.db.models.functions import Coalesce
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
@@ -13,6 +12,7 @@ from django.views.generic import DetailView, ListView
 from .forms import HymnBookEditorialForm, HymnBookForm, HymnForm
 from .models import Hymn, HymnAudio, HymnBook
 from .permissions import can_create_hymnbook, can_edit_hymnbook, can_publish_hymnbook
+from .search import book_headline, build_book_search_qs, build_hymn_search_qs
 
 
 def _annotate_card_counts(queryset):
@@ -46,12 +46,6 @@ def _hourly_featured(visible_qs, n=6):
     from .featured import hourly_featured
 
     return hourly_featured(visible_qs, n=n, now=timezone.now(), annotate=_annotate_card_counts)
-
-
-class UnaccentFunc(Func):
-    """Invoca a função SQL `unaccent(text)` da extension unaccent."""
-
-    function = "unaccent"
 
 
 class HymnBookListView(ListView):
@@ -197,8 +191,6 @@ def search_view(request):
 
     Visibilidade respeita `HymnBook.objects.visible_to(user)`.
     """
-    from django.contrib.postgres.search import SearchHeadline
-
     query = request.GET.get("q", "").strip()
     search_type = request.GET.get("type", "all")
     if search_type not in {"all", "hymns", "books"}:
@@ -215,40 +207,21 @@ def search_view(request):
     results_count_books = 0
 
     if query:
-        tsquery = SearchQuery(query, config="portuguese", search_type="websearch")
-
-        # Hinos
-        hymn_qs = (
-            Hymn.objects.annotate(
-                rank=SearchRank(F("search_vector"), tsquery),
-                title_sim=TrigramSimilarity(UnaccentFunc("title"), UnaccentFunc(Value(query))),
-                headline=SearchHeadline(
-                    "text",
-                    tsquery,
-                    config="portuguese",
-                    start_sel="<mark>",
-                    stop_sel="</mark>",
-                    max_words=20,
-                    min_words=8,
-                ),
-            )
-            .filter(hymn_book__in=visible_books)
-            .filter(Q(search_vector=tsquery) | Q(title_sim__gt=0.3))
-            .select_related("hymn_book")
-            .order_by("-rank", "-title_sim")
+        # Os querysets vêm de `apps.hymns.search`, que é onde o resolver
+        # GraphQL `Query.search` também os pega. Esta view mantinha uma cópia
+        # própria das anotações (FTS + trigram + headline) apesar de o módulo
+        # existir exatamente pra evitar isso, e as duas cópias divergiram: só a
+        # daqui tinha `headline`, então a busca da SPA saía sem snippet.
+        # Uma implementação, dois consumidores.
+        hymn_qs = build_hymn_search_qs(
+            query,
+            request.user,
+            # O filtro usa o hinário RESOLVIDO, não o slug cru: um slug
+            # inexistente ou invisível resolve pra `None` e não deve filtrar
+            # nada — comportamento preservado da versão anterior.
+            in_hymnbook_slug=filter_hymnbook.slug if filter_hymnbook is not None else "",
         )
-        if filter_hymnbook is not None:
-            hymn_qs = hymn_qs.filter(hymn_book=filter_hymnbook)
-
-        # Hinários (busca por nome / dono)
-        book_qs = (
-            visible_books.annotate(
-                name_sim=TrigramSimilarity(UnaccentFunc("name"), UnaccentFunc(Value(query))),
-                owner_sim=TrigramSimilarity(UnaccentFunc("owner_name"), UnaccentFunc(Value(query))),
-            )
-            .filter(Q(name_sim__gt=0.2) | Q(owner_sim__gt=0.2))
-            .order_by("-name_sim", "-owner_sim")
-        )
+        book_qs = build_book_search_qs(query, request.user)
 
         hymn_results = list(hymn_qs[:50])
         book_results = list(book_qs[:25])
@@ -271,7 +244,7 @@ def search_view(request):
                     {
                         "type": "book",
                         "obj": b,
-                        "headline": b.description[:140] if b.description else "",
+                        "headline": book_headline(b),
                         "rank": float(b.name_sim or 0),
                     }
                 )

@@ -10,7 +10,7 @@ acontece no Postgres via `UnaccentFunc` + `TrigramSimilarity` + FTS.
 
 from __future__ import annotations
 
-from django.contrib.postgres.search import SearchQuery, SearchRank, TrigramSimilarity
+from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank, TrigramSimilarity
 from django.db.models import F, Func, Q, Value
 
 from .models import Hymn, HymnBook
@@ -22,11 +22,30 @@ class UnaccentFunc(Func):
     function = "unaccent"
 
 
+#: Trecho da letra devolvido pela busca, com o termo envolto em `<mark>`.
+#: Os limites vêm de `search_view` e são o contrato visual da tela de busca:
+#: mudar aqui muda o tamanho do snippet renderizado.
+HEADLINE_MAX_WORDS = 20
+HEADLINE_MIN_WORDS = 8
+
+#: Quantos caracteres da descrição do hinário servem de "snippet".
+#: Hinário não tem `search_vector` na descrição, então o equivalente ao
+#: headline de hino é a descrição truncada — é o que `search_view` faz.
+BOOK_HEADLINE_CHARS = 140
+
+
 def build_hymn_search_qs(query: str, user, *, in_hymnbook_slug: str = ""):
     """Queryset de hinos para o termo `query`, gateado por `visible_to(user)`.
 
     Mesma combinação de FTS (`search_vector`) + trigram do título usada
     por `search_view`. Devolve um queryset vazio se `query` estiver vazio.
+
+    Annota também `headline`: o trecho da letra com o termo envolto em
+    `<mark>`, calculado pelo Postgres (`ts_headline`). Está aqui e não na view
+    porque a tela de busca do monolito e a da SPA precisam do MESMO snippet —
+    até 2026-08-31 a view tinha sua própria cópia da anotação e o resolver
+    GraphQL não tinha nenhuma, e era por isso que o `/busca` da SPA listava só
+    títulos enquanto o do Django mostrava o verso onde o termo aparece.
     """
     if not query:
         return Hymn.objects.none()
@@ -37,6 +56,15 @@ def build_hymn_search_qs(query: str, user, *, in_hymnbook_slug: str = ""):
         Hymn.objects.annotate(
             rank=SearchRank(F("search_vector"), tsquery),
             title_sim=TrigramSimilarity(UnaccentFunc("title"), UnaccentFunc(Value(query))),
+            headline=SearchHeadline(
+                "text",
+                tsquery,
+                config="portuguese",
+                start_sel="<mark>",
+                stop_sel="</mark>",
+                max_words=HEADLINE_MAX_WORDS,
+                min_words=HEADLINE_MIN_WORDS,
+            ),
         )
         .filter(hymn_book__in=visible_books)
         .filter(Q(search_vector=tsquery) | Q(title_sim__gt=0.3))
@@ -65,3 +93,13 @@ def build_book_search_qs(query: str, user):
         .filter(Q(name_sim__gt=0.2) | Q(owner_sim__gt=0.2))
         .order_by("-name_sim", "-owner_sim")
     )
+
+
+def book_headline(book) -> str:
+    """ "Snippet" de um hinário: a descrição truncada.
+
+    Espelha `search_view`. Função em vez de anotação porque não há nada pra o
+    Postgres destacar — a descrição não entra em `search_vector`.
+    """
+    description = book.description or ""
+    return description[:BOOK_HEADLINE_CHARS]

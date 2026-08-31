@@ -329,6 +329,25 @@ class HymnBookType:
         return _absolute_media_url(optional_request_from_info(info), self.cover_image.url)
 
     @strawberry.field
+    def display_accent(self) -> str:
+        """Cor de destaque do hinário, em hex (`#RRGGBB`) — sempre presente.
+
+        É `accent_color` quando o dono escolheu uma, senão uma cor escolhida
+        deterministicamente da `HYMNBOOK_ACCENT_PALETTE` pelo hash do slug
+        (ver `HymnBook.display_accent`). Determinística importa: o mesmo
+        hinário tem que sair da MESMA cor no monolito e na SPA, senão o card
+        muda de cor ao trocar de frontend.
+
+        Exposto porque sem ele o shell não tem como pintar o gradiente do card
+        (`linear-gradient(140deg, accent, color-mix(accent 60%, black))`) nem
+        o hero do hinário — que são, medidos, as duas piores rotas de paridade
+        visual (`hinarios-list` 48,49% e `hymnbook-indice` 59,86%).
+
+        Público de propósito: é derivada do slug, que já é público.
+        """
+        return self.display_accent
+
+    @strawberry.field
     def published_by(self) -> "UserType | None":
         """Quem publicou (`None` em rascunho, ou se o usuário foi removido —
         a FK é SET_NULL)."""
@@ -759,11 +778,66 @@ class SearchKind(enum.Enum):
 
 
 @strawberry.type
+class HymnSearchHitType:
+    """Um hino encontrado, com o trecho da letra onde o termo bate."""
+
+    hymn: HymnType
+    headline: str = strawberry.field(
+        description=(
+            "Trecho da letra com o termo envolto em `<mark>`, calculado pelo "
+            "Postgres (`ts_headline`). Contém HTML: renderize como HTML, não "
+            "como texto. String vazia quando o casamento foi só no título."
+        )
+    )
+    rank: float = strawberry.field(
+        description=(
+            "Relevância full-text (0..1). Serve pra intercalar hinos e "
+            "hinários numa lista única, como faz a aba 'Tudo' do monolito."
+        )
+    )
+
+
+@strawberry.type
+class HymnBookSearchHitType:
+    """Um hinário encontrado, com seu trecho de descrição."""
+
+    hymnbook: HymnBookType
+    headline: str = strawberry.field(
+        description=(
+            "Descrição truncada. Diferente do headline de hino, NÃO tem "
+            "`<mark>`: a descrição não entra em `search_vector`, então não há "
+            "o que o Postgres destacar. Texto puro."
+        )
+    )
+    rank: float = strawberry.field(description="Similaridade trigram do nome (0..1).")
+
+
+@strawberry.type
 class SearchResultsType:
     """Resultados heterogêneos da busca (hinos e/ou hinários)."""
 
-    hymns: list[HymnType]
-    hymnbooks: list[HymnBookType]
+    hymn_hits: list[HymnSearchHitType]
+    hymnbook_hits: list[HymnBookSearchHitType]
+
+    @strawberry.field(
+        deprecation_reason=(
+            "Use `hymnHits`, que traz o mesmo hino com `headline` e `rank`. "
+            "Este campo existe só pra não quebrar a tela de busca da SPA "
+            "enquanto ela migra; remover depois."
+        )
+    )
+    def hymns(self) -> list[HymnType]:
+        return [hit.hymn for hit in self.hymn_hits]
+
+    @strawberry.field(
+        deprecation_reason=(
+            "Use `hymnbookHits`, que traz o mesmo hinário com `headline` e "
+            "`rank`. Este campo existe só pra não quebrar a tela de busca da "
+            "SPA enquanto ela migra; remover depois."
+        )
+    )
+    def hymnbooks(self) -> list[HymnBookType]:
+        return [hit.hymnbook for hit in self.hymnbook_hits]
 
 
 @strawberry.type
