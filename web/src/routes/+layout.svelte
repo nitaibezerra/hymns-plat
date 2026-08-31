@@ -42,7 +42,7 @@
    * aqui e passa a mandar no próprio container. Quando todas estiverem,
    * o container sai do `<main>` de vez e a lista morre com ele.
    */
-  const ROTAS_SEM_CONTAINER = new Set(["/"]);
+  const ROTAS_SEM_CONTAINER = new Set(["/", "/hinarios/[slug]"]);
 
   let {
     children,

@@ -22,6 +22,23 @@ export interface HymnSummary {
   number: number;
   title: string;
   body: string | null;
+  /** Estilo canônico (Marcha/Valsa/Mazurca…). Vai à direita, no índice. */
+  style: string;
+  /** Agrupador do índice. Vazio quando o hinário não usa seções. */
+  section: string;
+  /**
+   * Decide entre ▶ e `⊘` na linha do índice.
+   *
+   * Booleano dedicado em vez de `audios { id }` porque o índice de "O
+   * Cruzeirinho" tem 160 linhas, e pedir a lista por hino são 160 subconsultas
+   * para responder um sim-ou-não.
+   */
+  hasApprovedAudio: boolean;
+}
+
+export interface HymnbookDetailStats {
+  hymnsTotal: number;
+  audiosApproved: number;
 }
 
 export interface HymnbookDetail {
@@ -29,6 +46,14 @@ export interface HymnbookDetail {
   name: string;
   slug: string;
   isPublished: boolean;
+  /* Campos do hero, portados na Fase 4 da paridade visual — ver
+     `templates/hymns/hymnbook_detail.html`. */
+  introName: string | null;
+  ownerName: string | null;
+  description: string | null;
+  coverImage: string | null;
+  displayAccent: string | null;
+  stats: HymnbookDetailStats;
   hymns: HymnSummary[];
 }
 

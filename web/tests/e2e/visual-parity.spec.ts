@@ -158,8 +158,8 @@ const MARGEM_DE_RUIDO = 0.02;
  * verificáveis em vez de um salto único.
  *
  * Valores medidos em 2026-08-31 com a fixture `e2e-paridade`, com as Fases 1
- * (fundação), 2 (casca) e 4a/4c (card de hinário + home) aplicadas. Cada fase
- * reabaixa o que consertou.
+ * (fundação), 2 (casca) e 4 (card, home, detalhe do hinário) aplicadas. Cada
+ * fase reabaixa o que consertou.
  *
  * O ratchet já provou o valor dele em operação: ao portar o card SEM portar o
  * hero da home, a `home` subiu de 8,87% pra 12,94% e a suíte REPROVOU. Os cards
@@ -174,16 +174,20 @@ const MARGEM_DE_RUIDO = 0.02;
  * medido na tabela do final e escreva-o aqui. Nunca arredonde pra cima.
  */
 const TETO_POR_ROTA: Record<string, number> = {
-  "hymnbook-indice": 0.5942,
+  // As duas únicas acima do critério de 5%, e as duas são decisão tomada:
+  // `hinarios-list` mantém o filtro local sem paginação (divergência aceita) e
+  // `notifications` aponta pra uma tela que o próprio Django nunca redesenhou
+  // (Fase 7).
   "hinarios-list": 0.1271,
   notifications: 0.0782,
   profile: 0.0294,
   "hymn-detail": 0.0198,
   "hymnbook-carrossel": 0.0171,
-  "hymnbook-corrido": 0.015,
+  "hymnbook-corrido": 0.0146,
   "profile-followers": 0.0143,
   busca: 0.0117,
   home: 0.0115,
+  "hymnbook-indice": 0.0111,
   "profile-following": 0.011,
 };
 
@@ -207,7 +211,7 @@ const TETO_POR_REGIAO: Record<string, Partial<Record<NomeDeRegiao, number>>> = {
   // Um teto de 0 ainda tolera `MARGEM_DE_RUIDO`, porque 0,00% é o número desta
   // máquina; o runner Linux rasteriza fonte de outro jeito e vai medir algo
   // pequeno e não-zero.
-  "hymnbook-indice": { header: 0, corpo: 0.6529 },
+  "hymnbook-indice": { header: 0, corpo: 0.0122 },
   "hinarios-list": { header: 0, corpo: 0.1397 },
   home: { header: 0, corpo: 0.0127 },
   notifications: { header: 0, corpo: 0.1056, rodape: 0.0087 },
@@ -215,7 +219,7 @@ const TETO_POR_REGIAO: Record<string, Partial<Record<NomeDeRegiao, number>>> = {
   "hymn-detail": { header: 0, corpo: 0.0218 },
   "profile-followers": { header: 0, corpo: 0.0182, rodape: 0.0109 },
   "hymnbook-carrossel": { header: 0.0462, corpo: 0.0142 },
-  "hymnbook-corrido": { header: 0, corpo: 0.0165 },
+  "hymnbook-corrido": { header: 0, corpo: 0.016 },
   "profile-following": { header: 0, corpo: 0.0137, rodape: 0.0109 },
   busca: { header: 0, corpo: 0.0129 },
 };
