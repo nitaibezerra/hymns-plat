@@ -99,6 +99,15 @@ VARREDURA: dict[str, tuple[str, str, str]] = {
         "{ editorHymnbooks { slug } }",
         "editor_hymnbook_list é @login_required + _has_editor_access.",
     ),
+    "editorPendingBookCount": (
+        PUBLICO,
+        "{ editorPendingBookCount }",
+        "context_processors.editor_workspace roda em TODA request, inclusive "
+        "anônima, e devolve dict vazio pra quem não é editor — o template então "
+        "não renderiza a CTA. Aqui o equivalente é 0, não erro: quem consome é "
+        "o layout global do shell e um `errors` derrubaria o header de toda "
+        "página anônima. 0 não vaza nada — é o mesmo 'nada' do template.",
+    ),
     "editorDashboardStats": (
         ERRO,
         "{ editorDashboardStats { totalHinarios } }",

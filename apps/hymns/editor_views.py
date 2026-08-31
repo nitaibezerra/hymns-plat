@@ -46,6 +46,38 @@ def _editor_visible_books(user):
     return HymnBook.objects.filter(owner_user=user)
 
 
+def editor_pending_book_count(user) -> int:
+    """Quantos hinários visíveis a `user` ainda têm ao menos um hino não revisado.
+
+    É o número do badge da CTA "Fila de revisão" no header. Conta HINÁRIOS, não
+    hinos — `EditorDashboardStatsType.pendingHymns` é outra coisa e não serve
+    aqui.
+
+    Devolve 0 (em vez de levantar) para anônimo e para quem não tem acesso
+    editorial, espelhando o context processor: lá a ausência do valor faz a CTA
+    simplesmente não renderizar. Um erro aqui seria pior que um zero, porque
+    quem consome é o layout global do shell — um `errors` no GraphQL derrubaria
+    o header inteiro em toda página anônima.
+
+    Extraída de `apps.hymns.context_processors.editor_workspace` para que o
+    header do monolito e o da SPA leiam o MESMO número.
+    """
+    if not user or not user.is_authenticated or not _has_editor_access(user):
+        return 0
+
+    visible_ids = list(_editor_visible_books(user).values_list("pk", flat=True))
+    if not visible_ids:
+        return 0
+
+    return (
+        Hymn.objects.filter(hymn_book_id__in=visible_ids)
+        .exclude(review_status=Hymn.ReviewStatus.REVIEWED)
+        .values_list("hymn_book_id", flat=True)
+        .distinct()
+        .count()
+    )
+
+
 def _pending_audios_for(user):
     """Áudios não aprovados que `user` tem permissão de aprovar."""
     qs = HymnAudio.objects.filter(is_approved=False).select_related("hymn", "hymn__hymn_book", "uploaded_by")

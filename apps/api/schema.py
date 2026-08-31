@@ -23,6 +23,7 @@ from apps.hymns.editor_views import (
     _parse_sort,
     _pending_audios_for,
     _sort_expression,
+    editor_pending_book_count,
 )
 from apps.hymns.featured import hourly_featured
 from apps.hymns.search import book_headline, build_book_search_qs, build_hymn_search_qs
@@ -190,6 +191,22 @@ class Query:
                 for book in build_book_search_qs(q, user)[:25]
             ]
         return SearchResultsType(hymn_hits=hymn_hits, hymnbook_hits=hymnbook_hits)
+
+    @strawberry.field(name="editorPendingBookCount")
+    def editor_pending_book_count(self, info: Info) -> int:
+        """Badge da CTA "Fila de revisão" no header: hinários com hino pendente.
+
+        Conta HINÁRIOS, não hinos. Paridade com `editor_pending_count` do
+        context processor `apps.hymns.context_processors.editor_workspace`, que
+        alimenta o mesmo badge no monolito — os dois chamam a mesma função.
+
+        SEM gate que levanta, de propósito: devolve 0 para anônimo e para quem
+        não é editor. Quem consome é o layout global do shell, em toda página;
+        um `errors` aqui derrubaria o header inteiro para visitante anônimo, que
+        é o caso mais comum do site. Zero não vaza nada — é o mesmo que o
+        template do monolito renderiza (nada).
+        """
+        return editor_pending_book_count(user_from_info(info))
 
     @strawberry.field(name="editorHymnbooks")
     def editor_hymnbooks(

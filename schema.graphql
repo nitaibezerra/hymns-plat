@@ -325,6 +325,7 @@ type Query {
   notifications(unreadOnly: Boolean! = false): [NotificationType!]!
   hourlyFeatured: [HymnBookType!]!
   search(q: String!, kind: SearchKind! = ALL, inHymnbook: String! = ""): SearchResultsType!
+  editorPendingBookCount: Int!
   editorHymnbooks(sort: [SortInput!] = null, priority: String! = "all"): [HymnBookType!]!
   editorDashboardStats: EditorDashboardStatsType!
   pendingAudios: [HymnAudioType!]!

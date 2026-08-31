@@ -32,9 +32,7 @@ def _accent(client, slug: str) -> str:
 
 
 def test_usa_accent_color_quando_o_dono_escolheu(client, hymn_book_factory):
-    hymn_book_factory(
-        name="O Cruzeiro", slug="cruzeiro", is_published=True, accent_color="#8C3A2E"
-    )
+    hymn_book_factory(name="O Cruzeiro", slug="cruzeiro", is_published=True, accent_color="#8C3A2E")
     assert _accent(client, "cruzeiro") == "#8C3A2E"
 
 

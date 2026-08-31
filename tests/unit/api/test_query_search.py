@@ -99,9 +99,7 @@ def test_hymn_hit_headline_marca_o_termo_no_verso(client, hymn_book_factory, hym
 def test_hymnbook_hit_headline_e_descricao_truncada_sem_mark(client, hymn_book_factory):
     # 200 caracteres pra provar o corte em 140 (`BOOK_HEADLINE_CHARS`).
     descricao = "Recebido por Madrinha Rita. " + ("x" * 200)
-    hymn_book_factory(
-        name="Lua Branca", slug="lua-branca", is_published=True, description=descricao
-    )
+    hymn_book_factory(name="Lua Branca", slug="lua-branca", is_published=True, description=descricao)
 
     data = gql(client, '{ search(q: "lua branca") { hymnbookHits { headline } } }')
     assert "errors" not in data, data
@@ -130,9 +128,7 @@ def test_in_hymnbook_filtra_so_o_bucket_de_hinos(client, hymn_book_factory, hymn
     assert str(de_fora.id) not in ids, ids
 
 
-def test_in_hymnbook_invisivel_devolve_vazio_em_vez_de_ignorar_o_filtro(
-    client, hymn_book_factory, hymn_factory
-):
+def test_in_hymnbook_invisivel_devolve_vazio_em_vez_de_ignorar_o_filtro(client, hymn_book_factory, hymn_factory):
     """Divergência deliberada da view HTML, documentada no resolver.
 
     Na view do monolito um slug inexistente/invisível é IGNORADO e a busca
@@ -173,9 +169,7 @@ def test_campos_deprecados_seguem_respondendo(client, hymn_book_factory, hymn_fa
     assert "errors" not in data, data
     resultado = data["data"]["search"]
     # A lista deprecada é derivada dos hits — mesmos objetos, mesma ordem.
-    assert [row["id"] for row in resultado["hymns"]] == [
-        hit["hymn"]["id"] for hit in resultado["hymnHits"]
-    ]
+    assert [row["id"] for row in resultado["hymns"]] == [hit["hymn"]["id"] for hit in resultado["hymnHits"]]
     assert [row["slug"] for row in resultado["hymnbooks"]] == [
         hit["hymnbook"]["slug"] for hit in resultado["hymnbookHits"]
     ]
