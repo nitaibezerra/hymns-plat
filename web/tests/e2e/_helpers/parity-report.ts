@@ -137,6 +137,15 @@ export type Measurement = {
   /** Fração de pixels que não são fundo, por lado. */
   inkDjango: number;
   inkSvelte: number;
+  /**
+   * Diff por região (`header` / `corpo` / `rodape`), quando medido.
+   *
+   * `null` numa região significa "não apareceu na viewport" — o caso comum é o
+   * rodapé, que fica abaixo dos 720px na maioria das rotas. Distinguir isso de
+   * "0%" importa: reportar zero seria afirmar paridade de uma área que ninguém
+   * olhou.
+   */
+  regioes?: Record<string, number | null>;
 };
 
 function measurementsDir(outputDir: string = DEFAULT_OUTPUT_DIR): string {

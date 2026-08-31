@@ -53,7 +53,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { captureRouteWithDiagnostics } from "./_helpers/capture";
+import { PARITY_VIEWPORT, captureRouteWithDiagnostics } from "./_helpers/capture";
 import { contentBalance, formatRatio, inkRatio } from "./_helpers/image-diff";
 import { describeSessionFailure, seedSession } from "./_helpers/editor-session";
 import {
@@ -72,6 +72,12 @@ import {
   recordMeasurement,
   resetMeasurements,
 } from "./_helpers/parity-report";
+import {
+  type NomeDeRegiao,
+  type RegiaoMedida,
+  medirRegioes,
+  retangulosDeRegiao,
+} from "./_helpers/parity-regions";
 import { countOccurrences, findEmptyState, findLoadFailure } from "./_helpers/render-guard";
 
 const DJANGO_BASE = process.env.HINARIA_DJANGO_BASE_URL ?? "http://localhost:9000";
@@ -123,6 +129,103 @@ const EQUILIBRIO_SUSPEITO = 0.5;
  * honesto de tirá-la da conta sem esconder diferença de layout. Seletor
  * ausente na página não quebra a captura.
  */
+/**
+ * Ruído tolerado sobre o valor fixado no ratchet, em pontos percentuais.
+ *
+ * Existe porque o ratchet é fixado com números medidos numa máquina e o CI roda
+ * noutra: rasterização de fonte e anti-aliasing diferem entre macOS e o runner
+ * Linux, e uma diferença de fração de ponto não é regressão de design. O que o
+ * ratchet precisa pegar são movimentos de ponto percentual inteiro — uma casca
+ * que voltou a divergir, um card que perdeu o gradiente.
+ *
+ * Não é folga pra "caber": o teto de cada rota é o valor MEDIDO, e cada fase
+ * abaixa o seu. A margem só absorve o ruído de máquina.
+ */
+const MARGEM_DE_RUIDO = 0.02;
+
+/**
+ * O RATCHET: teto de diff por rota, fixado no valor medido.
+ *
+ * Substitui o threshold único de 5% (`DEFAULT_MAX_DIFF_RATIO`), que não servia
+ * pra nada nesta suíte: 4 rotas estavam tão acima dele que reprovavam sempre —
+ * e uma suíte que reprova sempre não detecta regressão, só ruído de fundo — e
+ * as outras 7 passavam com folga grande o bastante pra esconder uma piora
+ * inteira.
+ *
+ * Com o teto fixado no valor medido, cada rota tem um número que só pode
+ * DESCER. Uma piora reprova na hora, e cada fase do plano abaixa o teto da rota
+ * que consertou. É o que transforma "64% → 95%" numa sequência de entregas
+ * verificáveis em vez de um salto único.
+ *
+ * Valores medidos em 2026-08-31, na branch da Fase 0, com a fixture
+ * `e2e-paridade` e a Fase 1 (fundação de design) já em `development`.
+ * Ver `_plan/plano-paridade-visual-spa.md`.
+ *
+ * PROCEDIMENTO ao abaixar um teto: rode `pnpm test:e2e:parity`, pegue o número
+ * medido na tabela do final e escreva-o aqui. Nunca arredonde pra cima.
+ */
+const TETO_POR_ROTA: Record<string, number> = {
+  "hymnbook-indice": 0.5965,
+  "hinarios-list": 0.4824,
+  home: 0.0947,
+  notifications: 0.0838,
+  profile: 0.0333,
+  "hymn-detail": 0.0225,
+  "profile-followers": 0.0207,
+  "hymnbook-carrossel": 0.0206,
+  "hymnbook-corrido": 0.0181,
+  "profile-following": 0.0162,
+  busca: 0.0146,
+};
+
+/**
+ * Teto por REGIÃO, mesmo regime do ratchet de rota.
+ *
+ * Fixado em 2026-08-31 junto com os de rota. Uma região sem entrada aqui é
+ * apenas reportada, sem gate — é como uma região nova entra sem derrubar a
+ * suíte antes de ter linha de base.
+ */
+const TETO_POR_REGIAO: Record<string, Partial<Record<NomeDeRegiao, number>>> = {
+  // `header` gira em ~3,4% em quase toda rota: é a linha de base da CASCA, e é
+  // o número que a Fase 2 (header/rodapé portados do monolito) tem que
+  // derrubar nas 11 rotas de uma vez.
+  //
+  // Exceção que o instrumento achou: em `hymnbook-carrossel` o header dá 8,04%
+  // porque a rota `/ler/` do Django tem header PRÓPRIO (minimalista, com as
+  // abas Corrido/Carrossel de `hymnbook_read.html`) em vez do header global.
+  // O seletor pega o primeiro `<header>` de cada lado, então ali a comparação é
+  // entre dois elementos diferentes — divergência estrutural real, não ruído.
+  "hymnbook-indice": { header: 0.0343, corpo: 0.6521 },
+  "hinarios-list": { header: 0.0343, corpo: 0.5269 },
+  home: { header: 0.0342, corpo: 0.1007 },
+  notifications: { header: 0.0434, corpo: 0.107, rodape: 0.0156 },
+  profile: { header: 0.0339, corpo: 0.0332 },
+  "hymn-detail": { header: 0.0339, corpo: 0.0214 },
+  "profile-followers": { header: 0.0434, corpo: 0.021, rodape: 0.0156 },
+  "hymnbook-carrossel": { header: 0.0804, corpo: 0.0147 },
+  "hymnbook-corrido": { header: 0.0343, corpo: 0.0165 },
+  "profile-following": { header: 0.0434, corpo: 0.0149, rodape: 0.0156 },
+  busca: { header: 0.0341, corpo: 0.0126 },
+};
+
+/** Teto efetivo de uma rota: o fixado no ratchet, ou o default se não houver. */
+function tetoDaRota(id: string, override?: number): number {
+  if (override !== undefined) return override;
+  const fixado = TETO_POR_ROTA[id];
+  return fixado === undefined ? DEFAULT_MAX_DIFF_RATIO : fixado + MARGEM_DE_RUIDO;
+}
+
+/** Uma linha legível por região, pro output do runner. */
+function formatarRegioes(regioes: RegiaoMedida[]): string {
+  return regioes
+    .map(({ nome, resultado }) =>
+      resultado === null
+        ? `${nome} n/d`
+        : `${nome} ${formatRatio(resultado.ratio)}`,
+    )
+    .join(" · ");
+}
+
 const GLOBAL_MASKS = {
   django: ['p:has-text("Membro há")', 'p:has-text("atrás")', 'span:has-text("atrás")'],
   svelte: [".meta"],
@@ -352,6 +455,15 @@ test.describe("Paridade visual Django ↔ SvelteKit", () => {
           hide: [...GLOBAL_HIDE.django, ...(route.hide?.django ?? [])],
         },
       );
+      // Os retângulos das regiões saem da página do DJANGO — a referência —
+      // e o mesmo retângulo é aplicado às duas capturas. Tem que ser lido aqui,
+      // antes de navegar pro shell, porque `workPage` é reusada.
+      const rectsDeRegiao = await retangulosDeRegiao(
+        workPage,
+        PARITY_VIEWPORT.height,
+        PARITY_VIEWPORT.width,
+      );
+
       const svelte = await captureRouteWithDiagnostics(
         workPage,
         `${SVELTE_BASE}${paths.svelte}`,
@@ -441,11 +553,13 @@ test.describe("Paridade visual Django ↔ SvelteKit", () => {
       // 3,69% no shell. Isso é o achado; transformá-lo em "não medi" perdia a
       // informação. O que separa "esparso" de "não renderizou" são as guardas
       // acima, que olham o que a página DIZ.
+      const regioes = medirRegioes(django.png, svelte.png, rectsDeRegiao);
+
       assertVisualParity({
         id: route.id,
         djangoShot: django.png,
         svelteShot: svelte.png,
-        maxDiffPixelRatio: route.maxDiffPixelRatio,
+        maxDiffPixelRatio: tetoDaRota(route.id, route.maxDiffPixelRatio),
         report: (outcome) => {
           const inkDjango = inkRatio(django.png);
           const inkSvelte = inkRatio(svelte.png);
@@ -458,6 +572,9 @@ test.describe("Paridade visual Django ↔ SvelteKit", () => {
             contentBalance: balance,
             inkDjango,
             inkSvelte,
+            regioes: Object.fromEntries(
+              regioes.map(({ nome, resultado }) => [nome, resultado?.ratio ?? null]),
+            ),
           });
           const suspeito =
             outcome.withinThreshold && balance < EQUILIBRIO_SUSPEITO
@@ -469,10 +586,30 @@ test.describe("Paridade visual Django ↔ SvelteKit", () => {
           console.log(
             `${formatParityLine(outcome)} · tinta Django ${formatRatio(inkDjango)} ` +
               `vs shell ${formatRatio(inkSvelte)} ` +
-              `(equilíbrio ${formatRatio(balance)})${suspeito}`,
+              `(equilíbrio ${formatRatio(balance)})` +
+              ` · por região: ${formatarRegioes(regioes)}${suspeito}`,
           );
         },
       });
+
+      // ---- Gate por região. ---------------------------------------------- //
+      //
+      // Roda DEPOIS do gate de rota, de propósito: se o diff total estourou, a
+      // mensagem que interessa é a da rota. As regiões entram pra pegar o caso
+      // que o número total esconde — a casca voltar a divergir numa página cujo
+      // corpo melhorou tanto que o total ainda caiu.
+      const tetosDaRota = TETO_POR_REGIAO[route.id] ?? {};
+      for (const { nome, resultado } of regioes) {
+        const teto = tetosDaRota[nome];
+        if (teto === undefined || resultado === null) continue;
+        expect(
+          resultado.ratio,
+          `Região "${nome}" da rota "${route.id}" piorou: ` +
+            `${formatRatio(resultado.ratio)} contra teto de ` +
+            `${formatRatio(teto + MARGEM_DE_RUIDO)}. ` +
+            "Capturas em test-results/visual-parity/.",
+        ).toBeLessThanOrEqual(teto + MARGEM_DE_RUIDO);
+      }
     });
   }
 
@@ -482,19 +619,37 @@ test.describe("Paridade visual Django ↔ SvelteKit", () => {
 
     const dentro = measured.filter((m) => m.withinThreshold).length;
     const pct = ((dentro / measured.length) * 100).toFixed(0);
+    // Passe suspeito só é armadilha pra quem CUMPRE o critério: é o "está em
+    // paridade" que não está. Rota acima do critério já se declara incompleta.
     const suspeitos = measured.filter(
-      (m) => m.withinThreshold && m.contentBalance < EQUILIBRIO_SUSPEITO,
+      (m) => m.ratio <= DEFAULT_MAX_DIFF_RATIO && m.contentBalance < EQUILIBRIO_SUSPEITO,
     );
     const linhas = measured.map((m) => {
-      const rotulo = m.withinThreshold
-        ? m.contentBalance < EQUILIBRIO_SUSPEITO
-          ? "OK?"
-          : "OK "
-        : "FORA";
+      // Três estados, não dois. O ratchet fez "verde" mudar de significado:
+      // passar agora quer dizer "não piorou", que NÃO é "está em paridade".
+      // Um rótulo só para as duas coisas era como o placar de 64% virou
+      // "7 de 11 passam" na cabeça de quem leu.
+      //
+      //   PAR  — cumpre o critério do 4.I (<=5%): está em paridade.
+      //   ract — dentro do próprio teto do ratchet, mas acima do critério:
+      //          não regrediu, e também não chegou.
+      //   FORA — passou do próprio teto: regressão, conserta antes de seguir.
+      const rotulo = !m.withinThreshold
+        ? "FORA"
+        : m.ratio <= DEFAULT_MAX_DIFF_RATIO
+          ? m.contentBalance < EQUILIBRIO_SUSPEITO
+            ? "PAR?"
+            : "PAR "
+          : "ract";
+      const porRegiao = Object.entries(m.regioes ?? {})
+        .map(([nome, ratio]) => `${nome} ${ratio === null ? "  n/d" : formatRatio(ratio).padStart(7)}`)
+        .join("  ");
       return (
         `  ${rotulo} ${m.id.padEnd(20)} diff ${formatRatio(m.ratio).padStart(7)}` +
+        `   teto ${formatRatio(m.maxDiffPixelRatio).padStart(7)}` +
         `   equilíbrio ${formatRatio(m.contentBalance).padStart(7)}` +
-        `   tinta ${formatRatio(m.inkDjango).padStart(7)} / ${formatRatio(m.inkSvelte).padStart(7)}`
+        `   tinta ${formatRatio(m.inkDjango).padStart(7)} / ${formatRatio(m.inkSvelte).padStart(7)}` +
+        (porRegiao ? `\n       └─ ${porRegiao}` : "")
       );
     });
     const incompleto =
@@ -514,9 +669,12 @@ test.describe("Paridade visual Django ↔ SvelteKit", () => {
           " — colunas: diff de pixels · equilíbrio de densidade · tinta Django/shell:",
         ...linhas,
         "",
-        `[paridade] ${dentro} de ${measured.length} rotas medidas dentro do ` +
-          `threshold de ${(DEFAULT_MAX_DIFF_RATIO * 100).toFixed(0)}% (${pct}%). ` +
-          "Critério do Sub-marco 4.I: >=95%.",
+        `[paridade] ${dentro} de ${measured.length} rotas dentro do próprio teto ` +
+          `do ratchet (${pct}%). O teto de cada rota é o valor MEDIDO, não o ` +
+          `critério: verde aqui significa "não piorou", não "está em paridade". ` +
+          `O critério do Sub-marco 4.I segue sendo <=${(DEFAULT_MAX_DIFF_RATIO * 100).toFixed(0)}% ` +
+          "em >=95% das rotas — hoje: " +
+          `${measured.filter((m) => m.ratio <= DEFAULT_MAX_DIFF_RATIO).length} de ${measured.length}.`,
         incompleto,
         suspeitos.length > 0
           ? `[paridade] ATENÇÃO: ${suspeitos.length} das ${dentro} rotas dentro do ` +

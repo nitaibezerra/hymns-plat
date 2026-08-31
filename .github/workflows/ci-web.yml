@@ -211,10 +211,15 @@ jobs:
       # frente que mexe nas specs adiciona uma spec sem abrir o YAML, e quem
       # roda na máquina roda EXATAMENTE o que o CI roda. A lista lá é explícita
       # e as ausências são deliberadas:
-      #   - `visual-parity.spec.ts` e `player-persists.spec.ts` dependem de
-      #     dados do banco de dev (`o-justiceiro`, o usuário `nitaibezerra`)
-      #     que o `seed_e2e` não cria. Num banco de CI recém-semeado eles
-      #     falhariam por ausência de dado, não por regressão.
+      #   - `player-persists.spec.ts` depende de dados do banco de dev
+      #     (`o-justiceiro`, o usuário `nitaibezerra`) que o `seed_e2e` não
+      #     cria. Num banco de CI recém-semeado ele falharia por ausência de
+      #     dado, não por regressão.
+      #   - `visual-parity.spec.ts` NÃO depende mais disso — este comentário
+      #     ficou obsoleto quando a suíte passou a usar a fixture
+      #     `e2e-paridade` do `seed_e2e` (o default de `_helpers/seed-fixture`).
+      #     Ele roda logo abaixo, num passo próprio e não bloqueante, pelo
+      #     motivo explicado lá.
       #   - `tests/e2e/_helpers` entra porque são testes de contrato que não
       #     precisam de servidor nenhum e HOJE não rodam em CI (o
       #     `vite.config.ts` exclui `tests/e2e/**` do Vitest, então o Playwright
@@ -271,6 +276,44 @@ jobs:
             }
             console.log("OK — a suíte E2E executou de verdade.");
           '
+
+      # --- paridade visual (medição, NÃO bloqueia) ------------------------ #
+      # Roda DEPOIS do passo que prova que as specs executaram, porque aquele
+      # passo lê `test-results/e2e-resultados.json` e uma segunda corrida do
+      # Playwright mexe no mesmo diretório.
+      #
+      # `continue-on-error` de propósito, e não por indecisão:
+      #
+      # 1. **O veredito ainda é negativo.** 4 das 11 rotas estão acima do
+      #    critério de 5% do Sub-marco 4.I (`hymnbook-indice` 59,65%,
+      #    `hinarios-list` 48,24%, `home` 9,47%, `notifications` 8,38%). Um gate
+      #    que reprova sempre não detecta regressão, só produz ruído — e ensina
+      #    a ignorar o vermelho.
+      # 2. **O ratchet está fixado com números medidos em macOS.** A
+      #    rasterização de fonte do runner Linux é outra, e eu não tenho como
+      #    saber daqui de quanto. Fixar um gate obrigatório sobre uma linha de
+      #    base que nunca rodou na máquina do gate é plantar exatamente a
+      #    armadilha que este projeto já pagou duas vezes (o `paths-ignore` +
+      #    required check, o `setup-ffmpeg` flake).
+      #
+      # O caminho: rodar assim por algumas corridas, ler os números REAIS do CI
+      # na tabela do log, refixar `TETO_POR_ROTA`/`TETO_POR_REGIAO` com eles, e
+      # só então promover a bloqueante. Está escrito no plano.
+      - name: Medir paridade visual (informativo)
+        working-directory: web
+        continue-on-error: true
+        run: pnpm test:e2e:parity
+
+      # Sempre, não só em falha: numa medição os artefatos SÃO o produto. Sem os
+      # PNGs de diff, a tabela diz quanto divergiu e não diz o quê.
+      - name: Subir capturas e diffs da paridade
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paridade-visual-${{ github.run_id }}-${{ github.run_attempt }}
+          path: web/test-results/visual-parity/
+          retention-days: 7
+          if-no-files-found: warn
 
       # --- diagnóstico ---------------------------------------------------- #
       # Sem isto, depurar falha de E2E em CI é adivinhação: o relatório traz
