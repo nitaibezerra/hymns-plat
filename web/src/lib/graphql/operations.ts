@@ -68,11 +68,23 @@ export const HYMNBOOK_DETAIL_QUERY = `
       name
       slug
       isPublished
+      introName
+      ownerName
+      description
+      coverImage
+      displayAccent
+      stats {
+        hymnsTotal
+        audiosApproved
+      }
       hymns {
         id
         number
         title
         body
+        style
+        section
+        hasApprovedAudio
       }
     }
   }
@@ -218,6 +230,26 @@ export const HYMN_DETAIL_QUERY = `
         durationSeconds
         isApproved
         uploadedBy { id username }
+      }
+    }
+  }
+`;
+
+/**
+ * Áudios aprovados de UM hino, buscados sob demanda.
+ *
+ * Existe para o botão ▶ do índice do hinário: pedir a URL do áudio de todos os
+ * hinos no carregamento seria N+1 (o índice de "O Cruzeirinho" tem 160
+ * linhas), então o índice pede só `hasApprovedAudio` e busca a URL no clique.
+ */
+export const HYMN_AUDIOS_QUERY = `
+  query HymnAudios($pk: UUID!) {
+    hymn(pk: $pk) {
+      id
+      audios {
+        id
+        url
+        title
       }
     }
   }
