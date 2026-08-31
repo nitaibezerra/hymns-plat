@@ -145,9 +145,32 @@
   .empty {
     color: var(--color-text-muted);
   }
+  /*
+   * Grade dos cards, alinhada ao monolito na Fase 4 da paridade visual.
+   *
+   * Era `repeat(auto-fill, minmax(260px, 1fr))`, que no container de 1152px dá
+   * QUATRO colunas; `home.html` e `hymnbook_list.html` usam
+   * `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6`, ou seja três colunas
+   * fixas no desktop. Com o card agora em `aspect-[3/4]`, o número de colunas
+   * define a altura de tudo — quatro colunas deixavam cada card ~25% menor que
+   * o do Django, e nenhum elemento da página caía na mesma linha.
+   *
+   * Os breakpoints são os do Tailwind: 1 coluna até 640px, 2 até 1024px, 3
+   * acima.
+   */
   .grid {
     display: grid;
-    gap: 1rem;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1.5rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 40rem) {
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 64rem) {
+    .grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
   }
 </style>

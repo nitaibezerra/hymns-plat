@@ -27,6 +27,13 @@ export interface HymnBookSummary {
   name: string;
   slug: string;
   isPublished: boolean;
+  /* Campos do card, portados na Fase 4 da paridade visual. `displayAccent` é
+     o gradiente; `ownerName`, `createdAt` e `coverImage` alimentam autor, selo
+     "EST. AAAA" e capa. Ver `templates/_partials/_hymnbook_card.html`. */
+  ownerName: string | null;
+  createdAt: string | null;
+  coverImage: string | null;
+  displayAccent: string | null;
   stats: HymnBookSummaryStats;
 }
 

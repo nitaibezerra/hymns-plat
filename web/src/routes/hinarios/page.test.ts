@@ -22,11 +22,23 @@ function fakeFetch<T>(payload: T, status = 200) {
 
 const STATS = { hymnsTotal: 10, hymnsReviewed: 5, audiosApproved: 2 };
 
+/**
+ * Campos do card portados na Fase 4 da paridade visual. Declarados aqui num
+ * lugar só porque todas as fixtures os espalham — e o tipo os exige, o que é o
+ * ponto: fixture que não reflete o dado real esconde divergência de contrato.
+ */
+const CARD = {
+  ownerName: "Mestre Irineu",
+  createdAt: "2026-01-01T00:00:00Z",
+  coverImage: null,
+  displayAccent: "#1F5C4D",
+};
+
 const SAMPLE_HYMNBOOKS = [
-  { id: "1", name: "O Cruzeiro", slug: "cruzeiro", isPublished: true, stats: STATS },
-  { id: "2", name: "O Justiceiro", slug: "justiceiro", isPublished: true, stats: STATS },
-  { id: "3", name: "Nova Era", slug: "nova-era", isPublished: true, stats: STATS },
-  { id: "4", name: "Estação", slug: "estacao", isPublished: true, stats: STATS },
+  { id: "1", name: "O Cruzeiro", slug: "cruzeiro", isPublished: true, ...CARD, stats: STATS },
+  { id: "2", name: "O Justiceiro", slug: "justiceiro", isPublished: true, ...CARD, stats: STATS },
+  { id: "3", name: "Nova Era", slug: "nova-era", isPublished: true, ...CARD, stats: STATS },
+  { id: "4", name: "Estação", slug: "estacao", isPublished: true, ...CARD, stats: STATS },
 ];
 
 describe("hinarios load function", () => {
@@ -103,6 +115,7 @@ describe("+page.svelte — badge rascunho (ciclo 4C.5)", () => {
     name: "Rascunho do Daime",
     slug: "rascunho-daime",
     isPublished: false,
+    ...CARD,
     stats: STATS,
   };
   const publishedBook = {
@@ -110,6 +123,7 @@ describe("+page.svelte — badge rascunho (ciclo 4C.5)", () => {
     name: "O Cruzeiro",
     slug: "cruzeiro",
     isPublished: true,
+    ...CARD,
     stats: STATS,
   };
 

@@ -46,6 +46,10 @@ const FEATURED_PAYLOAD = {
         name: "O Cruzeiro",
         slug: "cruzeiro",
         isPublished: true,
+        ownerName: "Mestre Irineu",
+        createdAt: "2026-01-01T00:00:00Z",
+        coverImage: null,
+        displayAccent: "#1F5C4D",
         stats: { hymnsTotal: 132, hymnsReviewed: 80, audiosApproved: 40 },
       },
       {
@@ -53,6 +57,10 @@ const FEATURED_PAYLOAD = {
         name: "O Justiceiro",
         slug: "justiceiro",
         isPublished: true,
+        ownerName: "Mestre Irineu",
+        createdAt: "2026-01-01T00:00:00Z",
+        coverImage: null,
+        displayAccent: "#1F5C4D",
         stats: { hymnsTotal: 56, hymnsReviewed: 50, audiosApproved: 20 },
       },
       {
@@ -60,6 +68,10 @@ const FEATURED_PAYLOAD = {
         name: "Nova Era",
         slug: "nova-era",
         isPublished: true,
+        ownerName: "Mestre Irineu",
+        createdAt: "2026-01-01T00:00:00Z",
+        coverImage: null,
+        displayAccent: "#1F5C4D",
         stats: { hymnsTotal: 99, hymnsReviewed: 30, audiosApproved: 12 },
       },
       {
@@ -67,6 +79,10 @@ const FEATURED_PAYLOAD = {
         name: "Estrela Brilhante",
         slug: "estrela-brilhante",
         isPublished: true,
+        ownerName: "Mestre Irineu",
+        createdAt: "2026-01-01T00:00:00Z",
+        coverImage: null,
+        displayAccent: "#1F5C4D",
         stats: { hymnsTotal: 70, hymnsReviewed: 70, audiosApproved: 70 },
       },
       {
@@ -74,6 +90,10 @@ const FEATURED_PAYLOAD = {
         name: "Mestre Irineu",
         slug: "mestre-irineu",
         isPublished: true,
+        ownerName: "Mestre Irineu",
+        createdAt: "2026-01-01T00:00:00Z",
+        coverImage: null,
+        displayAccent: "#1F5C4D",
         stats: { hymnsTotal: 30, hymnsReviewed: 30, audiosApproved: 30 },
       },
       {
@@ -81,6 +101,10 @@ const FEATURED_PAYLOAD = {
         name: "Padrinho Sebastião",
         slug: "padrinho-sebastiao",
         isPublished: true,
+        ownerName: "Mestre Irineu",
+        createdAt: "2026-01-01T00:00:00Z",
+        coverImage: null,
+        displayAccent: "#1F5C4D",
         stats: { hymnsTotal: 12, hymnsReviewed: 6, audiosApproved: 3 },
       },
     ],
@@ -147,20 +171,33 @@ describe("+page.svelte (home)", () => {
     editorPendingCount: 0,
   };
 
-  it("renderiza bloco hero com slogan e CTA 'Explorar hinários'", () => {
+  it("renderiza bloco hero com o slogan", () => {
     render(Page, { props: { data: baseData } });
     const hero = screen.getByTestId("home-hero");
     expect(hero).toBeInTheDocument();
     expect(hero.textContent).toMatch(/com firmeza/i);
-    const cta = within(hero).getByRole("link", { name: /explorar hinários/i });
-    expect(cta.getAttribute("href")).toBe("/hinarios");
   });
 
-  it("aponta o CTA 'Buscar hinos' pra /busca, a rota que existe de fato", () => {
+  it("o CTA do hero é um CAMPO DE BUSCA, não dois botões", () => {
+    // Paridade com `templates/hymns/home.html`: o monolito oferece uma barra de
+    // busca grande em pílula. A SPA oferecia os links "Explorar hinários" e
+    // "Buscar hinos" — conteúdo diferente, não só estilo diferente, e os dois
+    // testes que exigiam esses links defendiam a divergência.
     render(Page, { props: { data: baseData } });
     const hero = screen.getByTestId("home-hero");
-    const cta = within(hero).getByRole("link", { name: /buscar hinos/i });
-    expect(cta.getAttribute("href")).toBe("/busca");
+    const campo = within(hero).getByLabelText(/buscar hinos, hinários ou trechos/i);
+    expect(campo.getAttribute("name")).toBe("q");
+    const form = campo.closest("form");
+    expect(form?.getAttribute("action")).toBe("/busca");
+    expect(form?.getAttribute("method")).toBe("get");
+    expect(within(hero).getByRole("button", { name: "Buscar" })).toBeInTheDocument();
+    expect(within(hero).queryByRole("link", { name: /explorar hinários/i })).toBeNull();
+  });
+
+  it("quebra o título do hero em TRÊS linhas, como o monolito", () => {
+    render(Page, { props: { data: baseData } });
+    // `Hinários para ouvir, <br> estudar e cantar<br> <em>com firmeza.</em>`
+    expect(screen.getByTestId("home-hero-title").querySelectorAll("br")).toHaveLength(2);
   });
 
   it("aplica font-display no título do hero", () => {

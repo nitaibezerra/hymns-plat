@@ -29,6 +29,21 @@
 
   import type { LayoutData } from "./+layout";
 
+  /**
+   * Rotas que dispensam o container do `<main>` porque já trazem o seu.
+   *
+   * No monolito o `<main>` não tem container nenhum: cada template traz
+   * `max-w-6xl mx-auto px-6`, e é isso que permite faixa de cor de borda a
+   * borda — o hero da home é `bg-cream-deep` full-bleed com o container POR
+   * DENTRO. Aqui o container mora no `<main>`, então nenhuma rota consegue
+   * sangrar.
+   *
+   * Esta lista é o LIVRO-CAIXA da migração: cada rota portada pela Fase 4 entra
+   * aqui e passa a mandar no próprio container. Quando todas estiverem,
+   * o container sai do `<main>` de vez e a lista morre com ele.
+   */
+  const ROTAS_SEM_CONTAINER = new Set(["/"]);
+
   let {
     children,
     data,
@@ -54,7 +69,8 @@
   -->
   <main
     id="main"
-    class="content-area min-h-[calc(100vh-12rem)]"
+    class="min-h-[calc(100vh-12rem)]"
+    class:content-area={!ROTAS_SEM_CONTAINER.has(page.route.id ?? "")}
     data-testid="content-area"
   >
     {#if children}{@render children()}{/if}
