@@ -123,10 +123,11 @@ describe("load do dashboard editorial (5B.2)", () => {
  */
 function buildData(
   overrides: Partial<EditorDashboardData> = {},
-): EditorDashboardData & { editor: null; currentUser: null } {
+): EditorDashboardData & { editor: null; currentUser: null; editorPendingCount: number } {
   return {
     editor: null,
     currentUser: null,
+    editorPendingCount: 0,
     stats: {
       totalHinarios: 4,
       pendingHymns: 37,

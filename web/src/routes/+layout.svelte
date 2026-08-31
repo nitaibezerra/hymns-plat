@@ -21,6 +21,8 @@
 
   import type { Snippet } from "svelte";
 
+  import { page } from "$app/state";
+
   import AudioPlayer from "$lib/components/AudioPlayer.svelte";
   import Footer from "$lib/components/Footer.svelte";
   import Header from "$lib/components/Header.svelte";
@@ -37,9 +39,24 @@
 </script>
 
 <div class="app-shell">
-  <Header currentUser={data.currentUser} />
+  <Header
+    currentUser={data.currentUser}
+    pathname={page.url.pathname}
+    editorPendingCount={data.editorPendingCount}
+    isEditor={data.currentUser?.isEditor ?? false}
+  />
 
-  <main class="content-area" data-testid="content-area">
+  <!--
+    `id="main"` é o destino do link "Pular para conteúdo" do header, e
+    `min-h-[calc(100vh-12rem)]` é o do monolito (`templates/base.html`) — sem
+    ele páginas curtas deixam o rodapé subir e a comparação de pixel pega a
+    diferença de altura como se fosse divergência de conteúdo.
+  -->
+  <main
+    id="main"
+    class="content-area min-h-[calc(100vh-12rem)]"
+    data-testid="content-area"
+  >
     {#if children}{@render children()}{/if}
   </main>
 
@@ -56,11 +73,24 @@
     flex-direction: column;
     min-height: 100vh;
   }
+  /*
+   * Container das páginas. A largura já batia com o monolito por coincidência
+   * (72rem == `max-w-6xl`, que é o que `home.html`, `hymnbook_list.html`,
+   * `profile.html` e `hymn_detail.html` usam); o padding é que divergia. Agora
+   * é `px-6 py-10`, o valor da maioria das páginas de lá.
+   *
+   * DÍVIDA PARA A FASE 4: no monolito o `<main>` não tem container nenhum —
+   * cada página traz o seu, o que permite faixa de cor full-bleed (o hero da
+   * home é `bg-cream-deep` de borda a borda, com o container POR DENTRO). Aqui
+   * o container está no `<main>`, então nenhuma rota consegue sangrar. Enquanto
+   * a home não for portada isso não custa nada; ao portá-la, o container sobe
+   * pra dentro de cada rota.
+   */
   .content-area {
     flex: 1;
     margin: 0 auto;
     max-width: 72rem;
-    padding: 1.5rem 1.25rem;
+    padding: 2.5rem 1.5rem;
     width: 100%;
   }
   .player-slot {

@@ -136,6 +136,7 @@ describe("perfil/seguindo load function", () => {
 function buildData(overrides: Record<string, unknown> = {}) {
   return {
     currentUser: null,
+    editorPendingCount: 0,
     username: "ana",
     following: [
       { id: "u2", username: "bia", email: "b@x" },

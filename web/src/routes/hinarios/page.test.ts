@@ -57,6 +57,7 @@ describe("+page.svelte (lista de hinários)", () => {
     hymnbooks: SAMPLE_HYMNBOOKS,
     error: null,
     currentUser: null,
+    editorPendingCount: 0,
   };
 
   it("renderiza um card por hinário", () => {
@@ -115,7 +116,7 @@ describe("+page.svelte — badge rascunho (ciclo 4C.5)", () => {
   it("usuário anônimo NÃO vê badge mesmo se rascunho aparecer na lista", () => {
     render(Page, {
       props: {
-        data: { hymnbooks: [draftBook, publishedBook], error: null, currentUser: null },
+        data: { hymnbooks: [draftBook, publishedBook], error: null, currentUser: null, editorPendingCount: 0 },
       },
     });
     expect(screen.queryByTestId("draft-badge")).toBeNull();
@@ -127,7 +128,8 @@ describe("+page.svelte — badge rascunho (ciclo 4C.5)", () => {
         data: {
           hymnbooks: [draftBook, publishedBook],
           error: null,
-          currentUser: { id: "u1", username: "editor", email: "e@x.com" },
+          currentUser: { id: "u1", username: "editor", email: "e@x.com", isEditor: true },
+          editorPendingCount: 0,
         },
       },
     });

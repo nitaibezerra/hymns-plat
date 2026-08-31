@@ -88,6 +88,7 @@ export const CURRENT_USER_QUERY = `
       email
       isEditor
     }
+    editorPendingBookCount
   }
 `;
 

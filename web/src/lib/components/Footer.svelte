@@ -1,65 +1,29 @@
 <script lang="ts">
   /**
    * Marco 4.B — Ciclo 4B.6.
+   * Fase 2 da paridade visual (2026-08-31) — porte de
+   * `templates/_partials/_footer.html`.
    *
-   * Footer global do shell. Créditos + link pro GitHub do projeto.
-   * Sem props — conteúdo estático.
+   * Duas colunas: assinatura em mono maiúsculo tracked à esquerda, epígrafe em
+   * serifa itálica à direita. Substitui a versão anterior ("hinária · Portal de
+   * Hinários do Santo Daime" + link do GitHub), que era conteúdo diferente, não
+   * só estilo diferente.
+   *
+   * O link do GitHub saiu porque o monolito não o tem: paridade é o critério
+   * aqui, e um link a mais é um link a mais de diff. Se ele fizer falta, entra
+   * nos DOIS lados no mesmo commit.
    */
 </script>
 
-<footer class="site-footer" data-testid="site-footer">
-  <div class="footer-inner">
-    <p class="credits">
-      <span class="brand">hinária</span>
-      · Portal de Hinários do Santo Daime
-    </p>
-    <p class="links">
-      <a
-        href="https://github.com/nitaibezerra/hyms-platform"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="GitHub do projeto"
-      >
-        GitHub
-      </a>
-    </p>
+<footer
+  class="mt-16 border-t border-ink/10 dark:border-cream/10"
+  data-no-print
+  data-testid="site-footer"
+>
+  <div
+    class="max-w-7xl mx-auto px-6 py-8 text-sm text-ink-soft flex flex-wrap gap-4 items-center justify-between"
+  >
+    <p class="font-mono text-xs tracking-[0.18em] uppercase">HINARIA · HINARIA.COM.BR</p>
+    <p class="font-serif italic">"Hinários para ouvir, estudar e cantar com firmeza."</p>
   </div>
 </footer>
-
-<style>
-  .site-footer {
-    background: var(--color-bg);
-    border-top: 1px solid var(--color-border-soft);
-    color: var(--color-text-muted);
-    font-family: var(--font-sans);
-    font-size: 0.8125rem;
-  }
-  .footer-inner {
-    align-items: center;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    justify-content: space-between;
-    margin: 0 auto;
-    max-width: 72rem;
-    padding: 1.25rem;
-  }
-  .credits {
-    margin: 0;
-  }
-  .brand {
-    color: var(--color-text);
-    font-family: var(--font-display);
-    font-weight: 600;
-  }
-  .links {
-    margin: 0;
-  }
-  .links a {
-    color: var(--color-accent);
-    text-decoration: none;
-  }
-  .links a:hover {
-    text-decoration: underline;
-  }
-</style>

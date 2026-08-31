@@ -161,6 +161,7 @@ describe("perfil/seguidores load function", () => {
 function buildData(overrides: Record<string, unknown> = {}) {
   return {
     currentUser: null,
+    editorPendingCount: 0,
     username: "ana",
     followers: [
       { id: "u2", username: "bia", email: "b@x" },
