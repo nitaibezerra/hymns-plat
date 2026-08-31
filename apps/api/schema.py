@@ -23,9 +23,10 @@ from apps.hymns.editor_views import (
     _parse_sort,
     _pending_audios_for,
     _sort_expression,
+    editor_pending_book_count,
 )
 from apps.hymns.featured import hourly_featured
-from apps.hymns.search import build_book_search_qs, build_hymn_search_qs
+from apps.hymns.search import book_headline, build_book_search_qs, build_hymn_search_qs
 from apps.users import models as user_models
 
 from .context import user_from_info
@@ -36,7 +37,9 @@ from .permissions import is_authenticated, require
 from .types import (
     EditorDashboardStatsType,
     HymnAudioType,
+    HymnBookSearchHitType,
     HymnBookType,
+    HymnSearchHitType,
     HymnType,
     NotificationType,
     OCRTaskType,
@@ -133,21 +136,77 @@ class Query:
         return hourly_featured(visible_qs, n=6)
 
     @strawberry.field
-    def search(self, info: Info, q: str, kind: SearchKind = SearchKind.ALL) -> SearchResultsType:
+    def search(
+        self,
+        info: Info,
+        q: str,
+        kind: SearchKind = SearchKind.ALL,
+        in_hymnbook: str = "",
+    ) -> SearchResultsType:
         """Busca unificada hinos/hinários.
 
         Reusa `apps.hymns.search.build_*_search_qs` (FTS + trigram no Postgres)
-        — mesma lógica de `apps/hymns/views.py::search_view`. `kind` zera o
-        bucket que não foi pedido. Visibilidade segue `HymnBook.visible_to`.
+        — mesma lógica de `apps/hymns/views.py::search_view`, que consome os
+        mesmos builders. `kind` zera o bucket que não foi pedido. Visibilidade
+        segue `HymnBook.visible_to`.
+
+        Devolve `hymnHits`/`hymnbookHits` em vez de listas cruas porque cada
+        resultado carrega `headline` (o trecho da letra com `<mark>`) e `rank`.
+        Sem isso a busca da SPA mostrava só títulos, enquanto a do monolito
+        mostrava o verso onde o termo aparece — é a divergência que fazia a
+        rota `busca` render 169 linhas de texto contra 521 do Django.
+
+        Os tetos (50 hinos, 25 hinários) são os do monolito, e as contagens das
+        abas de lá também são derivadas das listas JÁ truncadas — então
+        `hymnHits.length` é o mesmo número que o Django imprime em
+        "Em hinos (N)".
+
+        `in_hymnbook` é um slug e filtra só o bucket de hinos. Divergência
+        deliberada da view HTML: lá um slug inexistente ou invisível é
+        IGNORADO (o filtro não se aplica); aqui ele filtra sobre um queryset já
+        gateado por visibilidade, então devolve lista vazia. Preferimos vazio a
+        um filtro que silenciosamente não filtra.
         """
         user = user_from_info(info)
-        hymns: list = []
-        hymnbooks: list = []
+        hymn_hits: list[HymnSearchHitType] = []
+        hymnbook_hits: list[HymnBookSearchHitType] = []
         if kind in (SearchKind.ALL, SearchKind.HYMN):
-            hymns = list(build_hymn_search_qs(q, user)[:50])
+            hymn_hits = [
+                HymnSearchHitType(
+                    hymn=hymn,
+                    # `headline` pode vir vazio quando o casamento foi por
+                    # trigram no título e não pelo texto.
+                    headline=getattr(hymn, "headline", "") or "",
+                    rank=float(getattr(hymn, "rank", 0.0) or 0.0),
+                )
+                for hymn in build_hymn_search_qs(q, user, in_hymnbook_slug=in_hymnbook)[:50]
+            ]
         if kind in (SearchKind.ALL, SearchKind.HYMNBOOK):
-            hymnbooks = list(build_book_search_qs(q, user)[:25])
-        return SearchResultsType(hymns=hymns, hymnbooks=hymnbooks)
+            hymnbook_hits = [
+                HymnBookSearchHitType(
+                    hymnbook=book,
+                    headline=book_headline(book),
+                    rank=float(getattr(book, "name_sim", 0.0) or 0.0),
+                )
+                for book in build_book_search_qs(q, user)[:25]
+            ]
+        return SearchResultsType(hymn_hits=hymn_hits, hymnbook_hits=hymnbook_hits)
+
+    @strawberry.field(name="editorPendingBookCount")
+    def editor_pending_book_count(self, info: Info) -> int:
+        """Badge da CTA "Fila de revisão" no header: hinários com hino pendente.
+
+        Conta HINÁRIOS, não hinos. Paridade com `editor_pending_count` do
+        context processor `apps.hymns.context_processors.editor_workspace`, que
+        alimenta o mesmo badge no monolito — os dois chamam a mesma função.
+
+        SEM gate que levanta, de propósito: devolve 0 para anônimo e para quem
+        não é editor. Quem consome é o layout global do shell, em toda página;
+        um `errors` aqui derrubaria o header inteiro para visitante anônimo, que
+        é o caso mais comum do site. Zero não vaza nada — é o mesmo que o
+        template do monolito renderiza (nada).
+        """
+        return editor_pending_book_count(user_from_info(info))
 
     @strawberry.field(name="editorHymnbooks")
     def editor_hymnbooks(

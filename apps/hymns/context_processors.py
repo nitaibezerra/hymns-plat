@@ -23,20 +23,12 @@ def editor_workspace(request):
         return {}
 
     # Import local para evitar custo em settings/migrations e ciclo com models.
-    from .editor_views import _editor_visible_books
-    from .models import Hymn
+    # A contagem vive em `editor_views` porque o resolver GraphQL
+    # `Query.editorPendingBookCount` lê o MESMO número — o header do monolito e
+    # o da SPA precisam mostrar o mesmo badge.
+    from .editor_views import editor_pending_book_count
 
-    visible_ids = list(_editor_visible_books(user).values_list("pk", flat=True))
-    if not visible_ids:
-        return {"editor_can_review": True, "editor_pending_count": 0}
-
-    pending_book_ids = (
-        Hymn.objects.filter(hymn_book_id__in=visible_ids)
-        .exclude(review_status=Hymn.ReviewStatus.REVIEWED)
-        .values_list("hymn_book_id", flat=True)
-        .distinct()
-    )
     return {
         "editor_can_review": True,
-        "editor_pending_count": pending_book_ids.count(),
+        "editor_pending_count": editor_pending_book_count(user),
     }

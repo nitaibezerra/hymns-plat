@@ -90,6 +90,18 @@ type HymnBookReviewProgressType {
   audioPct: Int!
 }
 
+type HymnBookSearchHitType {
+  hymnbook: HymnBookType!
+
+  """
+  Descrição truncada. Diferente do headline de hino, NÃO tem `<mark>`: a descrição não entra em `search_vector`, então não há o que o Postgres destacar. Texto puro.
+  """
+  headline: String!
+
+  """Similaridade trigram do nome (0..1)."""
+  rank: Float!
+}
+
 type HymnBookStatsType {
   hymnsTotal: Int!
   hymnsReviewed: Int!
@@ -110,6 +122,7 @@ type HymnBookType {
   createdAt: DateTime!
   syncVersion: Int!
   coverImage: String
+  displayAccent: String!
   publishedBy: UserType
   reviewProgress: HymnBookReviewProgressType!
   stats: HymnBookStatsType!
@@ -137,6 +150,20 @@ type HymnRevisionType {
   fieldDiff: JSON!
   revisedAt: DateTime!
   revisedBy: UserType
+}
+
+type HymnSearchHitType {
+  hymn: HymnType!
+
+  """
+  Trecho da letra com o termo envolto em `<mark>`, calculado pelo Postgres (`ts_headline`). Contém HTML: renderize como HTML, não como texto. String vazia quando o casamento foi só no título.
+  """
+  headline: String!
+
+  """
+  Relevância full-text (0..1). Serve pra intercalar hinos e hinários numa lista única, como faz a aba 'Tudo' do monolito.
+  """
+  rank: Float!
 }
 
 type HymnType {
@@ -297,7 +324,8 @@ type Query {
   userProfile(username: String!): UserProfileType
   notifications(unreadOnly: Boolean! = false): [NotificationType!]!
   hourlyFeatured: [HymnBookType!]!
-  search(q: String!, kind: SearchKind! = ALL): SearchResultsType!
+  search(q: String!, kind: SearchKind! = ALL, inHymnbook: String! = ""): SearchResultsType!
+  editorPendingBookCount: Int!
   editorHymnbooks(sort: [SortInput!] = null, priority: String! = "all"): [HymnBookType!]!
   editorDashboardStats: EditorDashboardStatsType!
   pendingAudios: [HymnAudioType!]!
@@ -325,8 +353,10 @@ enum SearchKind {
 }
 
 type SearchResultsType {
-  hymns: [HymnType!]!
-  hymnbooks: [HymnBookType!]!
+  hymnHits: [HymnSearchHitType!]!
+  hymnbookHits: [HymnBookSearchHitType!]!
+  hymns: [HymnType!]! @deprecated(reason: "Use `hymnHits`, que traz o mesmo hino com `headline` e `rank`. Este campo existe só pra não quebrar a tela de busca da SPA enquanto ela migra; remover depois.")
+  hymnbooks: [HymnBookType!]! @deprecated(reason: "Use `hymnbookHits`, que traz o mesmo hinário com `headline` e `rank`. Este campo existe só pra não quebrar a tela de busca da SPA enquanto ela migra; remover depois.")
 }
 
 union SetReviewStatusResult = HymnType | PermissionDeniedError | NotFoundError
