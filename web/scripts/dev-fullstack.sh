@@ -84,6 +84,10 @@ SEED_E2E_ARGS="${SEED_E2E_ARGS:-}"
 SEED_COMMAND="uv run python manage.py seed_e2e ${SEED_E2E_ARGS}"
 HINARIA_E2E_EDITOR_USERNAME="${HINARIA_E2E_EDITOR_USERNAME:-e2e-editor}"
 HINARIA_E2E_VIEWER_USERNAME="${HINARIA_E2E_VIEWER_USERNAME:-e2e-viewer}"
+# O default espelha `DEFAULT_PASSWORD` de
+# `apps/hymns/management/commands/seed_e2e.py` e de
+# `web/tests/e2e/_helpers/seed-fixture.ts`. Mudou lá, muda aqui.
+HINARIA_E2E_PASSWORD_EFETIVA="${HINARIA_E2E_PASSWORD:-e2e-senha-dev}"
 if [[ -n "${HINARIA_E2E_PASSWORD:-}" ]]; then
   HINARIA_E2E_PASSWORD_ORIGEM="ambiente"
 else
@@ -225,7 +229,10 @@ echo "[dev-fullstack] tudo no ar."
 echo "  Django  → http://localhost:$DJANGO_PORT/ (log: $DJANGO_LOG)"
 echo "  Svelte  → http://localhost:$SVELTE_PORT/ (log: $SVELTE_LOG)"
 echo "  Fixture → editor=$HINARIA_E2E_EDITOR_USERNAME comum=$HINARIA_E2E_VIEWER_USERNAME"
-echo "            senha: $HINARIA_E2E_PASSWORD_ORIGEM"
+# Imprimia `$HINARIA_E2E_PASSWORD_ORIGEM`, que é a PROCEDÊNCIA da senha
+# ("ambiente" ou "default-de-dev"), não a senha. Quem lia tentava entrar com
+# "default-de-dev" e tomava LoginError sem entender por quê.
+echo "            senha: $HINARIA_E2E_PASSWORD_EFETIVA (origem: $HINARIA_E2E_PASSWORD_ORIGEM)"
 echo "  Paridade → HINARIA_DJANGO_BASE_URL=http://localhost:$DJANGO_PORT \\"
 echo "             HINARIA_SVELTE_BASE_URL=http://localhost:$SVELTE_PORT \\"
 echo "             pnpm test:e2e:parity"
